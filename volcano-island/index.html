@@ -98,12 +98,12 @@ world.add(beach);
 
 // volcano cone with crater
 const rockMat = new THREE.MeshStandardMaterial({ color:0x6b5a4c, roughness:.95, flatShading:true });
-const cone = new THREE.Mesh(new THREE.ConeGeometry(2.5, 3.1, 9, 1), rockMat);
+const cone = new THREE.Mesh(new THREE.CylinderGeometry(.5, 2.5, 3.1, 9, 1), rockMat);
 cone.position.y = 1.55 + .28; cone.castShadow = true; cone.receiveShadow = true;
 world.add(cone);
 
 const craterRim = new THREE.Mesh(
-  new THREE.TorusGeometry(.62, .3, 8, 12),
+  new THREE.TorusGeometry(.48, .18, 8, 14),
   new THREE.MeshStandardMaterial({ color:0x54463b, roughness:1, flatShading:true })
 );
 craterRim.rotation.x = Math.PI/2;
@@ -112,7 +112,7 @@ craterRim.castShadow = true;
 world.add(craterRim);
 
 const craterPoolMat = new THREE.MeshStandardMaterial({ color:0x1a1210, roughness:.6, emissive:0xff3d00, emissiveIntensity:0 });
-const craterPool = new THREE.Mesh(new THREE.CircleGeometry(.62, 16), craterPoolMat);
+const craterPool = new THREE.Mesh(new THREE.CircleGeometry(.44, 16), craterPoolMat);
 craterPool.rotation.x = -Math.PI/2;
 craterPool.position.y = 3.30;
 world.add(craterPool);
@@ -179,6 +179,7 @@ const flowPoints = [];
 const flowCurve = new THREE.CatmullRomCurve3(flowPoints);
 const lavaRiverMat = new THREE.MeshStandardMaterial({ color:0x2b120a, emissive:0xff4a00, emissiveIntensity:0, roughness:.5 });
 const lavaRiver = new THREE.Mesh(new THREE.TubeGeometry(flowCurve, 40, .16, 6, false), lavaRiverMat);
+lavaRiver.visible = false;
 world.add(lavaRiver);
 
 // eruption particles
@@ -255,6 +256,7 @@ function animate(){
     const k = Math.min(tState / 1.2, 1);
     craterPoolMat.emissiveIntensity = k * 2.6;
     lavaGlow.intensity = k * 5;
+    if (tState > 1.0) lavaRiver.visible = true;
     lavaRiverMat.emissiveIntensity = Math.min(Math.max(tState - 1.2, 0) / 2.5, 1) * 3.2;
     lavaRiverMat.color.setHex(tState > 1.2 ? 0xff5a10 : 0x2b120a);
     shake = Math.min(tState / .8, 1) * .09;
