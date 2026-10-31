@@ -54,7 +54,7 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 const container = document.getElementById('scene');
 const hintEl = document.getElementById('hint');
 const scene = new THREE.Scene();
-scene.fog = new THREE.Fog(0x101a3d, 26, 62);
+scene.fog = new THREE.Fog(0x101a3d, 36, 82);
 
 const camera = new THREE.PerspectiveCamera(44, innerWidth / innerHeight, 0.1, 220);
 const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
@@ -493,7 +493,7 @@ function prepClone(src, targetMax, x, y, z, rotY, tint) {
   });
   block.add(c);
 }
-const nightTint = new THREE.Color(0x8a94c0);   // cool moonlit multiply
+const nightTint = new THREE.Color(0xa8b0d8);   // cool moonlit multiply
 Promise.all(['BirchTree_Dead_1.glb', 'BirchTree_Dead_3.glb', 'Rock_Moss_1.glb',
              'Rock_Moss_2.glb', 'Grass.glb', 'Grass_2.glb', 'Plant_1.glb'].map(loadGLB))
   .then(([birch1, birch3, rock1, rock2, grass, grass2, plant]) => {
@@ -516,6 +516,7 @@ Promise.all(['BirchTree_Dead_1.glb', 'BirchTree_Dead_3.glb', 'Rock_Moss_1.glb',
   });
 
 // pass markers for deploy verification
+// pass 3: fog pushed past camera distance (was eating the cut faces + mycelium), lighter tree tint
 // pass 2: night legibility - moonlit front faces, lifted strata/floor, visible resting mycelium, tighter framing
 // pass 1: first mushroom-forest build - night palette, 3 species, mycelium faces, pulses, bloom cycle
 
