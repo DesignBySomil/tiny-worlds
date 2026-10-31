@@ -159,22 +159,22 @@ floor.receiveShadow = true; block.add(floor);
 
 // ---------- mycelium network on the two visible cut faces ----------
 // flat ribbon segments in the face planes, vertex-colored, pulse-driven
-const MYC_BASE = new THREE.Color(0x3aa88c);
+const MYC_BASE = new THREE.Color(0x1f6a54);   // dim resting glow; pulses carry brightness
 const MYC_GLOW = new THREE.Color(0x86ffd9);
 function buildMyceliumFace(roots) {
   // roots: array of u-coords along the face top edge; returns {mesh, verts:{u,y}[]}
   const segs = [];
   function branch(u, y, ang, w, depth) {
-    if (depth > 5 || y < -3.85 || w < 0.012) return;
-    const len = rand(0.45, 0.85);
+    if (depth > 4 || y < -3.4 || w < 0.014) return;
+    const len = rand(0.4, 0.7);
     const u2 = u + Math.cos(ang) * len, y2 = y - Math.abs(Math.sin(ang)) * len;
     if (Math.abs(u2) > 7.6) return;
     segs.push([u, y, u2, y2, w]);
-    const n = depth < 2 ? 2 : (Math.random() < 0.7 ? 2 : 1);
+    const n = depth < 1 ? 2 : (Math.random() < 0.55 ? 2 : 1);
     for (let i = 0; i < n; i++)
       branch(u2, y2, ang + rand(-0.9, 0.9) + (i === 0 ? -0.25 : 0.25), w * rand(0.62, 0.8), depth + 1);
   }
-  for (const r of roots) branch(r, -0.06, rand(-0.5, 0.5), 0.055, 0);
+  for (const r of roots) branch(r, -0.06, rand(-0.5, 0.5), 0.05, 0);
   // horizontal connectors between sorted roots
   const sr = [...roots].sort((a, b) => a - b);
   for (let i = 0; i + 1 < sr.length; i++) {
@@ -516,6 +516,7 @@ Promise.all(['BirchTree_Dead_1.glb', 'BirchTree_Dead_3.glb', 'Rock_Moss_1.glb',
   });
 
 // pass markers for deploy verification
+// pass 5: mycelium calm-down - dim resting teal, sparser branching, threads off the bottom edge
 // pass 4: mycelium DoubleSide (ribbon winding faced away from camera - network was invisible)
 // pass 3: fog pushed past camera distance (was eating the cut faces + mycelium), lighter tree tint
 // pass 2: night legibility - moonlit front faces, lifted strata/floor, visible resting mycelium, tighter framing
