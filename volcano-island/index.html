@@ -491,6 +491,8 @@ const lavaPts = [];
   }
   lavaPts.push(new THREE.Vector3(-2.4, 0.12, 5.9));
 }
+window.__dbg = () => ({ state, stateT: +stateT.toFixed(2),
+  lavaPts: lavaPts.map(p => [+p.x.toFixed(2), +p.y.toFixed(2), +p.z.toFixed(2)]) });
 const lavaCurve = new THREE.CatmullRomCurve3(lavaPts);
 function buildLavaTube(curve, segs) {
   // proven TubeGeometry frames, then per-ring radius + heat gradient colors
