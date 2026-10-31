@@ -1,0 +1,26 @@
+Build one single self-contained index.html: an interactive low-poly 3D "Volcano Island" tiny-world diorama using Three.js r160 via an importmap (three@0.160.0 from jsdelivr, OrbitControls from three/addons). No external assets, no image files, no webfonts - everything procedural.
+
+CONCEPT: A quiet volcano cone on a square cutaway base of ocean with one fishing hut at its foot. Tap the crater to erupt: lava finds its own path to the sea, ash drifts, then everything cools and green creeps back.
+
+ART DIRECTION (most important - a previous attempt was rejected for looking like dark flat primitives, do better):
+Reference feel: the lush Three.js dioramas of Guronnimo (Jeroen van Welsenes) - a tiny lit oil rig riding out a storm on a square cutaway of ocean. Dense, tactile, hand-crafted; a world small enough to hold in one hand.
+- Atmosphere: warm tropical dusk. Sky gradient peach to coral to soft violet as the page background, with matching scene fog. The scene must be READABLE and rich, never murky.
+- Lighting: warm low sun (directional with soft shadows), cool hemisphere fill from the sky, plus emissive lava glow. ACES filmic tone mapping.
+- The island sits on a SQUARE CUTAWAY BLOCK of ocean: distinct layered strata on the visible sides (deep water, sand shelf, soil, rock), slightly beveled top edge. The cutaway layers are part of the charm - make them beautiful and distinct.
+- Water: translucent teal with gently animated vertex waves and a pale foam ring where water meets sand; subtle emissive shimmer for fake reflections of the dusk sky.
+- The volcano: a graceful cone from faceted geometry with VERTEX COLOR VARIATION (3-4 rock tones: warm basalt brown, grey, rust, umber) - never one flat color. A readable crater bowl with a faint ember glow even at idle.
+- Dense hand-placed detail (this is what makes it feel crafted, not sparse): 12-20 palms of varied height and lean clustered on the green side; scattered rocks; low shrubs; a beach ring with a color gradient into grass; a little driftwood; 2-3 birds circling slowly.
+- The fishing hut: real proportions - stilt posts standing in shallow water, plank walls with slight per-plank color variation, pitched palm-thatch roof, one warm glowing window, a small pier with posts, a tiny rowboat bobbing beside it.
+- Composition: camera starts at a slightly low cinematic three-quarter angle, close enough that the island fills the frame. OrbitControls with damping, limited polar angle, no pan.
+
+INTERACTION (full cycle, re-triggerable):
+- Tap/click the crater: ember fountain particles; a lava stream flows down the cone to the sea (bright emissive orange with animated flow and a point light that lights the scene); ash particles drift on the wind; palms near the lava path scorch (colors darken).
+- After ~30-40s the eruption stops: lava cools to dark basalt (emissive fades), a thin steam wisp rises where lava met the sea.
+- Then regrowth: green gradually creeps back over the scorched ground and the crater ember settles. States: quiet, eruption, cooling, regrowth, quiet again.
+- The hint line at the top changes with the state: "TAP THE CRATER TO AWAKEN THE MOUNTAIN" / "THE VOLCANO ERUPTS INTO THE DUSK SEA" / "THE LAVA COOLS INTO FRESH BASALT" / "LIFE CREEPS BACK UP THE VOLCANIC SOIL".
+
+UI: minimal overlay only - small-caps letter-spaced title "VOLCANO ISLAND" centered top, thin divider, state hint below. Warm off-white text, high contrast over sky and dark areas, subtle text-shadow. No buttons or panels.
+
+MOBILE: must look deliberate at 320x660 portrait: when aspect < 0.78 widen fov / pull the camera so the whole island plus sea margin fits AND fills the frame (not a tiny island in empty background); overlay text stays legible. Handle window resize. Cap devicePixelRatio at 2.
+
+QUALITY BAR: cinematic, warm, tactile. No floating or detached geometry, no exposed helper meshes, no default-lit flat primitives; every mesh intentionally placed and shaded. Console error-free. Return ONLY the complete index.html in a single code block.

@@ -169,7 +169,7 @@
     // Responsive initial camera framing so 320px phones fit the cutaway block comfortably
     function updateCameraFraming() {
       const aspect = window.innerWidth / window.innerHeight;
-      const distance = aspect < 0.75 ? 13.8 : aspect < 1.1 ? 11.4 : 9.6;
+      const distance = aspect < 0.75 ? 15.6 : aspect < 1.1 ? 11.4 : 9.6;
       const dir = camera.position.clone().sub(controls.target).normalize();
       if (dir.lengthSq() === 0) dir.set(0.7, 0.55, 0.7).normalize();
       camera.position.copy(controls.target).addScaledVector(dir, distance);

@@ -133,7 +133,7 @@ function slab(h, yTop, color, rough = 0.95) {
 slab(1.7, -2.5, 0x56443c);            // rock stratum
 slab(1.0, -1.5, 0x7a5a40);            // soil
 slab(0.5, -1.0, 0xd9bf8f);            // sand shelf
-const waterSide = slab(1.0, 0.0, 0x1e6076, 0.4); // water body sides
+const waterSide = slab(1.0, 0.0, 0x2a7a8e, 0.35); // water body sides
 waterSide.material.transparent = true; waterSide.material.opacity = 0.94;
 const shadowDisc = new THREE.Mesh(new THREE.CircleGeometry(11.5, 40),
   new THREE.MeshBasicMaterial({ color: 0x241a30, transparent: true, opacity: 0.5 }));
@@ -144,13 +144,13 @@ const waterGeo = new THREE.PlaneGeometry(16, 16, 44, 44);
 waterGeo.rotateX(-Math.PI / 2);
 const waterBase = waterGeo.attributes.position.array.slice();
 const water = new THREE.Mesh(waterGeo, new THREE.MeshPhongMaterial({
-  color: 0x2f8395, transparent: true, opacity: 0.88, shininess: 90,
-  specular: 0xffc9a0, emissive: 0x0c2830 }));
+  color: 0x3a9aa8, transparent: true, opacity: 0.9, shininess: 160,
+  specular: 0xffd8b0, emissive: 0x113540 }));
 water.receiveShadow = true; scene.add(water);
 
-const foam = new THREE.Mesh(new THREE.RingGeometry(5.32, 5.66, 64),
+const foam = new THREE.Mesh(new THREE.RingGeometry(5.1, 5.6, 64),
   new THREE.MeshBasicMaterial({ color: 0xfff6e6, transparent: true, opacity: 0.55, side: THREE.DoubleSide }));
-foam.rotation.x = -Math.PI / 2; foam.position.y = 0.045; scene.add(foam);
+foam.rotation.x = -Math.PI / 2; foam.position.y = 0.17; scene.add(foam);
 
 // ---------- island ----------
 const ISLAND_R = 5.2, ISLAND_Y = 1.2;
@@ -168,12 +168,12 @@ topGeo.rotateX(-Math.PI / 2);
   for (let i = 0; i < p.count; i++) {
     const x = p.getX(i), z = p.getZ(i), r = Math.hypot(x, z);
     let c;
-    if (r < 2.1) c = (Math.random() < 0.5 ? grass : grass2).clone();
-    else if (r < 3.5) c = sand.clone().lerp(grass, (3.5 - r) / 1.4);
+    if (r < 3.2) c = (Math.random() < 0.5 ? grass : grass2).clone();
+    else if (r < 4.4) c = sand.clone().lerp(grass, (4.4 - r) / 1.2);
     else c = sand.clone();
     c.offsetHSL(rand(-0.01, 0.01), rand(-0.03, 0.03), rand(-0.03, 0.03));
     cols.push(c.r, c.g, c.b);
-    if (r < 3.3 && r > 0.1) p.setY(i, rand(0, 0.12)); // gentle mounds on the grass
+    if (r < 3.6 && r > 0.1) p.setY(i, rand(0, 0.12)); // gentle mounds on the grass
   }
   topGeo.setAttribute('color', new THREE.Float32BufferAttribute(cols, 3));
   topGeo.computeVertexNormals();
@@ -183,26 +183,29 @@ islandTop.position.y = ISLAND_Y; islandTop.receiveShadow = true; scene.add(islan
 
 // ---------- volcano ----------
 const VOLC = new THREE.Vector3(-1.2, ISLAND_Y, -1.0);
-const volcGeo = new THREE.CylinderGeometry(0.9, 3.2, 4.6, 11, 6, true);
-jitterGeo(volcGeo, 0.16, 2.0);
+const volcGeo = new THREE.CylinderGeometry(0.62, 3.45, 5.0, 12, 7, true);
+jitterGeo(volcGeo, 0.24, 2.1);
 const volcColored = faceColors(volcGeo, [
-  new THREE.Color(0x6b4a3a), new THREE.Color(0x7d5a45),
-  new THREE.Color(0x54403a), new THREE.Color(0x8a6a50)], 0.012);
+  new THREE.Color(0x7a4a38), new THREE.Color(0x8a5a40),
+  new THREE.Color(0x5f4238), new THREE.Color(0x96684a)], 0.02);
 const volcano = new THREE.Mesh(volcColored, new THREE.MeshStandardMaterial({
   vertexColors: true, roughness: 0.98, flatShading: true }));
-volcano.position.copy(VOLC).add(new THREE.Vector3(0, 2.3, 0));
+volcano.position.copy(VOLC).add(new THREE.Vector3(0, 2.5, 0));
 volcano.castShadow = true; volcano.receiveShadow = true;
 scene.add(volcano);
-const VOLC_TOP = VOLC.y + 4.6; // 5.8 world
+const VOLC_TOP = VOLC.y + 5.0;
 
 // crater rim + ember bowl
-const rim = new THREE.Mesh(new THREE.TorusGeometry(0.92, 0.2, 8, 14),
-  new THREE.MeshStandardMaterial({ color: 0x4a3833, roughness: 1, flatShading: true }));
+const rim = new THREE.Mesh(new THREE.TorusGeometry(0.68, 0.15, 8, 14),
+  new THREE.MeshStandardMaterial({ color: 0x5f4238, roughness: 1, flatShading: true }));
 rim.rotation.x = Math.PI / 2; rim.position.set(VOLC.x, VOLC_TOP - 0.02, VOLC.z);
 rim.castShadow = true; scene.add(rim);
+const bowl = new THREE.Mesh(new THREE.CylinderGeometry(0.66, 0.3, 0.5, 12, 1, true),
+  new THREE.MeshStandardMaterial({ color: 0x2a1c16, roughness: 1, side: THREE.DoubleSide }));
+bowl.position.set(VOLC.x, VOLC_TOP - 0.28, VOLC.z); scene.add(bowl);
 const ember = new THREE.Mesh(new THREE.CircleGeometry(0.72, 20),
   new THREE.MeshBasicMaterial({ color: 0xff6a2a, transparent: true, opacity: 0.85 }));
-ember.rotation.x = -Math.PI / 2; ember.position.set(VOLC.x, VOLC_TOP - 0.18, VOLC.z);
+ember.rotation.x = -Math.PI / 2; ember.position.set(VOLC.x, VOLC_TOP - 0.34, VOLC.z);
 scene.add(ember);
 craterLight.position.set(VOLC.x, VOLC_TOP + 0.5, VOLC.z); scene.add(craterLight);
 
@@ -223,10 +226,10 @@ function makePalm(scale, lean, leafHue) {
   palmLeafMats.push({ mat: leafMat, base: leafMat.color.clone() });
   const crownX = xoff + lean * 0.1, crownY = y + 0.08;
   for (let f = 0; f < 6; f++) {
-    const leaf = new THREE.Mesh(new THREE.ConeGeometry(0.16, 1.15, 4), leafMat);
+    const leaf = new THREE.Mesh(new THREE.ConeGeometry(0.12, 1.4, 4), leafMat);
     const a = (f / 6) * Math.PI * 2 + rand(-0.2, 0.2);
-    leaf.position.set(crownX + Math.cos(a) * 0.42, crownY - 0.06, Math.sin(a) * 0.42);
-    leaf.rotation.set(Math.sin(a) * 1.25, 0, -Math.cos(a) * 1.25);
+    leaf.position.set(crownX + Math.cos(a) * 0.5, crownY - 0.16, Math.sin(a) * 0.5);
+    leaf.rotation.set(Math.sin(a) * 1.5, 0, -Math.cos(a) * 1.5);
     leaf.castShadow = true; g.add(leaf);
   }
   for (let c = 0; c < 2; c++) {
