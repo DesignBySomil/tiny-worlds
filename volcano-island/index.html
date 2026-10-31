@@ -67,22 +67,36 @@ container.appendChild(renderer.domElement);
 const controls = new OrbitControls(camera, renderer.domElement);
 controls.enableDamping = true; controls.dampingFactor = 0.06;
 controls.enablePan = false;
-controls.minDistance = 8; controls.maxDistance = 34;
+controls.minDistance = 8; controls.maxDistance = 44;
 controls.minPolarAngle = Math.PI * 0.16; controls.maxPolarAngle = Math.PI * 0.47;
 
+// pass 13: true bounds fit - solve camera distance so every corner of the
+// cutaway box + volcano projects inside NDC margins on any aspect
 function frameInitialCamera() {
   const aspect = innerWidth / innerHeight;
-  if (aspect < 0.78) {
-    camera.fov = 60; controls.target.set(0, 1.5, 0);
-    camera.position.set(15, 16.5, 22.5);
-  } else if (aspect < 1.15) {
-    camera.fov = 46; controls.target.set(0, 2.0, 0);
-    camera.position.set(10.5, 9.5, 14.5);
-  } else {
-    camera.fov = 42; controls.target.set(0, 1.3, 0);
-    camera.position.set(16.6, 11.4, 18.5);
+  let dir, target;
+  if (aspect < 0.78)      { camera.fov = 60; target = new THREE.Vector3(0, 1.6, 0); dir = new THREE.Vector3(15, 15, 22.5); }
+  else if (aspect < 1.15) { camera.fov = 46; target = new THREE.Vector3(0, 2.0, 0); dir = new THREE.Vector3(10.5, 7.5, 14.5); }
+  else                    { camera.fov = 42; target = new THREE.Vector3(0, 1.3, 0); dir = new THREE.Vector3(16.6, 10.1, 18.5); }
+  camera.updateProjectionMatrix();
+  dir.normalize();
+  const corners = [];
+  for (const x of [-8.3, 8.3]) for (const y of [-4.4, 7.2]) for (const z of [-8.3, 8.3])
+    corners.push(new THREE.Vector3(x, y, z));
+  const mX = 0.90, mY = aspect < 0.78 ? 0.78 : 0.85;  // keep header + caption clear
+  let d = 8;
+  for (; d < 60; d += 0.25) {
+    camera.position.copy(target).addScaledVector(dir, d);
+    camera.lookAt(target); camera.updateMatrixWorld(true);
+    camera.matrixWorldInverse.copy(camera.matrixWorld).invert();
+    let ok = true;
+    for (const c of corners) {
+      const p = c.clone().project(camera);
+      if (Math.abs(p.x) > mX || Math.abs(p.y) > mY) { ok = false; break; }
+    }
+    if (ok) break;
   }
-  camera.updateProjectionMatrix(); controls.update();
+  controls.target.copy(target); controls.update();
 }
 frameInitialCamera();
 
