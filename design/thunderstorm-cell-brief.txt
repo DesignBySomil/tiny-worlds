@@ -1,0 +1,27 @@
+THUNDERSTORM CELL - design brief (world 3, distinct from volcano dusk + mushroom night)
+Source concept (user's list): "One dark cloud over an empty plain. Steer the storm by dragging it, tap the cloud to drop lightning, and rain slowly fills the pond below."
+
+MOOD / REFERENCE BAR
+- Guronnimo density/tactility under a STORM sky: heavy blue-grey overcast gradient, darker slate at top, pale wet-green horizon. Not the volcano dusk, not the mushroom indigo night - this is a brooding daytime storm.
+- Square cutaway slab: top = open grass plain (windswept, muted greens), side = soil/clay/rock strata. A shallow pond depression sits off-center; its water level visibly rises as rain falls.
+
+HERO FORMS
+- ONE big dark cumulonimbus: layered blob cluster (merged spheres, flat dark base, towering lumpy top), slate-grey with lighter rim on the lit side. It is the subject - big, heavy, low over the plain.
+- Plain: wind-bent grass tufts (leaning same direction), a lone bent tree, fence posts, scattered rocks. Empty = intentional; texture carries it.
+- Rain: dense slanted streak particles under the cloud only (a moving rain shaft), plus soft mist sprite where rain hits ground.
+- Pond: starts as a damp dark dip with a puddle disc; water disc grows/shrinks radius by accumulated rain.
+
+INTERACTION (two gestures, drag discrimination proven pattern)
+- DRAG the cloud: pointerdown raycast hits the cloud -> OrbitControls disabled, cloud follows pointer on a horizontal plane at cloud altitude (clamped to slab bounds); the rain shaft + mist follow. Pointerup re-enables orbit. Dragging empty space orbits as usual.
+- TAP the cloud (7px/450ms): lightning strike - jagged bolt (random-walk segmented polyline, bright additive) from cloud base to the nearest ground point below, white-blue flash light + brief scene flash, thunder-rumble shake (tiny camera nudge), ground scorch mark fades over ~30s.
+- Rain logic: rain always falls under the cloud; pond fill accumulates over ~90s of raining over/near the pond, drains slowly otherwise. Full pond = soft overflow sparkle state.
+- Idle: cloud drifts slowly on its own, grass sways, occasional distant silent flicker inside the cloud (internal glow pulse).
+
+TECH REUSE (infrastructure only)
+- importmap three@0.160, bounds-fit camera + resize refit, tap discrimination, updateMatrixWorld-before-raycast, soft puff sprites, pass markers + curl-grep deploy check, Quaternius CC0 via jsdelivr for tree/rocks/grass if they beat primitives in storm palette.
+
+CAMERA
+- Slightly low, wide: slab + cloud + rain shaft + flash headroom. Bounds-fit corners must include cloud at max height.
+
+QUALITY GATES (same as volcano/mushroom)
+- Desktop idle + drag + tap-lightning + pond-fill proof + 320x660, all attached pixels; DOM-hint cycle verification; no fit/fix claims without pixels; main inspects every shot.
