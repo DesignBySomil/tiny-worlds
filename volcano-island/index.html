@@ -1,338 +1,1472 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="utf-8"/>
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
-<title>Volcano Island - Tiny Worlds</title>
-<meta name="description" content="A quiet volcano on a cutaway base. Tap the crater to erupt: lava finds its own path to the sea, ash drifts, then everything cools and green creeps back."/>
-<style>
-  html,body{margin:0;height:100%;background:#0b141c;overflow:hidden;font-family:system-ui,-apple-system,sans-serif}
-  #app{position:fixed;inset:0;touch-action:none}
-  .hud{position:fixed;left:0;right:0;pointer-events:none;color:#e8eef2;text-align:center;z-index:2}
-  .hud.top{top:max(14px,env(safe-area-inset-top))}
-  .hud h1{font-size:15px;font-weight:650;letter-spacing:.02em;margin:0;opacity:.95}
-  .hud p{font-size:11.5px;margin:4px 0 0;opacity:.55}
-  .hud.bottom{bottom:max(14px,env(safe-area-inset-bottom));font-size:11.5px;opacity:.6;transition:opacity 1s}
-  .hud.bottom.gone{opacity:0}
-  #vignette{position:fixed;inset:0;pointer-events:none;background:radial-gradient(ellipse at 50% 42%,transparent 55%,rgba(0,0,0,.45) 100%);z-index:1}
-</style>
-<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"}}</script>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Volcano Island</title>
+  <style>
+    :root {
+      --text-warm: #ffeedd;
+      --text-accent: #ff8c5a;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      user-select: none;
+      -webkit-user-select: none;
+      -webkit-touch-callout: none;
+    }
+
+    html, body {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background-color: #120d1a;
+      font-family: 'Georgia', 'Times New Roman', serif;
+    }
+
+    #canvas-container {
+      position: fixed;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      touch-action: none;
+      cursor: grab;
+    }
+
+    #canvas-container:active {
+      cursor: grabbing;
+    }
+
+    #canvas-container.crater-hover {
+      cursor: pointer;
+    }
+
+    /* Warm dusk sky backdrop & cinematic vignette */
+    .vignette {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      background:
+        radial-gradient(
+          circle at 50% 45%,
+          rgba(255, 130, 80, 0.04) 0%,
+          rgba(26, 15, 35, 0.28) 62%,
+          rgba(8, 5, 14, 0.82) 100%
+        );
+      box-shadow: inset 0 0 90px rgba(5, 3, 10, 0.85);
+      z-index: 2;
+    }
+
+    /* Subtle film grain feel via CSS overlay */
+    .ui-layer {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      padding: max(22px, env(safe-area-inset-top, 22px)) 16px 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      pointer-events: none;
+      z-index: 3;
+      text-align: center;
+    }
+
+    .title {
+      font-size: clamp(1.15rem, 3.6vw, 1.55rem);
+      font-weight: 400;
+      letter-spacing: 0.22em;
+      text-transform: uppercase;
+      color: var(--text-warm);
+      text-shadow:
+        0 2px 14px rgba(0, 0, 0, 0.75),
+        0 0 28px rgba(255, 110, 50, 0.35);
+      opacity: 0.94;
+    }
+
+    .divider {
+      width: 38px;
+      height: 1px;
+      background: linear-gradient(90deg, transparent, rgba(255, 165, 115, 0.75), transparent);
+      margin: 7px 0 8px;
+    }
+
+    .hint {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      font-size: clamp(0.72rem, 2.4vw, 0.82rem);
+      font-weight: 400;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: rgba(255, 225, 200, 0.85);
+      text-shadow: 0 1px 8px rgba(0, 0, 0, 0.85);
+      transition: opacity 1.4s cubic-bezier(0.22, 1, 0.36, 1), transform 1.4s cubic-bezier(0.22, 1, 0.36, 1);
+      opacity: 0.9;
+    }
+
+    .hint.faded {
+      opacity: 0.26;
+    }
+
+    .hint.pulse {
+      color: #ffb085;
+      opacity: 0.95;
+    }
+  </style>
+
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+        "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+      }
+    }
+  </script>
 </head>
 <body>
-<div id="app"></div>
-<div id="vignette"></div>
-<div class="hud top"><h1>Volcano Island</h1><p>a tiny world, one of fifty</p></div>
-<div class="hud bottom" id="hint">Tap the crater to wake it</div>
-<script type="module">
-import * as THREE from 'three';
-import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+  <div id="canvas-container"></div>
+  <div class="vignette"></div>
+  <div class="ui-layer">
+    <h1 class="title">Volcano Island</h1>
+    <div class="divider"></div>
+    <p id="hint-text" class="hint">Tap the crater to awaken the mountain</p>
+  </div>
 
-const app = document.getElementById('app');
-const renderer = new THREE.WebGLRenderer({ antialias:true });
-renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
-renderer.setSize(innerWidth, innerHeight);
-renderer.shadowMap.enabled = true;
-renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-renderer.toneMapping = THREE.ACESFilmicToneMapping;
-renderer.toneMappingExposure = 1.05;
-app.appendChild(renderer.domElement);
+  <script type="module">
+    import * as THREE from 'three';
+    import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 
-const scene = new THREE.Scene();
-scene.background = new THREE.Color(0x0b141c);
-scene.fog = new THREE.Fog(0x0b141c, 26, 60);
+    // --- DOM & UI ---
+    const container = document.getElementById('canvas-container');
+    const hintEl = document.getElementById('hint-text');
 
-const camera = new THREE.PerspectiveCamera(38, innerWidth/innerHeight, .1, 200);
-camera.position.set(11.5, 9, 11.5);
+    // --- Deterministic-feel helpers ---
+    const rand = (min, max) => min + Math.random() * (max - min);
+    const clamp = (v, min, max) => Math.max(min, Math.min(max, v));
+    const smoothstep = (edge0, edge1, x) => {
+      const t = clamp((x - edge0) / (edge1 - edge0), 0, 1);
+      return t * t * (3 - 2 * t);
+    };
 
-const controls = new OrbitControls(camera, renderer.domElement);
-controls.target.set(0, 1.4, 0);
-controls.enableDamping = true;
-controls.dampingFactor = .06;
-controls.enablePan = false;
-controls.minDistance = 8; controls.maxDistance = 24;
-controls.maxPolarAngle = Math.PI * .46;
-controls.autoRotate = true; controls.autoRotateSpeed = .5;
+    // --- Scene, Camera, Renderer ---
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x160f24);
+    scene.fog = new THREE.FogExp2(0x1b1128, 0.022);
 
-// lights
-scene.add(new THREE.HemisphereLight(0x9db8cc, 0x1a2530, .55));
-const sun = new THREE.DirectionalLight(0xffe3b3, 1.15);
-sun.position.set(8, 12, 4);
-sun.castShadow = true;
-sun.shadow.mapSize.set(1024, 1024);
-sun.shadow.camera.left = -9; sun.shadow.camera.right = 9;
-sun.shadow.camera.top = 9; sun.shadow.camera.bottom = -9;
-scene.add(sun);
-const lavaGlow = new THREE.PointLight(0xff5a1e, 0, 14, 1.6);
-lavaGlow.position.set(0, 3.4, 0);
-scene.add(lavaGlow);
+    const camera = new THREE.PerspectiveCamera(38, window.innerWidth / window.innerHeight, 0.1, 160);
 
-const world = new THREE.Group();
-scene.add(world);
+    const renderer = new THREE.WebGLRenderer({
+      antialias: true,
+      powerPreference: 'high-performance'
+    });
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 1.12;
+    renderer.outputColorSpace = THREE.SRGBColorSpace;
+    container.appendChild(renderer.domElement);
 
-// sea
-const sea = new THREE.Mesh(
-  new THREE.CylinderGeometry(30, 30, .5, 48),
-  new THREE.MeshStandardMaterial({ color:0x11485f, roughness:.35, metalness:.1 })
-);
-sea.position.y = -1.05;
-sea.receiveShadow = true;
-world.add(sea);
+    // --- Orbit Controls ---
+    const controls = new OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.055;
+    controls.enablePan = false;
+    controls.autoRotate = true;
+    controls.autoRotateSpeed = 0.45;
+    controls.minPolarAngle = Math.PI * 0.14;
+    controls.maxPolarAngle = Math.PI * 0.46;
+    controls.target.set(0, 0.65, 0);
 
-// cutaway base: grass top, soil, rock
-function layer(w, h, d, y, color){
-  const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), new THREE.MeshStandardMaterial({ color, roughness:.95 }));
-  m.position.y = y; m.castShadow = true; m.receiveShadow = true;
-  world.add(m); return m;
-}
-layer(10, .7, 10, -.35, 0x4d7a3a);   // grass
-layer(10, .8, 10, -1.1, 0x5b4530);   // soil
-layer(10, 1.0, 10, -2.0, 0x3a3f45);  // rock
+    function updateCameraForViewport() {
+      const aspect = window.innerWidth / window.innerHeight;
+      camera.aspect = aspect;
+      // Pull camera back gracefully on narrow portrait phones (e.g. 320px width)
+      const isNarrow = aspect < 0.78;
+      const isMobile = aspect < 1.0;
+      camera.fov = isNarrow ? 46 : (isMobile ? 42 : 36);
+      camera.updateProjectionMatrix();
 
-// beach ring
-const beach = new THREE.Mesh(
-  new THREE.CylinderGeometry(3.6, 3.9, .28, 24),
-  new THREE.MeshStandardMaterial({ color:0xc9b489, roughness:1 })
-);
-beach.position.y = .14; beach.receiveShadow = true;
-world.add(beach);
+      controls.minDistance = isNarrow ? 8.5 : 7.0;
+      controls.maxDistance = isNarrow ? 24.0 : 19.5;
+    }
 
-// volcano cone with crater
-const rockMat = new THREE.MeshStandardMaterial({ color:0x6b5a4c, roughness:.95, flatShading:true });
-const cone = new THREE.Mesh(new THREE.CylinderGeometry(.5, 2.5, 3.1, 9, 1), rockMat);
-cone.position.y = 1.55 + .28; cone.castShadow = true; cone.receiveShadow = true;
-world.add(cone);
+    updateCameraForViewport();
+    const initialDist = window.innerWidth < 500 ? 15.6 : 12.2;
+    camera.position.set(initialDist * 0.72, initialDist * 0.56, initialDist * 0.76);
+    controls.update();
 
-const craterRim = new THREE.Mesh(
-  new THREE.TorusGeometry(.48, .18, 8, 14),
-  new THREE.MeshStandardMaterial({ color:0x54463b, roughness:1, flatShading:true })
-);
-craterRim.rotation.x = Math.PI/2;
-craterRim.position.y = 3.38;
-craterRim.castShadow = true;
-world.add(craterRim);
+    // Fade hint slightly after initial contemplation
+    const initialHintTimer = setTimeout(() => {
+      hintEl.classList.add('faded');
+    }, 5200);
 
-const craterPoolMat = new THREE.MeshStandardMaterial({ color:0x1a1210, roughness:.6, emissive:0xff3d00, emissiveIntensity:0 });
-const craterPool = new THREE.Mesh(new THREE.CircleGeometry(.44, 16), craterPoolMat);
-craterPool.rotation.x = -Math.PI/2;
-craterPool.position.y = 3.30;
-world.add(craterPool);
+    // --- Warm Cinematic Dusk Lighting ---
+    const hemiLight = new THREE.HemisphereLight(0xff9e6d, 0x261a3b, 0.85);
+    hemiLight.position.set(0, 18, 0);
+    scene.add(hemiLight);
 
-// greenery that (re)grows
-const green = new THREE.Group(); world.add(green);
-const greenMat = new THREE.MeshStandardMaterial({ color:0x5f9440, roughness:.9, flatShading:true });
-const greenSpots = [];
-for (let i = 0; i < 26; i++){
-  const a = Math.random() * Math.PI * 2;
-  const r = 1.6 + Math.random() * 3.1;
-  const x = Math.cos(a) * r, z = Math.sin(a) * r;
-  if (Math.abs(x) > 4.7 || Math.abs(z) > 4.7) continue;
-  const s = .12 + Math.random() * .2;
-  const bush = new THREE.Mesh(new THREE.IcosahedronGeometry(s, 0), greenMat);
-  bush.position.set(x, .28 + s * .4, z);
-  bush.castShadow = true;
-  bush.userData.baseScale = 1;
-  green.add(bush); greenSpots.push(bush);
-}
-// a few palms on the beach
-const trunkMat = new THREE.MeshStandardMaterial({ color:0x7a5c3e, roughness:1 });
-const leafMat = new THREE.MeshStandardMaterial({ color:0x4e8a3c, roughness:.9, flatShading:true });
-for (let i = 0; i < 4; i++){
-  const a = i * 1.7 + .6;
-  const palm = new THREE.Group();
-  const trunk = new THREE.Mesh(new THREE.CylinderGeometry(.05, .08, .9, 5), trunkMat);
-  trunk.position.y = .45; trunk.castShadow = true; palm.add(trunk);
-  for (let j = 0; j < 5; j++){
-    const leaf = new THREE.Mesh(new THREE.ConeGeometry(.09, .7, 4), leafMat);
-    leaf.position.y = .95;
-    leaf.rotation.z = Math.PI/2.3;
-    leaf.rotation.y = j * (Math.PI*2/5);
-    leaf.castShadow = true;
-    palm.add(leaf);
-  }
-  palm.position.set(Math.cos(a)*3.1, .28, Math.sin(a)*3.1);
-  green.add(palm); greenSpots.push(palm);
-}
+    // Warm low sunset directional light
+    const sunLight = new THREE.DirectionalLight(0xff7b42, 2.55);
+    sunLight.position.set(-11, 8.5, 9.5);
+    sunLight.castShadow = true;
+    sunLight.shadow.mapSize.set(2048, 2048);
+    sunLight.shadow.camera.near = 2;
+    sunLight.shadow.camera.far = 34;
+    const d = 6.8;
+    sunLight.shadow.camera.left = -d;
+    sunLight.shadow.camera.right = d;
+    sunLight.shadow.camera.top = d;
+    sunLight.shadow.camera.bottom = -d;
+    sunLight.shadow.bias = -0.0005;
+    sunLight.shadow.normalBias = 0.025;
+    scene.add(sunLight);
 
-// fishing hut at the foot
-const hut = new THREE.Group();
-const hutBase = new THREE.Mesh(new THREE.BoxGeometry(.8, .55, .7), new THREE.MeshStandardMaterial({ color:0x8a6b4a, roughness:.95 }));
-hutBase.position.y = .55; hutBase.castShadow = true; hut.add(hutBase);
-const hutRoof = new THREE.Mesh(new THREE.ConeGeometry(.72, .5, 4), new THREE.MeshStandardMaterial({ color:0xa34d3a, roughness:.9, flatShading:true }));
-hutRoof.position.y = 1.1; hutRoof.rotation.y = Math.PI/4; hutRoof.castShadow = true; hut.add(hutRoof);
-const hutGlow = new THREE.Mesh(new THREE.PlaneGeometry(.18, .22), new THREE.MeshStandardMaterial({ color:0xffca7a, emissive:0xffb84d, emissiveIntensity:1.4 }));
-hutGlow.position.set(0, .5, .36); hut.add(hutGlow);
-hut.position.set(2.9, 0, 2.4);
-hut.rotation.y = -.7;
-world.add(hut);
+    // Cool twilight rim light from opposite side
+    const rimLight = new THREE.DirectionalLight(0x5d6dff, 0.95);
+    rimLight.position.set(10, 6, -10);
+    scene.add(rimLight);
 
-// lava flow path: crater lip down the cone to the sea
-const flowPoints = [];
-{
-  const dir = new THREE.Vector2(.66, .74).normalize(); // toward hut-side sea gap
-  for (let i = 0; i <= 30; i++){
-    const t = i / 30;
-    const r = .35 + t * 3.4;
-    const y = 3.32 - t * 3.35 + Math.sin(t * 9) * .06;
-    flowPoints.push(new THREE.Vector3(dir.x * r + Math.sin(t*7)*.18, Math.max(y, .1), dir.y * r + Math.cos(t*6)*.18));
-  }
-}
-const flowCurve = new THREE.CatmullRomCurve3(flowPoints);
-const lavaRiverMat = new THREE.MeshStandardMaterial({ color:0x2b120a, emissive:0xff4a00, emissiveIntensity:0, roughness:.5 });
-const lavaRiver = new THREE.Mesh(new THREE.TubeGeometry(flowCurve, 40, .16, 6, false), lavaRiverMat);
-lavaRiver.visible = false;
-world.add(lavaRiver);
+    // Crater magma glow light
+    const craterLight = new THREE.PointLight(0xff4500, 2.2, 11, 1.5);
+    craterLight.position.set(0, 3.05, 0);
+    scene.add(craterLight);
 
-// eruption particles
-const MAXP = 320;
-const pGeo = new THREE.BufferGeometry();
-const pPos = new Float32Array(MAXP * 3);
-pGeo.setAttribute('position', new THREE.BufferAttribute(pPos, 3));
-const pMat = new THREE.PointsMaterial({ color:0xff7a2a, size:.16, transparent:true, opacity:0, depthWrite:false });
-const lavaPts = new THREE.Points(pGeo, pMat);
-world.add(lavaPts);
-const parts = [];
+    // Lava slope bounce light (intensifies during eruption)
+    const lavaRiverLight = new THREE.PointLight(0xff5500, 0.0, 8, 1.6);
+    lavaRiverLight.position.set(0.6, 1.5, 1.6);
+    scene.add(lavaRiverLight);
 
-const aGeo = new THREE.BufferGeometry();
-const aPos = new Float32Array(140 * 3);
-aGeo.setAttribute('position', new THREE.BufferAttribute(aPos, 3));
-const aMat = new THREE.PointsMaterial({ color:0x8d8d94, size:.22, transparent:true, opacity:0, depthWrite:false });
-const ashPts = new THREE.Points(aGeo, aMat);
-world.add(ashPts);
-const ash = [];
+    // --- Geometry Utility for Low-Poly Handmade Look ---
+    function jitterGeometry(geo, amount = 0.04, lockY = false) {
+      const pos = geo.attributes.position;
+      const map = new Map();
+      for (let i = 0; i < pos.count; i++) {
+        const vx = pos.getX(i);
+        const vy = pos.getY(i);
+        const vz = pos.getZ(i);
+        const key = `${vx.toFixed(3)}_${vy.toFixed(3)}_${vz.toFixed(3)}`;
+        let offset = map.get(key);
+        if (!offset) {
+          offset = [
+            (Math.random() - 0.5) * amount,
+            lockY ? 0 : (Math.random() - 0.5) * amount,
+            (Math.random() - 0.5) * amount
+          ];
+          map.set(key, offset);
+        }
+        pos.setXYZ(i, vx + offset[0], vy + offset[1], vz + offset[2]);
+      }
+      const nonIndexed = geo.index ? geo.toNonIndexed() : geo;
+      nonIndexed.computeVertexNormals();
+      return nonIndexed;
+    }
 
-// whitecaps
-const caps = [];
-const capMat = new THREE.MeshStandardMaterial({ color:0xd7e8ee, roughness:.8 });
-for (let i = 0; i < 10; i++){
-  const c = new THREE.Mesh(new THREE.ConeGeometry(.16, .1, 5), capMat);
-  const a = Math.random() * Math.PI * 2, r = 6.5 + Math.random() * 5;
-  c.position.set(Math.cos(a)*r, -.72, Math.sin(a)*r);
-  c.userData = { a, r, ph: Math.random() * 6 };
-  world.add(c); caps.push(c);
-}
+    // Create a beveled / faceted box so the square cutaway base looks handcrafted
+    function createCutawayLayer(width, height, depth, yCenter, color, jitterAmt = 0.05, topPinch = 1.0) {
+      const geo = new THREE.BoxGeometry(width, height, depth, 8, 2, 8);
+      const pos = geo.attributes.position;
+      const map = new Map();
 
-// state machine: idle -> erupting -> cooling -> regrowing -> idle
-let state = 'idle', tState = 0, shake = 0;
-const hint = document.getElementById('hint');
-function erupt(){
-  if (state === 'erupting') return;
-  state = 'erupting'; tState = 0;
-  greenSpots.forEach(g => g.userData.scorch = true);
-  hint.textContent = 'It is awake';
-  hint.classList.remove('gone');
-  setTimeout(() => hint.classList.add('gone'), 2500);
-}
-setTimeout(() => hint.classList.add('gone'), 6000);
+      for (let i = 0; i < pos.count; i++) {
+        const vx = pos.getX(i);
+        const vy = pos.getY(i);
+        const vz = pos.getZ(i);
+        const key = `${vx.toFixed(3)}_${vy.toFixed(3)}_${vz.toFixed(3)}`;
 
-// tap vs drag
-const ray = new THREE.Raycaster();
-const ndc = new THREE.Vector2();
-let downAt = null;
-renderer.domElement.addEventListener('pointerdown', e => { downAt = { x:e.clientX, y:e.clientY, t:performance.now() }; });
-renderer.domElement.addEventListener('pointerup', e => {
-  if (!downAt) return;
-  const moved = Math.hypot(e.clientX - downAt.x, e.clientY - downAt.y);
-  const dt = performance.now() - downAt.t;
-  downAt = null;
-  if (moved > 8 || dt > 500) return;
-  ndc.set(e.clientX / innerWidth * 2 - 1, -(e.clientY / innerHeight) * 2 + 1);
-  ray.setFromCamera(ndc, camera);
-  const hits = ray.intersectObjects([cone, craterRim, craterPool], false);
-  if (hits.length) erupt();
-});
+        let target = map.get(key);
+        if (!target) {
+          const isTop = vy > 0;
+          const pinch = isTop ? topPinch : 1.0;
+          // Slight organic undulations on side walls while keeping square silhouette
+          const edgeFactor = (Math.abs(vx) > width * 0.45 || Math.abs(vz) > depth * 0.45) ? 1 : 0.4;
+          const dx = (Math.random() - 0.5) * jitterAmt * edgeFactor;
+          const dy = (Math.random() - 0.5) * (jitterAmt * 0.45);
+          const dz = (Math.random() - 0.5) * jitterAmt * edgeFactor;
+          target = [vx * pinch + dx, vy + dy, vz * pinch + dz];
+          map.set(key, target);
+        }
+        pos.setXYZ(i, target[0], target[1], target[2]);
+      }
 
-const clock = new THREE.Clock();
-function animate(){
-  requestAnimationFrame(animate);
-  const dt = Math.min(clock.getDelta(), .05);
-  const t = clock.elapsedTime;
-  tState += dt;
-  controls.update();
+      const finalGeo = geo.toNonIndexed();
+      finalGeo.computeVertexNormals();
 
-  // whitecaps bob
-  caps.forEach(c => { c.position.y = -.72 + Math.sin(t * 1.6 + c.userData.ph) * .06; });
+      const mat = new THREE.MeshStandardMaterial({
+        color,
+        roughness: 0.9,
+        metalness: 0.05,
+        flatShading: true
+      });
+      const mesh = new THREE.Mesh(finalGeo, mat);
+      mesh.position.y = yCenter;
+      mesh.castShadow = true;
+      mesh.receiveShadow = true;
+      return mesh;
+    }
 
-  if (state === 'erupting'){
-    const k = Math.min(tState / 1.2, 1);
-    craterPoolMat.emissiveIntensity = k * 2.6;
-    lavaGlow.intensity = k * 5;
-    if (tState > 1.0) lavaRiver.visible = true;
-    lavaRiverMat.emissiveIntensity = Math.min(Math.max(tState - 1.2, 0) / 2.5, 1) * 3.2;
-    lavaRiverMat.color.setHex(tState > 1.2 ? 0xff5a10 : 0x2b120a);
-    shake = Math.min(tState / .8, 1) * .09;
-    pMat.opacity = Math.min(pMat.opacity + dt * 2, 1);
-    aMat.opacity = Math.min(aMat.opacity + dt, .85);
-    // spawn lava
-    for (let i = 0; i < 6 && parts.length < MAXP; i++){
-      parts.push({
-        x: (Math.random()-.5)*.5, y: 3.35, z: (Math.random()-.5)*.5,
-        vx: (Math.random()-.5)*1.6, vy: 3 + Math.random()*3.4, vz: (Math.random()-.5)*1.6,
-        life: 0, seg: -1
+    // --- World Root Group (for subtle camera/island shake) ---
+    const dioramaGroup = new THREE.Group();
+    scene.add(dioramaGroup);
+
+    // --- 1. Surrounding Dark Dusk Sea ---
+    const seaGeo = new THREE.PlaneGeometry(140, 140, 56, 56);
+    seaGeo.rotateX(-Math.PI / 2);
+    const seaPos = seaGeo.attributes.position;
+    const seaBaseY = new Float32Array(seaPos.count);
+    const seaPhase = new Float32Array(seaPos.count);
+    for (let i = 0; i < seaPos.count; i++) {
+      const x = seaPos.getX(i);
+      const z = seaPos.getZ(i);
+      seaPos.setX(i, x + (Math.random() - 0.5) * 0.4);
+      seaPos.setZ(i, z + (Math.random() - 0.5) * 0.4);
+      seaBaseY[i] = (Math.random() - 0.5) * 0.06;
+      seaPhase[i] = Math.random() * Math.PI * 2 + (x * 0.25 + z * 0.25);
+    }
+    const seaMat = new THREE.MeshStandardMaterial({
+      color: 0x132238,
+      roughness: 0.32,
+      metalness: 0.35,
+      flatShading: true
+    });
+    const darkSea = new THREE.Mesh(seaGeo, seaMat);
+    darkSea.position.y = -0.35;
+    darkSea.receiveShadow = true;
+    scene.add(darkSea);
+
+    // --- 2. Square Cutaway Base (Geological Cross-Section) ---
+    const baseGroup = new THREE.Group();
+    dioramaGroup.add(baseGroup);
+
+    // Layer A: Deep dark basalt bedrock at bottom
+    const bedrockLayer = createCutawayLayer(6.8, 0.72, 6.8, -1.52, 0x231d29, 0.08, 1.02);
+    baseGroup.add(bedrockLayer);
+
+    // Layer B: Stratified slate / volcanic tuff rock layer
+    const rockLayer = createCutawayLayer(6.95, 0.62, 6.95, -0.88, 0x3b3142, 0.07, 1.01);
+    baseGroup.add(rockLayer);
+
+    // Layer C: Terracotta / rich clay subsoil layer visible on cutaway sides
+    const clayLayer = createCutawayLayer(7.04, 0.42, 7.04, -0.38, 0x6e4134, 0.06, 1.0);
+    baseGroup.add(clayLayer);
+
+    // Layer D: Rich dark topsoil & seabed base rim
+    const soilLayer = createCutawayLayer(7.1, 0.28, 7.1, -0.05, 0x8c5b3e, 0.05, 0.99);
+    baseGroup.add(soilLayer);
+
+    // Cutaway translucent turquoise-dusk lagoon water slice sitting on top of the soil cutaway block
+    const lagoonGeo = new THREE.BoxGeometry(7.14, 0.38, 7.14, 10, 1, 10);
+    const lagoonPos = lagoonGeo.attributes.position;
+    const lagoonTopIndices = [];
+    for (let i = 0; i < lagoonPos.count; i++) {
+      if (lagoonPos.getY(i) > 0) {
+        lagoonTopIndices.push({
+          idx: i,
+          x: lagoonPos.getX(i),
+          z: lagoonPos.getZ(i)
+        });
+      }
+    }
+    const lagoonMat = new THREE.MeshStandardMaterial({
+      color: 0x1e6b7b,
+      emissive: 0x091d26,
+      roughness: 0.18,
+      metalness: 0.15,
+      transparent: true,
+      opacity: 0.84,
+      flatShading: true
+    });
+    const lagoonMesh = new THREE.Mesh(lagoonGeo, lagoonMat);
+    lagoonMesh.position.y = 0.16;
+    lagoonMesh.receiveShadow = true;
+    baseGroup.add(lagoonMesh);
+
+    // Exposed magma conduit veins on two cutaway sides for geological storytelling
+    const veinMat = new THREE.MeshStandardMaterial({
+      color: 0x1a1318,
+      emissive: 0xff3b00,
+      emissiveIntensity: 0.25,
+      roughness: 0.8,
+      flatShading: true
+    });
+    const veinGeo = jitterGeometry(new THREE.CylinderGeometry(0.12, 0.26, 1.55, 6, 4), 0.05);
+    const centerConduit = new THREE.Mesh(veinGeo, veinMat);
+    centerConduit.position.set(0, -1.0, 0);
+    baseGroup.add(centerConduit);
+
+    // Small protruding rocks embedded in the cutaway side walls
+    const sideRockMat = new THREE.MeshStandardMaterial({
+      color: 0x4d4154,
+      roughness: 0.92,
+      flatShading: true
+    });
+    const sideRockPositions = [
+      [3.52, -0.95, 1.4, 0.26],
+      [3.50, -1.35, -1.8, 0.32],
+      [-3.52, -0.82, -0.9, 0.28],
+      [-3.48, -1.40, 2.1, 0.25],
+      [1.2, -1.15, 3.52, 0.30],
+      [-2.1, -0.68, 3.50, 0.22],
+      [2.0, -1.05, -3.52, 0.29],
+      [-1.4, -1.38, -3.50, 0.27]
+    ];
+    sideRockPositions.forEach(([x, y, z, s]) => {
+      const r = new THREE.Mesh(jitterGeometry(new THREE.DodecahedronGeometry(s, 0), 0.06), sideRockMat);
+      r.position.set(x, y, z);
+      r.scale.set(1.1, 0.75, 0.9);
+      r.rotation.set(rand(0, 3), rand(0, 3), rand(0, 3));
+      r.castShadow = true;
+      r.receiveShadow = true;
+      baseGroup.add(r);
+    });
+
+    // --- 3. Beach Ring & Coastal Foam Ring ---
+    const islandGroup = new THREE.Group();
+    dioramaGroup.add(islandGroup);
+
+    // Subtle foam skirt right at water level
+    const foamGeo = jitterGeometry(new THREE.CylinderGeometry(2.96, 3.12, 0.06, 28, 1), 0.07, true);
+    const foamMat = new THREE.MeshStandardMaterial({
+      color: 0xa8d8dc,
+      roughness: 0.6,
+      transparent: true,
+      opacity: 0.55,
+      flatShading: true
+    });
+    const foamRing = new THREE.Mesh(foamGeo, foamMat);
+    foamRing.position.y = 0.34;
+    islandGroup.add(foamRing);
+
+    // Warm golden-peach sand beach ring
+    const beachGeo = new THREE.CylinderGeometry(2.42, 2.95, 0.36, 24, 2);
+    const beachPos = beachGeo.attributes.position;
+    const beachMap = new Map();
+    for (let i = 0; i < beachPos.count; i++) {
+      const vx = beachPos.getX(i);
+      const vy = beachPos.getY(i);
+      const vz = beachPos.getZ(i);
+      const key = `${vx.toFixed(3)}_${vy.toFixed(3)}_${vz.toFixed(3)}`;
+      let pt = beachMap.get(key);
+      if (!pt) {
+        const angle = Math.atan2(vz, vx);
+        // Gentle peninsula bulge near the fishing hut (angle ~ -0.75 rad)
+        const hutBulge = Math.exp(-Math.pow(angle - 0.85, 2) * 2.2) * 0.32;
+        const rScale = 1 + Math.sin(angle * 3) * 0.04 + Math.cos(angle * 5) * 0.03 + hutBulge * 0.12;
+        pt = [
+          vx * rScale + (Math.random() - 0.5) * 0.08,
+          vy + (Math.random() - 0.5) * 0.04,
+          vz * rScale + (Math.random() - 0.5) * 0.08
+        ];
+        beachMap.set(key, pt);
+      }
+      beachPos.setXYZ(i, pt[0], pt[1], pt[2]);
+    }
+    const beachFinalGeo = beachGeo.toNonIndexed();
+    beachFinalGeo.computeVertexNormals();
+    const beachMat = new THREE.MeshStandardMaterial({
+      color: 0xd9a773,
+      roughness: 0.88,
+      flatShading: true
+    });
+    const beachMesh = new THREE.Mesh(beachFinalGeo, beachMat);
+    beachMesh.position.y = 0.36;
+    beachMesh.castShadow = true;
+    beachMesh.receiveShadow = true;
+    islandGroup.add(beachMesh);
+
+    // Green island foothills base ring above the beach
+    const foothillsGeo = jitterGeometry(new THREE.CylinderGeometry(1.98, 2.48, 0.42, 20, 2), 0.09);
+    const foothillsMat = new THREE.MeshStandardMaterial({
+      color: 0x3f6a3d,
+      roughness: 0.9,
+      flatShading: true
+    });
+    const foothillsMesh = new THREE.Mesh(foothillsGeo, foothillsMat);
+    foothillsMesh.position.y = 0.62;
+    foothillsMesh.castShadow = true;
+    foothillsMesh.receiveShadow = true;
+    islandGroup.add(foothillsMesh);
+
+    // --- 4. Volcano with Clearly Readable Crater & Lava Channel ---
+    // Custom radial mesh with an excavated rim, deep glowing crater bowl, and a carved channel down the front-left slope
+    function createVolcanoGeometry() {
+      const radialSegs = 32;
+      const ringRadii = [0.0, 0.36, 0.58, 0.76, 1.05, 1.42, 1.82, 2.22];
+      const ringHeights = [2.22, 2.30, 2.92, 2.80, 2.28, 1.66, 1.10, 0.64];
+
+      const vertices = [];
+      const colors = [];
+      const ringVerts = [];
+
+      // Channel flows along angle ~ 1.85 radians (away from the fishing hut at ~0.78 rad)
+      const channelAngle = 1.88;
+
+      for (let r = 0; r < ringRadii.length; r++) {
+        const row = [];
+        const baseRadius = ringRadii[r];
+        const baseHeight = ringHeights[r];
+
+        for (let s = 0; s < radialSegs; s++) {
+          const theta = (s / radialSegs) * Math.PI * 2;
+          if (r === 0) {
+            row.push({ x: 0, y: baseHeight, z: 0, rIndex: r, theta });
+            continue;
+          }
+
+          // Angular distance to the lava channel path (with a gentle S-bend down the slope)
+          const channelBend = Math.sin(r * 0.65) * 0.16;
+          let dAngle = Math.atan2(Math.sin(theta - (channelAngle + channelBend)), Math.cos(theta - (channelAngle + channelBend)));
+          const inChannel = r >= 2 ? Math.exp(-(dAngle * dAngle) / 0.065) : 0;
+
+          // Ridges around the volcano cone
+          const ridge = Math.sin(theta * 7 + r * 0.5) * 0.06 + Math.cos(theta * 5 - r * 0.3) * 0.05;
+          const jitterR = (Math.sin(s * 12.9898 + r * 78.233) * 43758.5453 % 1) * 0.07;
+          const jitterY = (Math.cos(s * 39.346 + r * 11.135) * 23421.631 % 1) * 0.06;
+
+          const rad = baseRadius * (1 + ridge + jitterR * 0.5);
+          // Carve notch in rim and gully down slope for the lava river
+          const channelDip = inChannel * (r === 2 ? 0.22 : (r >= 3 ? 0.16 : 0.0));
+          const y = baseHeight + jitterY - channelDip;
+
+          const x = Math.cos(theta) * rad;
+          const z = Math.sin(theta) * rad;
+          row.push({ x, y, z, rIndex: r, theta, inChannel });
+        }
+        ringVerts.push(row);
+      }
+
+      const cCraterFloor = new THREE.Color(0x2a1414);
+      const cCraterWall = new THREE.Color(0x3b262c);
+      const cUpperCone = new THREE.Color(0x4c373f);
+      const cMidSlope = new THREE.Color(0x594247);
+      const cLowerSlope = new THREE.Color(0x464a3b);
+
+      function getVertexColor(v) {
+        if (v.rIndex <= 1) return cCraterFloor;
+        if (v.rIndex === 2) return cCraterWall;
+        if (v.rIndex <= 4) return cUpperCone.clone().lerp(cCraterWall, v.inChannel * 0.6);
+        if (v.rIndex <= 5) return cMidSlope;
+        return cLowerSlope;
+      }
+
+      function pushTriangle(v1, v2, v3) {
+        vertices.push(v1.x, v1.y, v1.z, v2.x, v2.y, v2.z, v3.x, v3.y, v3.z);
+        const c1 = getVertexColor(v1);
+        const c2 = getVertexColor(v2);
+        const c3 = getVertexColor(v3);
+        colors.push(c1.r, c1.g, c1.b, c2.r, c2.g, c2.b, c3.r, c3.g, c3.b);
+      }
+
+      for (let r = 0; r < ringRadii.length - 1; r++) {
+        for (let s = 0; s < radialSegs; s++) {
+          const nextS = (s + 1) % radialSegs;
+          const vA = ringVerts[r][s];
+          const vB = ringVerts[r][nextS];
+          const vC = ringVerts[r + 1][s];
+          const vD = ringVerts[r + 1][nextS];
+
+          if (r === 0) {
+            pushTriangle(vA, vD, vC);
+          } else {
+            pushTriangle(vA, vB, vD);
+            pushTriangle(vA, vD, vC);
+          }
+        }
+      }
+
+      const geo = new THREE.BufferGeometry();
+      geo.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3));
+      geo.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
+      geo.computeVertexNormals();
+      return geo;
+    }
+
+    const volcanoMat = new THREE.MeshStandardMaterial({
+      vertexColors: true,
+      roughness: 0.92,
+      metalness: 0.06,
+      flatShading: true
+    });
+    const volcanoMesh = new THREE.Mesh(createVolcanoGeometry(), volcanoMat);
+    volcanoMesh.castShadow = true;
+    volcanoMesh.receiveShadow = true;
+    islandGroup.add(volcanoMesh);
+
+    // Glowing magma pool inside the crater
+    const magmaPoolGeo = jitterGeometry(new THREE.CylinderGeometry(0.46, 0.34, 0.14, 14), 0.03);
+    const magmaPoolMat = new THREE.MeshStandardMaterial({
+      color: 0xff3b00,
+      emissive: 0xff4800,
+      emissiveIntensity: 1.8,
+      roughness: 0.4,
+      flatShading: true
+    });
+    const magmaPool = new THREE.Mesh(magmaPoolGeo, magmaPoolMat);
+    magmaPool.position.set(0, 2.34, 0);
+    islandGroup.add(magmaPool);
+
+    // Invisible larger hit target around the crater & upper cone for effortless mobile tapping
+    const craterHitTarget = new THREE.Mesh(
+      new THREE.CylinderGeometry(1.15, 1.55, 1.75, 16),
+      new THREE.MeshBasicMaterial({ visible: false })
+    );
+    craterHitTarget.position.set(0, 2.35, 0);
+    islandGroup.add(craterHitTarget);
+
+    const interactiveTargets = [craterHitTarget, volcanoMesh, magmaPool];
+
+    // --- 5. Lava River Path (Finds Its Way Down the Cone to the Sea) ---
+    const lavaWaypoints = [
+      new THREE.Vector3(0.0, 2.42, 0.0),
+      new THREE.Vector3(-0.18, 2.74, 0.56), // Over the carved crater lip
+      new THREE.Vector3(-0.32, 2.40, 0.88),
+      new THREE.Vector3(-0.38, 1.92, 1.24),
+      new THREE.Vector3(-0.52, 1.38, 1.62),
+      new THREE.Vector3(-0.78, 0.92, 1.98),
+      new THREE.Vector3(-0.92, 0.56, 2.46), // Across the beach
+      new THREE.Vector3(-1.05, 0.34, 2.95)  // Entering the sea
+    ];
+    const lavaCurve = new THREE.CatmullRomCurve3(lavaWaypoints);
+    const LAVA_SEGMENTS = 34;
+    const lavaNodes = [];
+    const lavaGroup = new THREE.Group();
+    islandGroup.add(lavaGroup);
+
+    for (let i = 0; i < LAVA_SEGMENTS; i++) {
+      const t = i / (LAVA_SEGMENTS - 1);
+      const pt = lavaCurve.getPoint(t);
+      const tangent = lavaCurve.getTangent(t);
+
+      // River widens slightly at the foot and delta
+      const width = (0.14 + Math.sin(t * Math.PI) * 0.08 + (t > 0.75 ? (t - 0.75) * 0.35 : 0));
+      const segGeo = jitterGeometry(new THREE.BoxGeometry(width * 1.45, 0.09, 0.22, 2, 1, 2), 0.025);
+      const segMat = new THREE.MeshStandardMaterial({
+        color: 0xffcf40,
+        emissive: 0xff4500,
+        emissiveIntensity: 2.2,
+        roughness: 0.6,
+        metalness: 0.1,
+        flatShading: true
+      });
+      const segMesh = new THREE.Mesh(segGeo, segMat);
+      segMesh.position.copy(pt);
+      segMesh.lookAt(pt.clone().add(tangent));
+      segMesh.scale.set(0.001, 0.001, 0.001);
+      segMesh.visible = false;
+      segMesh.castShadow = true;
+      segMesh.receiveShadow = true;
+      lavaGroup.add(segMesh);
+
+      lavaNodes.push({
+        mesh: segMesh,
+        mat: segMat,
+        t,
+        basePos: pt.clone()
       });
     }
-    for (let i = 0; i < 3 && ash.length < 140; i++){
-      ash.push({ x:(Math.random()-.5)*.6, y:3.5, z:(Math.random()-.5)*.6, vx:.4+Math.random()*.5, vy:1+Math.random(), vz:(Math.random()-.5)*.4, life:0 });
-    }
-    if (tState > 9){ state = 'cooling'; tState = 0; }
-  } else if (state === 'cooling'){
-    craterPoolMat.emissiveIntensity = Math.max(craterPoolMat.emissiveIntensity - dt * .8, 0);
-    lavaGlow.intensity = Math.max(lavaGlow.intensity - dt * 1.4, 0);
-    lavaRiverMat.emissiveIntensity = Math.max(lavaRiverMat.emissiveIntensity - dt * .9, 0);
-    lavaRiverMat.color.lerp(new THREE.Color(0x1c1512), dt * .8);
-    shake = Math.max(shake - dt * .12, 0);
-    pMat.opacity = Math.max(pMat.opacity - dt * .5, 0);
-    aMat.opacity = Math.max(aMat.opacity - dt * .25, 0);
-    // scorch the green
-    green.forEach(g => { if (g.userData.scorch){ g.scale.multiplyScalar(Math.max(1 - dt * 1.4, 0)); if (g.scale.x < .02) g.visible = false; } });
-    if (tState > 5){ state = 'regrowing'; tState = 0; green.forEach(g => { g.visible = true; g.userData.scorch = false; }); }
-  } else if (state === 'regrowing'){
-    const k = Math.min(tState / 4, 1);
-    green.forEach((g, i) => {
-      const kk = THREE.MathUtils.clamp(k * 1.6 - (i % 7) * .08, 0, 1);
-      const s = 1 - Math.pow(1 - kk, 3);
-      g.scale.setScalar(Math.max(s, .001));
+
+    // --- 6. Small Fishing Hut at the Foot of the Volcano ---
+    const hutGroup = new THREE.Group();
+    // Place on the calm southeastern shore (away from lava channel)
+    hutGroup.position.set(1.75, 0.50, 1.65);
+    hutGroup.rotation.y = Math.PI * 0.26;
+    islandGroup.add(hutGroup);
+
+    const woodMat = new THREE.MeshStandardMaterial({ color: 0x6e472b, roughness: 0.9, flatShading: true });
+    const darkWoodMat = new THREE.MeshStandardMaterial({ color: 0x4a2e1b, roughness: 0.92, flatShading: true });
+    const thatchMat = new THREE.MeshStandardMaterial({ color: 0xc29154, roughness: 0.95, flatShading: true });
+
+    // Wooden stilts & deck extending toward the water
+    const stiltPositions = [
+      [-0.22, -0.12, -0.22], [0.22, -0.12, -0.22],
+      [-0.22, -0.18, 0.25],  [0.22, -0.18, 0.25],
+      [-0.11, -0.22, 0.58],  [0.11, -0.22, 0.58],
+      [-0.11, -0.24, 0.88],  [0.11, -0.24, 0.88]
+    ];
+    stiltPositions.forEach(([sx, sy, sz]) => {
+      const post = new THREE.Mesh(new THREE.CylinderGeometry(0.028, 0.025, 0.42, 5), darkWoodMat);
+      post.position.set(sx, sy, sz);
+      post.castShadow = true;
+      hutGroup.add(post);
     });
-    if (tState > 5){ state = 'idle'; tState = 0; hint.textContent = 'Tap the crater to wake it again'; hint.classList.remove('gone'); setTimeout(() => hint.classList.add('gone'), 4000); }
-  }
 
-  // integrate lava particles
-  const pa = pGeo.attributes.position.array;
-  for (let i = parts.length - 1; i >= 0; i--){
-    const p = parts[i];
-    p.life += dt;
-    p.vy -= 9.8 * dt * .55;
-    p.x += p.vx * dt; p.y += p.vy * dt; p.z += p.vz * dt;
-    if (p.y < .1 || p.life > 4){ parts.splice(i, 1); continue; }
-    pa[i*3] = p.x; pa[i*3+1] = p.y; pa[i*3+2] = p.z;
-  }
-  for (let i = 0; i < MAXP; i++){ if (i >= parts.length){ pa[i*3] = 0; pa[i*3+1] = -50; pa[i*3+2] = 0; } }
-  pGeo.attributes.position.needsUpdate = true;
+    // Main platform deck
+    const deckMesh = new THREE.Mesh(jitterGeometry(new THREE.BoxGeometry(0.56, 0.05, 0.58), 0.01), woodMat);
+    deckMesh.position.set(0, 0.04, 0);
+    deckMesh.castShadow = true;
+    deckMesh.receiveShadow = true;
+    hutGroup.add(deckMesh);
 
-  const aa = aGeo.attributes.position.array;
-  for (let i = ash.length - 1; i >= 0; i--){
-    const p = ash[i];
-    p.life += dt;
-    p.x += p.vx * dt + Math.sin(t * 2 + i) * .01; p.y += p.vy * dt; p.z += p.vz * dt;
-    p.vy *= (1 - dt * .3);
-    if (p.life > 6){ ash.splice(i, 1); continue; }
-    aa[i*3] = p.x; aa[i*3+1] = p.y; aa[i*3+2] = p.z;
-  }
-  for (let i = 0; i < 140; i++){ if (i >= ash.length){ aa[i*3] = 0; aa[i*3+1] = -50; aa[i*3+2] = 0; } }
-  aGeo.attributes.position.needsUpdate = true;
+    // Small fishing pier planks
+    for (let p = 0; p < 5; p++) {
+      const plank = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.035, 0.10), woodMat);
+      plank.position.set((Math.random() - 0.5) * 0.015, 0.03, 0.36 + p * 0.13);
+      plank.rotation.y = (Math.random() - 0.5) * 0.06;
+      plank.castShadow = true;
+      plank.receiveShadow = true;
+      hutGroup.add(plank);
+    }
 
-  if (shake > 0){
-    camera.position.x += (Math.random()-.5) * shake;
-    camera.position.y += (Math.random()-.5) * shake;
-  }
-  renderer.render(scene, camera);
-}
-animate();
+    // Hut walls
+    const cabinMesh = new THREE.Mesh(
+      jitterGeometry(new THREE.BoxGeometry(0.42, 0.34, 0.42), 0.012),
+      woodMat
+    );
+    cabinMesh.position.set(0, 0.22, -0.02);
+    cabinMesh.castShadow = true;
+    cabinMesh.receiveShadow = true;
+    hutGroup.add(cabinMesh);
 
-addEventListener('resize', () => {
-  camera.aspect = innerWidth / innerHeight;
-  camera.updateProjectionMatrix();
-  renderer.setSize(innerWidth, innerHeight);
-});
-</script>
+    // Warm glowing window on the hut
+    const windowMat = new THREE.MeshStandardMaterial({
+      color: 0xffd27d,
+      emissive: 0xff9d3b,
+      emissiveIntensity: 2.2,
+      roughness: 0.3
+    });
+    const windowMesh = new THREE.Mesh(new THREE.BoxGeometry(0.11, 0.11, 0.44), windowMat);
+    windowMesh.position.set(0, 0.23, -0.02);
+    hutGroup.add(windowMesh);
+
+    // Steep pitched low-poly thatched roof
+    const roofGeo = jitterGeometry(new THREE.ConeGeometry(0.42, 0.34, 4), 0.02);
+    roofGeo.rotateY(Math.PI / 4);
+    const roofMesh = new THREE.Mesh(roofGeo, thatchMat);
+    roofMesh.position.set(0, 0.52, -0.02);
+    roofMesh.scale.set(1.08, 1.0, 1.12);
+    roofMesh.castShadow = true;
+    hutGroup.add(roofMesh);
+
+    // Tiny warm lantern hanging at the end of the pier
+    const lanternPost = new THREE.Mesh(new THREE.CylinderGeometry(0.016, 0.016, 0.28, 5), darkWoodMat);
+    lanternPost.position.set(0.12, 0.16, 0.88);
+    hutGroup.add(lanternPost);
+
+    const lanternBulb = new THREE.Mesh(
+      new THREE.OctahedronGeometry(0.045, 0),
+      new THREE.MeshStandardMaterial({
+        color: 0xffe39f,
+        emissive: 0xff9e3d,
+        emissiveIntensity: 3.0
+      })
+    );
+    lanternBulb.position.set(0.12, 0.29, 0.88);
+    hutGroup.add(lanternBulb);
+
+    const hutLight = new THREE.PointLight(0xffa447, 0.9, 3.2, 1.8);
+    hutLight.position.set(0.12, 0.35, 0.88);
+    hutGroup.add(hutLight);
+
+    // Tiny wooden rowboat moored beside the pier
+    const boatGroup = new THREE.Group();
+    boatGroup.position.set(2.38, 0.35, 2.08);
+    boatGroup.rotation.y = -0.55;
+    islandGroup.add(boatGroup);
+
+    const boatHull = new THREE.Mesh(
+      jitterGeometry(new THREE.BoxGeometry(0.18, 0.08, 0.38), 0.015),
+      new THREE.MeshStandardMaterial({ color: 0x8c462b, roughness: 0.85, flatShading: true })
+    );
+    boatHull.castShadow = true;
+    boatGroup.add(boatHull);
+
+    // --- 7. Palm Trees Around the Beach Ring ---
+    const palmTrunkMat = new THREE.MeshStandardMaterial({ color: 0x7a5234, roughness: 0.92, flatShading: true });
+    const palmLeafMat = new THREE.MeshStandardMaterial({ color: 0x4c8540, roughness: 0.82, flatShading: true });
+    const coconutMat = new THREE.MeshStandardMaterial({ color: 0x472d18, roughness: 0.9, flatShading: true });
+
+    const palmTrees = [];
+    function createPalmTree(x, y, z, scale = 1.0, leanAngle = 0) {
+      const tree = new THREE.Group();
+      tree.position.set(x, y, z);
+      tree.rotation.y = leanAngle;
+      tree.scale.setScalar(scale);
+
+      const segments = 5;
+      let curY = 0;
+      let curZ = 0;
+      for (let i = 0; i < segments; i++) {
+        const rBottom = 0.065 * (1 - i * 0.11);
+        const rTop = 0.054 * (1 - i * 0.11);
+        const segH = 0.15;
+        const seg = new THREE.Mesh(
+          jitterGeometry(new THREE.CylinderGeometry(rTop, rBottom, segH, 6), 0.008),
+          palmTrunkMat
+        );
+        const tilt = (i + 0.5) * 0.09;
+        seg.position.set(0, curY + segH * 0.5, curZ);
+        seg.rotation.x = tilt;
+        seg.castShadow = true;
+        seg.receiveShadow = true;
+        tree.add(seg);
+
+        curY += Math.cos(tilt) * segH * 0.94;
+        curZ += Math.sin(tilt) * segH * 0.94;
+      }
+
+      const crown = new THREE.Group();
+      crown.position.set(0, curY + 0.02, curZ);
+      tree.add(crown);
+
+      // Coconuts under the fronds
+      for (let c = 0; c < 3; c++) {
+        const coco = new THREE.Mesh(new THREE.DodecahedronGeometry(0.036, 0), coconutMat);
+        const ca = (c / 3) * Math.PI * 2;
+        coco.position.set(Math.cos(ca) * 0.04, -0.02, Math.sin(ca) * 0.04);
+        crown.add(coco);
+      }
+
+      // 6 low-poly arching fronds
+      const frondCount = 6;
+      for (let f = 0; f < frondCount; f++) {
+        const frondPivot = new THREE.Group();
+        frondPivot.rotation.y = (f / frondCount) * Math.PI * 2 + rand(-0.15, 0.15);
+
+        const frondGeo = new THREE.BoxGeometry(0.11, 0.022, 0.42, 1, 1, 3);
+        const pos = frondGeo.attributes.position;
+        for (let k = 0; k < pos.count; k++) {
+          const fz = pos.getZ(k) + 0.21; // 0 to 0.42
+          const normZ = fz / 0.42;
+          // Arch downward and taper at the tip
+          pos.setZ(k, fz);
+          pos.setY(k, pos.getY(k) + Math.sin(normZ * Math.PI) * 0.06 - normZ * normZ * 0.14);
+          pos.setX(k, pos.getX(k) * (1 - normZ * 0.65));
+        }
+        const finalFrondGeo = frondGeo.toNonIndexed();
+        finalFrondGeo.computeVertexNormals();
+
+        const frond = new THREE.Mesh(finalFrondGeo, palmLeafMat);
+        frond.rotation.x = -0.18;
+        frond.castShadow = true;
+        frondPivot.add(frond);
+        crown.add(frondPivot);
+      }
+
+      islandGroup.add(tree);
+      palmTrees.push({ group: tree, crown, phase: rand(0, Math.PI * 2) });
+    }
+
+    // Place a few handmade palms around the beach ring & near the hut
+    createPalmTree(2.15, 0.50, 0.95, 1.05, 0.9);
+    createPalmTree(1.15, 0.52, 2.18, 0.88, 0.35);
+    createPalmTree(-2.08, 0.48, 0.72, 1.0, -1.2);
+    createPalmTree(-1.55, 0.51, -1.78, 0.92, -2.4);
+    createPalmTree(1.72, 0.50, -1.62, 0.82, 2.2);
+    createPalmTree(1.48, 0.55, -1.88, 0.64, 2.6);
+
+    // --- 8. Regrowing Green Bushes on the Volcano Slopes ---
+    // These scorch/disappear during eruption and creep back over ~5 seconds after cooling
+    const bushPalettes = [0x4c8a42, 0x3b753c, 0x629c49, 0x528238];
+    const bushMaterials = bushPalettes.map(col => new THREE.MeshStandardMaterial({
+      color: col,
+      roughness: 0.88,
+      flatShading: true
+    }));
+
+    const bushes = [];
+    const bushCoordinates = [
+      // Upper-mid cone bushes (scorch first, regrow last)
+      [-0.45, 1.85, 1.05, 0.16, 1],
+      [-0.15, 1.92, 1.08, 0.14, 1],
+      [-0.72, 1.65, 1.12, 0.17, 1],
+      [0.85, 1.75, 0.72, 0.16, 2],
+      [1.02, 1.62, -0.45, 0.18, 2],
+      [-0.95, 1.68, -0.68, 0.15, 2],
+      [0.18, 1.82, -1.08, 0.15, 2],
+      // Mid-slope clusters
+      [-0.58, 1.38, 1.48, 0.20, 1],
+      [-0.22, 1.32, 1.56, 0.18, 1],
+      [-0.98, 1.25, 1.38, 0.19, 1],
+      [1.28, 1.25, 0.92, 0.21, 2],
+      [1.45, 1.18, 0.12, 0.19, 2],
+      [-1.42, 1.22, 0.18, 0.20, 2],
+      [-1.18, 1.26, -1.12, 0.22, 2],
+      [0.65, 1.28, -1.38, 0.18, 2],
+      // Foothill & coastal bushes (regrow first, spreading upward)
+      [-0.68, 0.88, 1.88, 0.22, 1],
+      [-1.18, 0.84, 1.75, 0.24, 1],
+      [-0.32, 0.86, 1.95, 0.19, 1],
+      [0.45, 0.82, 1.92, 0.23, 3],
+      [0.72, 0.78, 1.85, 0.17, 3],
+      [1.75, 0.78, 0.42, 0.23, 3],
+      [1.82, 0.74, -0.65, 0.21, 3],
+      [1.18, 0.79, -1.62, 0.25, 3],
+      [0.25, 0.80, -1.92, 0.22, 3],
+      [-0.65, 0.79, -1.85, 0.20, 3],
+      [-1.68, 0.78, -0.92, 0.23, 3],
+      [-1.85, 0.76, 0.45, 0.21, 3],
+      [-1.52, 0.72, 1.38, 0.18, 3]
+    ];
+
+    bushCoordinates.forEach(([bx, by, bz, radius, zone], index) => {
+      const cluster = new THREE.Group();
+      cluster.position.set(bx, by, bz);
+
+      const mat = bushMaterials[index % bushMaterials.length];
+      // Main puff + 1-2 smaller side puffs for handmade low-poly foliage feel
+      const mainPuff = new THREE.Mesh(
+        jitterGeometry(new THREE.DodecahedronGeometry(radius, 0), 0.035),
+        mat
+      );
+      mainPuff.scale.set(1.15, 0.82, 1.08);
+      mainPuff.rotation.set(rand(0, 3), rand(0, 3), rand(0, 3));
+      mainPuff.castShadow = true;
+      mainPuff.receiveShadow = true;
+      cluster.add(mainPuff);
+
+      const subPuff = new THREE.Mesh(
+        jitterGeometry(new THREE.DodecahedronGeometry(radius * 0.72, 0), 0.025),
+        bushMaterials[(index + 1) % bushMaterials.length]
+      );
+      subPuff.position.set(rand(-0.08, 0.08), -0.02, rand(-0.08, 0.08));
+      subPuff.castShadow = true;
+      subPuff.receiveShadow = true;
+      cluster.add(subPuff);
+
+      islandGroup.add(cluster);
+
+      // Normalize height so bushes creep back from bottom foothills up the slope over 5s
+      const heightOrder = clamp((by - 0.7) / 1.3, 0, 1);
+      bushes.push({
+        group: cluster,
+        zone,
+        heightOrder,
+        stagger: clamp(heightOrder * 0.65 + rand(0, 0.22), 0, 0.85),
+        scaleFactor: 1.0
+      });
+    });
+
+    // --- 9. Particle Systems: Lava Fountain, Drifting Ash, and Sea Steam ---
+    // A. Glowing Lava Fountain Bombs
+    const FOUNTAIN_COUNT = 58;
+    const fountainParticles = [];
+    const fountainGroup = new THREE.Group();
+    islandGroup.add(fountainGroup);
+
+    const bombGeo = new THREE.DodecahedronGeometry(0.068, 0);
+    for (let i = 0; i < FOUNTAIN_COUNT; i++) {
+      const mat = new THREE.MeshStandardMaterial({
+        color: 0xffdf55,
+        emissive: 0xff4d00,
+        emissiveIntensity: 2.5,
+        roughness: 0.4,
+        flatShading: true
+      });
+      const mesh = new THREE.Mesh(bombGeo, mat);
+      mesh.visible = false;
+      fountainGroup.add(mesh);
+      fountainParticles.push({
+        mesh,
+        mat,
+        vel: new THREE.Vector3(),
+        age: 0,
+        life: 1,
+        active: false
+      });
+    }
+
+    function spawnLavaBomb(p) {
+      p.active = true;
+      p.age = 0;
+      p.life = rand(0.75, 1.45);
+      const angle = rand(0, Math.PI * 2);
+      const r = rand(0.02, 0.28);
+      p.mesh.position.set(Math.cos(angle) * r, 2.45, Math.sin(angle) * r);
+      const spread = rand(0.35, 1.35);
+      p.vel.set(
+        Math.cos(angle) * spread,
+        rand(2.6, 4.7),
+        Math.sin(angle) * spread
+      );
+      const s = rand(0.65, 1.45);
+      p.mesh.scale.setScalar(s);
+      p.mesh.visible = true;
+    }
+
+    // B. Drifting Volcanic Ash & Plume Particles
+    const ASH_COUNT = 75;
+    const ashParticles = [];
+    const ashGroup = new THREE.Group();
+    dioramaGroup.add(ashGroup);
+
+    const ashGeo = new THREE.DodecahedronGeometry(0.09, 0);
+    for (let i = 0; i < ASH_COUNT; i++) {
+      const mat = new THREE.MeshStandardMaterial({
+        color: 0x3a323d,
+        emissive: 0xff3b00,
+        emissiveIntensity: 0.0,
+        roughness: 0.95,
+        transparent: true,
+        opacity: 0.0,
+        flatShading: true
+      });
+      const mesh = new THREE.Mesh(ashGeo, mat);
+      mesh.visible = false;
+      ashGroup.add(mesh);
+      ashParticles.push({
+        mesh,
+        mat,
+        vel: new THREE.Vector3(),
+        rotSpeed: new THREE.Vector3(rand(-2, 2), rand(-2, 2), rand(-2, 2)),
+        age: 0,
+        life: 1,
+        maxScale: rand(0.6, 2.1),
+        active: false
+      });
+    }
+
+    function spawnAshParticle(p, isIdleWisp = false) {
+      p.active = true;
+      p.age = 0;
+      p.life = isIdleWisp ? rand(2.5, 4.0) : rand(3.0, 5.5);
+      const angle = rand(0, Math.PI * 2);
+      const r = rand(0.05, 0.35);
+      p.mesh.position.set(Math.cos(angle) * r, 2.65, Math.sin(angle) * r);
+      p.vel.set(
+        rand(-0.25, 0.45), // gentle dusk breeze drift
+        isIdleWisp ? rand(0.35, 0.65) : rand(0.65, 1.45),
+        rand(-0.25, 0.35)
+      );
+      p.maxScale = isIdleWisp ? rand(0.55, 1.1) : rand(0.7, 2.2);
+      p.mesh.scale.setScalar(0.2);
+      p.mesh.visible = true;
+    }
+
+    // C. Coastal Steam Puffs (where the lava river meets the sea)
+    const STEAM_COUNT = 22;
+    const steamParticles = [];
+    const steamGroup = new THREE.Group();
+    islandGroup.add(steamGroup);
+
+    for (let i = 0; i < STEAM_COUNT; i++) {
+      const mat = new THREE.MeshStandardMaterial({
+        color: 0xffe6d8,
+        roughness: 0.9,
+        transparent: true,
+        opacity: 0,
+        flatShading: true
+      });
+      const mesh = new THREE.Mesh(ashGeo, mat);
+      mesh.visible = false;
+      steamGroup.add(mesh);
+      steamParticles.push({
+        mesh,
+        mat,
+        vel: new THREE.Vector3(),
+        age: 0,
+        life: 1.5,
+        active: false
+      });
+    }
+
+    function spawnSteamParticle(p) {
+      p.active = true;
+      p.age = 0;
+      p.life = rand(1.1, 2.1);
+      // Sea entry point of the lava river
+      p.mesh.position.set(
+        -1.02 + rand(-0.22, 0.22),
+        0.38,
+        2.92 + rand(-0.18, 0.18)
+      );
+      p.vel.set(rand(-0.2, 0.2), rand(0.55, 1.15), rand(-0.1, 0.25));
+      p.mesh.scale.setScalar(0.35);
+      p.mesh.visible = true;
+    }
+
+    // --- 10. Eruption State Machine ---
+    // States: 'IDLE' -> 'ERUPTING' (8s) -> 'COOLING' (2.2s) -> 'REGROWING' (5s) -> 'IDLE'
+    const STATE = {
+      IDLE: 'IDLE',
+      ERUPTING: 'ERUPTING',
+      COOLING: 'COOLING',
+      REGROWING: 'REGROWING'
+    };
+
+    const ERUPT_DURATION = 8.0;
+    const COOL_DURATION = 2.2;
+    const REGROW_DURATION = 5.0;
+
+    let currentState = STATE.IDLE;
+    let stateTimer = 0;
+    let riverReachProgress = 0; // 0 to 1 down the slope
+
+    const cHotLava = new THREE.Color(0xffdf4f);
+    const cHotEmissive = new THREE.Color(0xff3c00);
+    const cMidLava = new THREE.Color(0xff5500);
+    const cFreshBlackRock = new THREE.Color(0x1b171e);
+    const cDarkEmissive = new THREE.Color(0x000000);
+
+    function setHintMessage(text, highlight = false) {
+      clearTimeout(initialHintTimer);
+      hintEl.textContent = text;
+      if (highlight) {
+        hintEl.classList.remove('faded');
+        hintEl.classList.add('pulse');
+      } else {
+        hintEl.classList.remove('pulse');
+        hintEl.classList.add('faded');
+      }
+    }
+
+    function triggerEruption() {
+      if (currentState !== STATE.IDLE) return;
+
+      currentState = STATE.ERUPTING;
+      stateTimer = 0;
+      riverReachProgress = 0;
+
+      setHintMessage('The volcano erupts into the dusk sea', true);
+
+      // Burst of initial lava bombs
+      for (let i = 0; i < 20; i++) {
+        spawnLavaBomb(fountainParticles[i]);
+      }
+    }
+
+    // --- 11. Reliable Tap-vs-Drag Raycast Detection ---
+    const raycaster = new THREE.Raycaster();
+    const pointerNDC = new THREE.Vector2();
+    let pointerDownPos = { x: 0, y: 0 };
+    let pointerDownTime = 0;
+    let isPointerDown = false;
+
+    function updatePointerNDC(clientX, clientY) {
+      const rect = renderer.domElement.getBoundingClientRect();
+      pointerNDC.x = ((clientX - rect.left) / rect.width) * 2 - 1;
+      pointerNDC.y = -((clientY - rect.top) / rect.height) * 2 + 1;
+    }
+
+    function checkCraterIntersection(clientX, clientY) {
+      updatePointerNDC(clientX, clientY);
+      raycaster.setFromCamera(pointerNDC, camera);
+      const hits = raycaster.intersectObjects(interactiveTargets, false);
+      if (hits.length === 0) return false;
+      // Accept taps anywhere on the crater or upper-mid volcano cone
+      return hits[0].point.y > 0.85;
+    }
+
+    renderer.domElement.addEventListener('pointerdown', (e) => {
+      isPointerDown = true;
+      pointerDownPos.x = e.clientX;
+      pointerDownPos.y = e.clientY;
+      pointerDownTime = performance.now();
+    });
+
+    renderer.domElement.addEventListener('pointermove', (e) => {
+      // Desktop hover cursor feedback when idle
+      if (!isPointerDown && e.pointerType === 'mouse') {
+        const hoveringCrater = currentState === STATE.IDLE && checkCraterIntersection(e.clientX, e.clientY);
+        container.classList.toggle('crater-hover', hoveringCrater);
+      }
+    });
+
+    renderer.domElement.addEventListener('pointerup', (e) => {
+      if (!isPointerDown) return;
+      isPointerDown = false;
+
+      const dx = e.clientX - pointerDownPos.x;
+      const dy = e.clientY - pointerDownPos.y;
+      const dist = Math.hypot(dx, dy);
+      const elapsed = performance.now() - pointerDownTime;
+
+      // Distinguish crisp tap from camera drag or pinch zoom
+      if (dist < 9 && elapsed < 420) {
+        if (checkCraterIntersection(e.clientX, e.clientY)) {
+          triggerEruption();
+        }
+      }
+    });
+
+    // --- 12. Animation & Lifecycle Loop ---
+    const clock = new THREE.Clock();
+    let wispAccumulator = 0;
+
+    function animate() {
+      requestAnimationFrame(animate);
+
+      const dt = Math.min(clock.getDelta(), 0.05);
+      const elapsed = clock.getElapsedTime();
+
+      // 1. Animate Dark Dusk Sea Waves
+      for (let i = 0; i < seaPos.count; i++) {
+        const wave = Math.sin(elapsed * 1.45 + seaPhase[i]) * 0.055;
+        seaPos.setY(i, seaBaseY[i] + wave);
+      }
+      seaPos.needsUpdate = true;
+
+      // 2. Animate Cutaway Lagoon Top Surface & Foam Ring
+      for (let i = 0; i < lagoonTopIndices.length; i++) {
+        const item = lagoonTopIndices[i];
+        const ripple = Math.sin(elapsed * 2.1 + item.x * 1.4 + item.z * 1.4) * 0.022;
+        lagoonPos.setY(item.idx, 0.19 + ripple);
+      }
+      lagoonPos.needsUpdate = true;
+      foamRing.scale.set(
+        1 + Math.sin(elapsed * 2.1) * 0.012,
+        1,
+        1 + Math.cos(elapsed * 2.1) * 0.012
+      );
+
+      // 3. Gentle Boat Bobbing & Palm Frond Breeze
+      boatGroup.position.y = 0.35 + Math.sin(elapsed * 2.4) * 0.018;
+      boatGroup.rotation.z = Math.sin(elapsed * 1.8) * 0.05;
+
+      for (let i = 0; i < palmTrees.length; i++) {
+        const p = palmTrees[i];
+        p.crown.rotation.z = Math.sin(elapsed * 1.6 + p.phase) * 0.045;
+        p.crown.rotation.x = Math.cos(elapsed * 1.3 + p.phase) * 0.035;
+      }
+
+      // Warm lantern flicker on the fishing hut
+      hutLight.intensity = 0.85 + Math.sin(elapsed * 9.0) * 0.08 + Math.cos(elapsed * 14.3) * 0.05;
+
+      // 4. Eruption / Cooling / Regrowth State Machine
+      if (currentState === STATE.IDLE) {
+        // Subtle idle magma pulse
+        const idlePulse = 1.6 + Math.sin(elapsed * 2.8) * 0.35;
+        magmaPoolMat.emissiveIntensity = idlePulse;
+        craterLight.intensity = 2.0 + Math.sin(elapsed * 2.8) * 0.4;
+        lavaRiverLight.intensity = THREE.MathUtils.lerp(lavaRiverLight.intensity, 0, dt * 4);
+
+        dioramaGroup.position.set(0, 0, 0);
+
+        // Occasional gentle smoke wisp from crater in idle state
+        wispAccumulator += dt;
+        if (wispAccumulator > 0.65) {
+          wispAccumulator = 0;
+          const inactiveAsh = ashParticles.find(p => !p.active);
+          if (inactiveAsh) spawnAshParticle(inactiveAsh, true);
+        }
+
+      } else if (currentState === STATE.ERUPTING) {
+        stateTimer += dt;
+        const progress = clamp(stateTimer / ERUPT_DURATION, 0, 1);
+
+        // Subtle tactile camera / diorama tremor
+        const shakeEnvelope = smoothstep(0, 0.12, progress) * (1 - smoothstep(0.82, 1.0, progress));
+        const shakeAmp = 0.042 * shakeEnvelope;
+        dioramaGroup.position.set(
+          Math.sin(elapsed * 47.0) * shakeAmp,
+          Math.cos(elapsed * 53.0) * (shakeAmp * 0.65),
+          Math.sin(elapsed * 41.0 + 1.2) * shakeAmp
+        );
+
+        // Intense crater & lava lighting
+        magmaPoolMat.emissiveIntensity = 4.2 + Math.sin(elapsed * 18.0) * 0.8;
+        craterLight.intensity = 6.5 + Math.sin(elapsed * 15.0) * 1.4;
+        lavaRiverLight.intensity = 3.2 * smoothstep(0.1, 0.45, progress) + Math.sin(elapsed * 12.0) * 0.4;
+
+        // Lava river snakes down the cone and reaches the sea around t = 3.4s
+        riverReachProgress = clamp(stateTimer / 3.4, 0, 1);
+
+        for (let i = 0; i < LAVA_SEGMENTS; i++) {
+          const node = lavaNodes[i];
+          const localReach = clamp((riverReachProgress * 1.15 - node.t) * 5.5, 0, 1);
+          if (localReach > 0.01) {
+            node.mesh.visible = true;
+            const pulse = 1.0 + Math.sin(elapsed * 9.0 - node.t * 14.0) * 0.14;
+            node.mesh.scale.set(localReach * pulse, localReach, localReach * 1.15);
+
+            // Flowing bright yellow-orange core
+            const heatWave = 0.5 + 0.5 * Math.sin(elapsed * 7.5 - node.t * 12.0);
+            node.mat.color.copy(cMidLava).lerp(cHotLava, heatWave * 0.75);
+            node.mat.emissive.copy(cHotEmissive);
+            node.mat.emissiveIntensity = 2.0 + heatWave * 1.1;
+          }
+        }
+
+        // Bushes scorch and shrink away as the eruption heats the mountain
+        for (let i = 0; i < bushes.length; i++) {
+          const b = bushes[i];
+          const burnDelay = b.zone === 1 ? 0.35 : (b.zone === 2 ? 0.95 : 1.75);
+          if (stateTimer > burnDelay) {
+            b.scaleFactor = Math.max(0.001, b.scaleFactor - dt * 2.2);
+            b.group.scale.setScalar(b.scaleFactor);
+            b.group.visible = b.scaleFactor > 0.01;
+          }
+        }
+
+        // Continuously spawn lava fountain bombs
+        for (let i = 0; i < FOUNTAIN_COUNT; i++) {
+          const p = fountainParticles[i];
+          if (!p.active && Math.random() < dt * 18.0) {
+            spawnLavaBomb(p);
+          }
+        }
+
+        // Continuously spawn drifting ash
+        for (let i = 0; i < ASH_COUNT; i++) {
+          const p = ashParticles[i];
+          if (!p.active && Math.random() < dt * 14.0) {
+            spawnAshParticle(p, false);
+          }
+        }
+
+        // Spawn steam plumes once the lava river reaches the sea
+        if (riverReachProgress > 0.88) {
+          for (let i = 0; i < STEAM_COUNT; i++) {
+            const sp = steamParticles[i];
+            if (!sp.active && Math.random() < dt * 11.0) {
+              spawnSteamParticle(sp);
+            }
+          }
+        }
+
+        if (stateTimer >= ERUPT_DURATION) {
+          currentState = STATE.COOLING;
+          stateTimer = 0;
+          dioramaGroup.position.set(0, 0, 0);
+          setHintMessage('Lava cools into fresh black basalt...', false);
+        }
+
+      } else if (currentState === STATE.COOLING) {
+        stateTimer += dt;
+        const coolT = clamp(stateTimer / COOL_DURATION, 0, 1);
+        const easeCool = smoothstep(0, 1, coolT);
+
+        // Crater & slope lights settle back to warm ember glow
+        magmaPoolMat.emissiveIntensity = THREE.MathUtils.lerp(3.8, 1.4, easeCool);
+        craterLight.intensity = THREE.MathUtils.lerp(6.0, 2.0, easeCool);
+        lavaRiverLight.intensity = THREE.MathUtils.lerp(2.8, 0.0, easeCool);
+
+        // Lava river darkens to fresh black volcanic rock
+        for (let i = 0; i < LAVA_SEGMENTS; i++) {
+          const node = lavaNodes[i];
+          // Cool from the sea delta & outer edges inward
+          const nodeCool = clamp((coolT * 1.25) - (1 - node.t) * 0.25, 0, 1);
+          node.mat.color.copy(cMidLava).lerp(cFreshBlackRock, nodeCool);
+          node.mat.emissive.copy(cHotEmissive).lerp(cDarkEmissive, nodeCool);
+          node.mat.emissiveIntensity = (1 - nodeCool) * 1.8;
+        }
+
+        if (stateTimer >= COOL_DURATION) {
+          currentState = STATE.REGROWING;
+          stateTimer = 0;
+          setHintMessage('Life creeps back up the volcanic soil...', false);
+        }
+
+      } else if (currentState === STATE.REGROWING) {
+        stateTimer += dt;
+        const regrowT = clamp(stateTimer / REGROW_DURATION, 0, 1);
+
+        // Green bushes creep back over 5 seconds from coastal foothills up the slope
+        for (let i = 0; i < bushes.length; i++) {
+          const b = bushes[i];
+          const localT = clamp((regrowT - b.stagger * 0.58) / (1 - 0.58), 0, 1);
+          if (localT > 0) {
+            b.group.visible = true;
+            // Gentle spring overshoot as each bush pops back in
+            const spring = localT < 0.8
+              ? (localT / 0.8) * 1.08
+              : 1.08 - ((localT - 0.8) / 0.2) * 0.08;
+            b.scaleFactor = spring;
+            b.group.scale.setScalar(spring);
+          }
+        }
+
+        // Slowly subside the cooled black lava rock into the channel bed so the next eruption is fresh
+        if (regrowT > 0.35) {
+          const subside = smoothstep(0.35, 1.0, regrowT);
+          for (let i = 0; i < LAVA_SEGMENTS; i++) {
+            const node = lavaNodes[i];
+            const s = Math.max(0.001, 1 - subside * 0.55);
+            node.mesh.scale.set(s, s * (1 - subside * 0.6), s);
+          }
+        }
+
+        if (stateTimer >= REGROW_DURATION) {
+          currentState = STATE.IDLE;
+          stateTimer = 0;
+          setHintMessage('Tap the crater to awaken the mountain', false);
+        }
+      }
+
+      // 5. Update Active Lava Fountain Particles
+      for (let i = 0; i < FOUNTAIN_COUNT; i++) {
+        const p = fountainParticles[i];
+        if (!p.active) continue;
+
+        p.age += dt;
+        if (p.age >= p.life || p.mesh.position.y < 0.55) {
+          p.active = false;
+          p.mesh.visible = false;
+          continue;
+        }
+
+        p.vel.y -= 6.8 * dt; // Gravity
+        p.mesh.position.addScaledVector(p.vel, dt);
+        p.mesh.rotation.x += 5.0 * dt;
+        p.mesh.rotation.y += 4.0 * dt;
+
+        const lifeRatio = p.age / p.life;
+        // Cool from bright yellow-orange to dark ember red in flight
+        p.mat.color.copy(cHotLava).lerp(cFreshBlackRock, lifeRatio * 0.85);
+        p.mat.emissiveIntensity = (1 - lifeRatio) * 2.8;
+        p.mesh.scale.setScalar((1 - lifeRatio * 0.55) * 0.95);
+      }
+
+      // 6. Update Active Drifting Ash Particles
+      for (let i = 0; i < ASH_COUNT; i++) {
+        const p = ashParticles[i];
+        if (!p.active) continue;
+
+        p.age += dt;
+        if (p.age >= p.life) {
+          p.active = false;
+          p.mesh.visible = false;
+          continue;
+        }
+
+        const lifeRatio = p.age / p.life;
+        // Drift outward on high-altitude dusk wind
+        p.vel.x += 0.14 * dt;
+        p.vel.z -= 0.08 * dt;
+        p.mesh.position.addScaledVector(p.vel, dt);
+        p.mesh.rotation.x += p.rotSpeed.x * dt;
+        p.mesh.rotation.y += p.rotSpeed.y * dt;
+
+        const scale = THREE.MathUtils.lerp(0.25, p.maxScale, smoothstep(0, 0.7, lifeRatio));
+        p.mesh.scale.setScalar(scale);
+
+        // Warm underlit glow near the crater that fades to dark ash higher up
+        const emberGlow = Math.max(0, 1 - lifeRatio * 2.6) * (currentState === STATE.ERUPTING ? 1.1 : 0.15);
+        p.mat.emissiveIntensity = emberGlow;
+        p.mat.opacity = Math.sin(lifeRatio * Math.PI) * 0.68;
+      }
+
+      // 7. Update Coastal Steam Particles
+      for (let i = 0; i < STEAM_COUNT; i++) {
+        const sp = steamParticles[i];
+        if (!sp.active) continue;
+
+        sp.age += dt;
+        if (sp.age >= sp.life) {
+          sp.active = false;
+          sp.mesh.visible = false;
+          continue;
+        }
+
+        const lifeRatio = sp.age / sp.life;
+        sp.mesh.position.addScaledVector(sp.vel, dt);
+        sp.mesh.scale.setScalar(0.35 + lifeRatio * 1.15);
+        sp.mat.opacity = Math.sin(lifeRatio * Math.PI) * 0.55;
+      }
+
+      controls.update();
+      renderer.render(scene, camera);
+    }
+
+    // --- 13. Responsive Resize Handling ---
+    window.addEventListener('resize', () => {
+      updateCameraForViewport();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+
+    animate();
+  </script>
 </body>
 </html>
