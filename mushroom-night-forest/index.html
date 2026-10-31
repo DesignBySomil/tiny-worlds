@@ -34,11 +34,12 @@ renderer.setSize(innerWidth, innerHeight);
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.35;
 app.appendChild(renderer.domElement);
 
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x070a12);
-scene.fog = new THREE.FogExp2(0x070a12, .055);
+scene.fog = new THREE.FogExp2(0x070a12, .04);
 
 const camera = new THREE.PerspectiveCamera(38, innerWidth/innerHeight, .1, 100);
 camera.position.set(8.5, 6.5, 8.5);
@@ -51,8 +52,8 @@ controls.minDistance = 6; controls.maxDistance = 18;
 controls.maxPolarAngle = Math.PI * .47;
 controls.autoRotate = true; controls.autoRotateSpeed = .4;
 
-scene.add(new THREE.HemisphereLight(0x2a3752, 0x05070c, .7));
-const moon = new THREE.DirectionalLight(0x8fa8d8, .5);
+scene.add(new THREE.HemisphereLight(0x3a4c72, 0x0a0e18, 1.6));
+const moon = new THREE.DirectionalLight(0x9db4e2, 1.1);
 moon.position.set(-6, 10, 3);
 moon.castShadow = true;
 moon.shadow.mapSize.set(1024, 1024);
@@ -83,7 +84,7 @@ function myceliumTexture(){
 const sideTex = myceliumTexture();
 const sideMat = new THREE.MeshStandardMaterial({ map: sideTex, emissive:0x57f0d8, emissiveMap:sideTex, emissiveIntensity:.12, roughness:1 });
 const soilMat = new THREE.MeshStandardMaterial({ color:0x241a12, roughness:1 });
-const topMat = new THREE.MeshStandardMaterial({ color:0x142012, roughness:1 });
+const topMat = new THREE.MeshStandardMaterial({ color:0x1d2e1a, roughness:1 });
 const base = new THREE.Mesh(new THREE.BoxGeometry(9, 2.2, 9), [sideMat, sideMat, topMat, soilMat, sideMat, sideMat]);
 base.position.y = -1.1;
 base.receiveShadow = true;
@@ -109,7 +110,7 @@ scene.add(log);
 const mushrooms = [];
 const capColors = [0x2a4d5a, 0x3a2a52, 0x24444e, 0x33284a, 0x2a4d5a, 0x3a2a52, 0x24444e, 0x33284a, 0x2a4d5a];
 const glowColors = [0x4de8ff, 0xb06dff, 0x4dffc8, 0xff6dd4, 0x4de8ff, 0xb06dff, 0x4dffc8, 0xff6dd4, 0x8aff6d];
-const stemMat = new THREE.MeshStandardMaterial({ color:0xcabfa8, roughness:.9 });
+const stemMat = new THREE.MeshStandardMaterial({ color:0xd8cdb6, roughness:.85 });
 const spots = [[0,0],[1.6,.9],[-1.4,1.2],[2.4,-.8],[-2.4,-1],[.8,-1.9],[-.9,-2.2],[3.1,1.8],[-3.2,.2]];
 spots.forEach(([x, z], i) => {
   const grp = new THREE.Group();
