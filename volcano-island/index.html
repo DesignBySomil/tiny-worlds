@@ -171,13 +171,14 @@ waterGeo.rotateX(-Math.PI / 2);
 const waterBase = waterGeo.attributes.position.array.slice();
 {
   const wp0 = waterGeo.attributes.position, wcols = [];
-  const deep = new THREE.Color(0x164f63), mid = new THREE.Color(0x2b8789), shallow = new THREE.Color(0x63c2b2);
+  const deep = new THREE.Color(0x1d5f73), mid = new THREE.Color(0x2c8288), shallow = new THREE.Color(0x55ada0);
   for (let i = 0; i < wp0.count; i++) {
     const x = wp0.getX(i), z = wp0.getZ(i);
     const d = Math.hypot(x, z) - shoreR(Math.atan2(z, x));
-    const t = THREE.MathUtils.smoothstep(d, 0.0, 4.2);
-    const c = t < 0.5 ? shallow.clone().lerp(mid, t * 2) : mid.clone().lerp(deep, (t - 0.5) * 2);
-    c.offsetHSL(0, 0, rand(-0.008, 0.008));
+    const t1 = THREE.MathUtils.smoothstep(d, 0.0, 1.1);   // narrow shallows ring
+    const t2 = THREE.MathUtils.smoothstep(d, 1.1, 4.6);   // gentle mid -> deep
+    const c = shallow.clone().lerp(mid, t1).lerp(deep, t2);
+    c.offsetHSL(0, 0, rand(-0.004, 0.004));
     wcols.push(c.r, c.g, c.b);
   }
   waterGeo.setAttribute('color', new THREE.Float32BufferAttribute(wcols, 3));
@@ -483,6 +484,7 @@ for (let i = 0; i < 3; i++) {
   birds.push(b); scene.add(b);
 }
 
+// pass 23: water camo kill (narrow shallows, close tones), lava beach S-curve channel
 // pass 21: shoulder peak, crag asymmetry, island-wide tap target, livelier water, bigger framing
 // pass 20: debug hook removed; drape fix verified (46 surface points)
 // pass 14: lava form/gradient, smooth water bands, cone gullies, resize refit
@@ -509,13 +511,13 @@ const lavaPts = [];
     const hit = rc.intersectObject(volcano, false)[0];
     if (hit) lavaPts.push(hit.point.clone().addScaledVector(out, 0.10));
   }
-  for (const [bx, bz] of [[-2.62, 3.35], [-2.58, 3.7], [-2.55, 4.05], [-2.5, 4.45], [-2.47, 4.85]]) {
+  for (const [bx, bz] of [[-2.62, 3.35], [-2.44, 3.7], [-2.66, 4.05], [-2.46, 4.45], [-2.63, 4.85]]) {
     rc.set(new THREE.Vector3(bx, 6, bz), new THREE.Vector3(0, -1, 0));
     const hit = rc.intersectObject(islandTop, false)[0];
-    lavaPts.push(hit ? hit.point.clone().add(new THREE.Vector3(0, 0.12, 0))
+    lavaPts.push(hit ? hit.point.clone().add(new THREE.Vector3(0, 0.055, 0))
                      : new THREE.Vector3(bx, 0.5, bz));
   }
-  lavaPts.push(new THREE.Vector3(-2.4, 0.12, 5.9));
+  lavaPts.push(new THREE.Vector3(-2.5, 0.06, 5.9));
 }
 const lavaCurve = new THREE.CatmullRomCurve3(lavaPts);
 function buildLavaTube(curve, segs) {
@@ -719,7 +721,7 @@ function animate() {
   const wp = waterGeo.attributes.position.array;
   for (let i = 0; i < wp.length; i += 3) {
     const x = waterBase[i], z = waterBase[i + 2];
-    wp[i + 1] = Math.sin(x * 2.1 + t * 1.2) * 0.065 + Math.cos(z * 2.7 + t * 1.5) * 0.06 + Math.sin((x + z) * 3.4 + t * 2.1) * 0.038;
+    wp[i + 1] = Math.sin(x * 2.1 + t * 1.2) * 0.05 + Math.cos(z * 2.7 + t * 1.5) * 0.045 + Math.sin((x + z) * 3.4 + t * 2.1) * 0.03;
   }
   waterGeo.attributes.position.needsUpdate = true;
   waterGeo.computeVertexNormals();
