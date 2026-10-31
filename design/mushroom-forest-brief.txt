@@ -1,0 +1,26 @@
+MUSHROOM NIGHT FOREST - design brief (world 2, distinct from volcano; NOT a palette swap)
+Source concept (user's list): "A dark forest floor. Tap mushrooms to light them and puff out spores; the cutaway below glows with the mycelium network that connects them all."
+
+MOOD / REFERENCE BAR
+- Guronnimo-style density and tactility, but NIGHT: deep indigo-blue darkness, cool moonlight from upper left, warm bioluminescent accents (teal-green and amber caps). Do not reuse the volcano dusk-orange sky; this scene lives in blue night with glow.
+- Square cutaway slab: top = forest floor (soil, leaf litter, moss, twigs, ferns), side = soil strata, and the mycelium network glowing INSIDE the front/left cut faces, visible as branching bright threads connecting every mushroom root.
+
+HERO FORMS
+- 5-9 mushrooms of 3 species: tall thin-caps (amber glow), squat toadstools (red-capped with light dots), tiny clustered buttons (teal glow). Stems bent, caps tilted, no two alike. Real mesh caps (lathe/sphere-squash), gills under cap edge (dark ring).
+- Forest floor: bump-mapped soil with pebbles, fallen leaves (small bent planes), moss clumps, 2-3 ferns, a broken twig. Dense, hand-placed.
+- Mycelium: emissive branching lines (TubeGeometry from a recursive branch generator) inside the cut faces + faint glow leaking onto the soil above each mushroom (point light per lit mushroom, low intensity, high decay).
+
+INTERACTION
+- Tap a mushroom: cap lights up (emissive ramp), a soft spore puff (soft sprite particles, slow drift), the mycelium threads nearest to it brighten and the brightness ripples along the network to neighboring mushrooms (pulse traveling through the tube network, per-vertex or per-segment timing).
+- Idle: fireflies (5-8 slow drifting glow points), subtle cap breathing (emissive sine), moonlit mist plane drifting.
+- Cycle: lighting all mushrooms completes a "bloom" - one big shared spore release + mycelium full-glow, then dims back to idle over ~20s. (Keep timings dt-clamped like volcano; verify on focused tab.)
+
+TECH REUSE (infrastructure only, not aesthetic)
+- Same shell: importmap three@0.16x, OrbitControls with drag-discriminated tap (7px/450ms), bounds-fit camera with resize refit (proven pattern), soft puff sprite texture, updateMatrixWorld-before-raycast lesson, pass markers for deploy verification.
+- Assets: Quaternius nature_pack has mushrooms? Check nature_pack contents first (mushroom GLBs if present; else hand-built lathe caps). CC0 with attribution, procedural fallback.
+
+CAMERA
+- Slightly lower angle than volcano (more intimate, eye-level with the caps), bounds-fit the slab + tallest mushroom + firefly headroom.
+
+QUALITY GATES (same as volcano)
+- Desktop idle + interaction + 320x660 pixels, full cycle proof via DOM hints, no fit/fix claims without pixels, main inspects every shot.
