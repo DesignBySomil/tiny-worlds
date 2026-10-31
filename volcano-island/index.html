@@ -171,21 +171,20 @@ waterGeo.rotateX(-Math.PI / 2);
 const waterBase = waterGeo.attributes.position.array.slice();
 {
   const wp0 = waterGeo.attributes.position, wcols = [];
-  const deep = new THREE.Color(0x1d5f73), mid = new THREE.Color(0x2c8288), shallow = new THREE.Color(0x55ada0);
+  const deep = new THREE.Color(0x256d7c), shallow = new THREE.Color(0x3d8f8a);
   for (let i = 0; i < wp0.count; i++) {
     const x = wp0.getX(i), z = wp0.getZ(i);
     const d = Math.hypot(x, z) - shoreR(Math.atan2(z, x));
-    const t1 = THREE.MathUtils.smoothstep(d, 0.0, 1.1);   // narrow shallows ring
-    const t2 = THREE.MathUtils.smoothstep(d, 1.1, 4.6);   // gentle mid -> deep
-    const c = shallow.clone().lerp(mid, t1).lerp(deep, t2);
-    c.offsetHSL(0, 0, rand(-0.004, 0.004));
+    const t1 = THREE.MathUtils.smoothstep(d, 0.0, 0.9);   // slim low-contrast shallows
+    const c = shallow.clone().lerp(deep, t1);
+    c.offsetHSL(0, 0, rand(-0.003, 0.003));
     wcols.push(c.r, c.g, c.b);
   }
   waterGeo.setAttribute('color', new THREE.Float32BufferAttribute(wcols, 3));
 }
 const water = new THREE.Mesh(waterGeo, new THREE.MeshPhongMaterial({
-  vertexColors: true, transparent: true, opacity: 0.92, shininess: 90,
-  specular: 0xa8795c, emissive: 0x12333d, flatShading: false }));
+  vertexColors: true, transparent: true, opacity: 0.92, shininess: 26,
+  specular: 0x5a453c, emissive: 0x12333d, flatShading: false }));
 water.receiveShadow = true; scene.add(water);
 
 const foamGeo = new THREE.BufferGeometry();
@@ -484,6 +483,7 @@ for (let i = 0; i < 3; i++) {
   birds.push(b); scene.add(b);
 }
 
+// pass 24: uniform water + soft specular (patch kill), gentler beach pour
 // pass 23: water camo kill (narrow shallows, close tones), lava beach S-curve channel
 // pass 21: shoulder peak, crag asymmetry, island-wide tap target, livelier water, bigger framing
 // pass 20: debug hook removed; drape fix verified (46 surface points)
@@ -517,7 +517,7 @@ const lavaPts = [];
     lavaPts.push(hit ? hit.point.clone().add(new THREE.Vector3(0, 0.055, 0))
                      : new THREE.Vector3(bx, 0.5, bz));
   }
-  lavaPts.push(new THREE.Vector3(-2.5, 0.06, 5.9));
+  lavaPts.push(new THREE.Vector3(-2.5, 0.02, 5.9));
 }
 const lavaCurve = new THREE.CatmullRomCurve3(lavaPts);
 function buildLavaTube(curve, segs) {
@@ -528,7 +528,7 @@ function buildLavaTube(curve, segs) {
   const cols = new Float32Array(p.count * 3);
   for (let i = 0; i <= segs; i++) {
     const t = i / segs, c0 = curve.getPoint(t);
-    const r = 0.14 + 0.07 * t + Math.sin(t * 12.0) * 0.022 + (t > 0.9 ? (t - 0.9) * 1.6 : 0);
+    const r = 0.14 + 0.07 * t + Math.sin(t * 12.0) * 0.022 + (t > 0.9 ? (t - 0.9) * 1.0 : 0);
     const c = t < 0.22 ? cTop.clone().lerp(cMid, t / 0.22) : cMid.clone().lerp(cToe, (t - 0.22) / 0.78);
     for (let j = 0; j <= R; j++) {
       const vi = i * (R + 1) + j;
