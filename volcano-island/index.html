@@ -359,18 +359,27 @@ for (let i = 0; i < 3; i++) {
 }
 
 // ---------- lava path ----------
-const lavaPts = [
-  new THREE.Vector3(VOLC.x - 0.55, VOLC_TOP - 0.1, VOLC.z + 0.3),
-  new THREE.Vector3(VOLC.x - 1.5, VOLC.y + 3.3, VOLC.z + 1.4),
-  new THREE.Vector3(VOLC.x - 2.1, VOLC.y + 1.6, VOLC.z + 2.9),
-  new THREE.Vector3(-2.8, ISLAND_Y + 0.1, 3.4),
-  new THREE.Vector3(-2.6, ISLAND_Y + 0.05, 4.6),
-  new THREE.Vector3(-2.4, 0.18, 5.6)
-];
+const lavaPts = [];
+{
+  // hug the cone surface on the way down, then cross the beach to the sea
+  const theta0 = 2.7, theta1 = Math.atan2(5.6 - VOLC.z, -2.4 - VOLC.x);
+  for (let i = 0; i <= 5; i++) {
+    const f = i / 5;
+    const y = VOLC_TOP - 0.25 - f * (VOLC_TOP - 0.25 - (ISLAND_Y + 0.12));
+    const coneR = 0.62 + Math.max(VOLC_TOP - y, 0) / 5.0 * (3.45 - 0.62);
+    const th = theta0 + (theta1 - theta0) * f;
+    lavaPts.push(new THREE.Vector3(
+      VOLC.x + Math.cos(th) * (coneR + 0.1),
+      y,
+      VOLC.z + Math.sin(th) * (coneR + 0.1)));
+  }
+  lavaPts.push(new THREE.Vector3(-2.6, ISLAND_Y + 0.06, 4.3));
+  lavaPts.push(new THREE.Vector3(-2.4, 0.18, 5.6));
+}
 const lavaCurve = new THREE.CatmullRomCurve3(lavaPts);
 const lavaMat = new THREE.MeshStandardMaterial({
   color: 0x3a1005, emissive: 0xff4a00, emissiveIntensity: 0, roughness: 0.6 });
-const lava = new THREE.Mesh(new THREE.TubeGeometry(lavaCurve, 40, 0.15, 6), lavaMat);
+const lava = new THREE.Mesh(new THREE.TubeGeometry(lavaCurve, 48, 0.22, 7), lavaMat);
 lava.visible = false; scene.add(lava);
 const lavaMid = lavaCurve.getPoint(0.35);
 lavaLight.position.copy(lavaMid).add(new THREE.Vector3(0, 0.6, 0)); scene.add(lavaLight);
@@ -378,14 +387,14 @@ lavaLight.position.copy(lavaMid).add(new THREE.Vector3(0, 0.6, 0)); scene.add(la
 // glowing flow pulses travelling down the lava
 const flowBlobs = [];
 for (let i = 0; i < 5; i++) {
-  const b = new THREE.Mesh(new THREE.SphereGeometry(0.1, 6, 5),
+  const b = new THREE.Mesh(new THREE.SphereGeometry(0.15, 6, 5),
     new THREE.MeshBasicMaterial({ color: 0xffd23f }));
   b.visible = false; flowBlobs.push(b); scene.add(b);
 }
 
 // scorch ribbon along the path
 const scorchMat = new THREE.MeshBasicMaterial({ color: 0x1f1815, transparent: true, opacity: 0 });
-const scorch = new THREE.Mesh(new THREE.TubeGeometry(lavaCurve, 30, 0.55, 6), scorchMat);
+const scorch = new THREE.Mesh(new THREE.TubeGeometry(lavaCurve, 36, 0.5, 7), scorchMat);
 scorch.scale.y = 0.12; scorch.visible = false; scene.add(scorch);
 
 // regrow shoots
@@ -519,7 +528,7 @@ function animate() {
     lavaMat.emissiveIntensity = 2.3 * k + Math.sin(t * 9) * 0.25;
     craterLight.intensity = 0.6 + 2.6 * k + Math.sin(t * 11) * 0.5;
     lavaLight.intensity = 2.1 * k;
-    scorchMat.opacity = Math.min(scorchMat.opacity + dt * 0.25, 0.55);
+    scorchMat.opacity = Math.min(scorchMat.opacity + dt * 0.2, 0.35);
     flowBlobs.forEach((b, i) => {
       const ft = (t * 0.22 + i / 5) % 1;
       if (ft < k) { b.position.copy(lavaCurve.getPoint(ft)); b.visible = true; }
@@ -544,7 +553,7 @@ function animate() {
     if (stateT > DUR.cool) { steam.pts.visible = false; setState('regrow'); }
   } else if (state === 'regrow') {
     const k = Math.min(stateT / DUR.regrow, 1);
-    scorchMat.opacity = 0.55 * (1 - k);
+    scorchMat.opacity = 0.35 * (1 - k);
     shoots.forEach((s, i) => {
       const sk = THREE.MathUtils.clamp((stateT - i * 0.9) / 4, 0, 1);
       s.scale.setScalar(Math.max(sk, 0.001));
