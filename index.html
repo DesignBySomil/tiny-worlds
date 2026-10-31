@@ -1,0 +1,139 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
+<title>Tiny Worlds - 50 interactive miniatures</title>
+<meta name="description" content="Fifty tiny interactive worlds, each small enough to hold in one hand. Built with Three.js. Open source."/>
+<style>
+  :root{--bg:#0c0f14;--ink:#e8edf3;--dim:#8a94a3;--card:#141a23;--line:#232c3a;--live:#7ce8b0}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:system-ui,-apple-system,sans-serif;line-height:1.5}
+  .wrap{max-width:640px;margin:0 auto;padding:28px 18px 80px}
+  header{padding:26px 0 10px}
+  h1{font-size:26px;margin:0 0 6px;letter-spacing:-.01em}
+  .sub{color:var(--dim);font-size:13.5px;margin:0}
+  .cat{font-size:12px;text-transform:uppercase;letter-spacing:.12em;color:var(--dim);margin:34px 0 10px;border-bottom:1px solid var(--line);padding-bottom:6px}
+  ol{list-style:none;margin:0;padding:0;counter-reset:item}
+  li{margin:0 0 8px}
+  a.row,.row{display:flex;align-items:baseline;gap:12px;text-decoration:none;color:inherit;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px 14px}
+  a.row:hover{border-color:var(--live)}
+  .num{font-variant-numeric:tabular-nums;color:var(--dim);font-size:12px;min-width:22px}
+  .name{font-weight:600;font-size:14.5px}
+  .tag{margin-left:auto;font-size:11px;color:var(--dim);white-space:nowrap}
+  .tag.live{color:var(--live)}
+  footer{margin-top:44px;color:var(--dim);font-size:12px}
+  footer a{color:var(--dim)}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header>
+  <h1>Tiny Worlds</h1>
+  <p class="sub">Fifty interactive miniatures, each small enough to hold in one hand. One atmosphere, one touch. Open source, built with Three.js. New worlds land in batches.</p>
+</header>
+<div id="list"></div>
+<footer>
+  Code: <a href="https://github.com/DesignBySomil/tiny-worlds">github.com/DesignBySomil/tiny-worlds</a> · MIT licensed
+</footer>
+</div>
+<script>
+const CATS = [
+  ["Earth and fire", [
+    ["Volcano island","volcano-island",true],
+    ["Geyser basin","geyser-basin",false],
+    ["Lava cave","lava-cave",false],
+    ["Wildfire and regrowth","wildfire-and-regrowth",false],
+    ["Glacier fjord","glacier-fjord",false],
+    ["Avalanche slope","avalanche-slope",false]
+  ]],
+  ["Plants and tiny life", [
+    ["Seed to tree","seed-to-tree",false],
+    ["Carnivorous bog","carnivorous-bog",false],
+    ["Mushroom night forest","mushroom-night-forest",true],
+    ["Ant colony","ant-colony",false],
+    ["Beehive","beehive",false],
+    ["Mangrove tide","mangrove-tide",false],
+    ["Cherry blossom garden","cherry-blossom-garden",false]
+  ]],
+  ["Weather and sky", [
+    ["Thunderstorm cell","thunderstorm-cell",true],
+    ["Tornado prairie","tornado-prairie",false],
+    ["Sandstorm ruins","sandstorm-ruins",false],
+    ["Monsoon street","monsoon-street",false],
+    ["Aurora cabin","aurora-cabin",false],
+    ["Cloud village","cloud-village",false]
+  ]],
+  ["Water worlds", [
+    ["Lighthouse at night","lighthouse-at-night",true],
+    ["Frozen lake","frozen-lake",false],
+    ["Deep sea trench","deep-sea-trench",false],
+    ["Coral reef","coral-reef",false],
+    ["Canal lock","canal-lock",false],
+    ["Ship in a bottle","ship-in-a-bottle",false],
+    ["Tide pools","tide-pools",false]
+  ]],
+  ["Machines and work", [
+    ["Steam train loop","steam-train-loop",true],
+    ["Clockwork tower","clockwork-tower",false],
+    ["Construction crane","construction-crane",false],
+    ["Dam and town","dam-and-town",false],
+    ["Waterwheel mill","waterwheel-mill",false],
+    ["Printing press","printing-press",false],
+    ["Dig site","dig-site",false]
+  ]],
+  ["Space and far away", [
+    ["Rocket pad","rocket-pad",false],
+    ["Moon base","moon-base",false],
+    ["Asteroid mining","asteroid-mining",false],
+    ["Radio telescope","radio-telescope",false],
+    ["Satellite orchard","satellite-orchard",false],
+    ["Storm from a plane window","storm-from-a-plane-window",false]
+  ]],
+  ["Cozy and cultural", [
+    ["Night market","night-market",false],
+    ["Ski chalet","ski-chalet",false],
+    ["Rice terraces","rice-terraces",false],
+    ["Treehouse","treehouse",false],
+    ["Fishing harbor at dawn","fishing-harbor-at-dawn",false],
+    ["Windmill dyke","windmill-dyke",false]
+  ]],
+  ["Mischief and monsters", [
+    ["Sea monster cove","sea-monster-cove",false],
+    ["UFO over a farm","ufo-over-a-farm",false],
+    ["Ghost hotel","ghost-hotel",false],
+    ["The thing under the ice","the-thing-under-the-ice",false],
+    ["Giant footsteps valley","giant-footsteps-valley",false]
+  ]]
+];
+const list = document.getElementById('list');
+let n = 0;
+CATS.forEach(([cat, items]) => {
+  const h = document.createElement('div');
+  h.className = 'cat';
+  h.textContent = cat;
+  list.appendChild(h);
+  const ol = document.createElement('ol');
+  items.forEach(([name, slug, live]) => {
+    n++;
+    const li = document.createElement('li');
+    if (live){
+      const a = document.createElement('a');
+      a.className = 'row';
+      a.href = './' + slug + '/';
+      a.innerHTML = '<span class="num">' + n + '</span><span class="name">' + name + '</span><span class="tag live">enter</span>';
+      li.appendChild(a);
+    } else {
+      const d = document.createElement('div');
+      d.className = 'row';
+      d.style.opacity = .5;
+      d.innerHTML = '<span class="num">' + n + '</span><span class="name">' + name + '</span><span class="tag">soon</span>';
+      li.appendChild(d);
+    }
+    ol.appendChild(li);
+  });
+  list.appendChild(ol);
+});
+</script>
+</body>
+</html>

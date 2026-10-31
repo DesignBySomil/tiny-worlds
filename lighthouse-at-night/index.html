@@ -1,0 +1,214 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
+<title>Lighthouse at Night - Tiny Worlds</title>
+<meta name="description" content="Rocks, waves, one tower. Drag to sweep the beam; ships out in the dark correct their course as the fog rolls in."/>
+<style>
+  html,body{margin:0;height:100%;background:#05080e;overflow:hidden;font-family:system-ui,-apple-system,sans-serif}
+  #app{position:fixed;inset:0;touch-action:none}
+  .hud{position:fixed;left:0;right:0;pointer-events:none;color:#dce6f0;text-align:center;z-index:2}
+  .hud.top{top:max(14px,env(safe-area-inset-top))}
+  .hud h1{font-size:15px;font-weight:650;letter-spacing:.02em;margin:0;opacity:.95}
+  .hud p{font-size:11.5px;margin:4px 0 0;opacity:.55}
+  .hud.bottom{bottom:max(14px,env(safe-area-inset-bottom));font-size:11.5px;opacity:.6;transition:opacity 1s}
+  .hud.bottom.gone{opacity:0}
+  #vignette{position:fixed;inset:0;pointer-events:none;background:radial-gradient(ellipse at 50% 42%,transparent 50%,rgba(0,0,0,.6) 100%);z-index:1}
+</style>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"}}</script>
+</head>
+<body>
+<div id="app"></div>
+<div id="vignette"></div>
+<div class="hud top"><h1>Lighthouse at Night</h1><p>a tiny world, one of fifty</p></div>
+<div class="hud bottom" id="hint">Drag across the water to sweep the beam</div>
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+const app = document.getElementById('app');
+const renderer = new THREE.WebGLRenderer({ antialias:true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.setSize(innerWidth, innerHeight);
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+app.appendChild(renderer.domElement);
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x05080e);
+scene.fog = new THREE.FogExp2(0x0a1220, .05);
+
+const camera = new THREE.PerspectiveCamera(40, innerWidth/innerHeight, .1, 120);
+camera.position.set(10, 7.5, 10);
+
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.target.set(0, 1.8, 0);
+controls.enableDamping = true;
+controls.enablePan = false;
+controls.minDistance = 7; controls.maxDistance = 20;
+controls.maxPolarAngle = Math.PI * .47;
+controls.autoRotate = true; controls.autoRotateSpeed = .3;
+
+scene.add(new THREE.HemisphereLight(0x223048, 0x04070c, .8));
+const moon = new THREE.DirectionalLight(0x93a9cf, .55);
+moon.position.set(-8, 12, -4);
+moon.castShadow = true;
+moon.shadow.mapSize.set(1024, 1024);
+moon.shadow.camera.left = -8; moon.shadow.camera.right = 8;
+moon.shadow.camera.top = 8; moon.shadow.camera.bottom = -8;
+scene.add(moon);
+
+// cutaway base: dark rock over deeper rock
+const baseTop = new THREE.Mesh(new THREE.BoxGeometry(9, .8, 9), new THREE.MeshStandardMaterial({ color:0x2c3140, roughness:1 }));
+baseTop.position.y = -.4; baseTop.receiveShadow = true; scene.add(baseTop);
+const baseRock = new THREE.Mesh(new THREE.BoxGeometry(9, 1.6, 9), new THREE.MeshStandardMaterial({ color:0x171b26, roughness:1 }));
+baseRock.position.y = -1.6; scene.add(baseRock);
+
+// sea with live waves (beyond the base)
+const seaGeo = new THREE.PlaneGeometry(70, 70, 46, 46);
+const sea = new THREE.Mesh(seaGeo, new THREE.MeshStandardMaterial({ color:0x0d2436, roughness:.4, metalness:.25 }));
+sea.rotation.x = -Math.PI/2;
+sea.position.y = -.85;
+sea.receiveShadow = true;
+scene.add(sea);
+const seaBase = seaGeo.attributes.position.array.slice();
+
+// rocks on the base
+const rockMat = new THREE.MeshStandardMaterial({ color:0x3d4354, roughness:1, flatShading:true });
+[[-2.6,1.8,.9],[2.9,2.2,.7],[-3.1,-2.4,.8],[1.4,-3,.6]].forEach(([x,z,s]) => {
+  const r = new THREE.Mesh(new THREE.DodecahedronGeometry(s, 0), rockMat);
+  r.position.set(x, s*.4, z);
+  r.rotation.set(Math.random(), Math.random(), Math.random());
+  r.castShadow = true; r.receiveShadow = true;
+  scene.add(r);
+});
+
+// lighthouse
+const tower = new THREE.Group();
+function band(y0, h, r0, r1, color){
+  const m = new THREE.Mesh(new THREE.CylinderGeometry(r1, r0, h, 12), new THREE.MeshStandardMaterial({ color, roughness:.85 }));
+  m.position.y = y0 + h/2; m.castShadow = true; m.receiveShadow = true;
+  tower.add(m);
+}
+band(0, .9, .85, .78, 0xd8d2c4);
+band(.9, .9, .78, .7, 0xa83c32);
+band(1.8, .9, .7, .62, 0xd8d2c4);
+band(2.7, .9, .62, .55, 0xa83c32);
+const deck = new THREE.Mesh(new THREE.CylinderGeometry(.78, .78, .12, 12), new THREE.MeshStandardMaterial({ color:0x222833, roughness:.8 }));
+deck.position.y = 3.66; deck.castShadow = true; tower.add(deck);
+const lampRoom = new THREE.Mesh(new THREE.CylinderGeometry(.42, .42, .5, 10), new THREE.MeshStandardMaterial({ color:0x1c222e, roughness:.6 }));
+lampRoom.position.y = 3.97; tower.add(lampRoom);
+const lampGlass = new THREE.Mesh(new THREE.CylinderGeometry(.36, .36, .4, 10), new THREE.MeshStandardMaterial({ color:0xffd98a, emissive:0xffc95e, emissiveIntensity:2.2, transparent:true, opacity:.9 }));
+lampGlass.position.y = 3.97; tower.add(lampGlass);
+const cap = new THREE.Mesh(new THREE.ConeGeometry(.5, .5, 10), new THREE.MeshStandardMaterial({ color:0xa83c32, roughness:.85, flatShading:true }));
+cap.position.y = 4.47; cap.castShadow = true; tower.add(cap);
+tower.position.set(-.6, 0, -.4);
+scene.add(tower);
+
+// lamp light + visible beam
+const lampWorld = new THREE.Vector3();
+const beamPivot = new THREE.Group();
+beamPivot.position.set(-.6, 3.97, -.4);
+scene.add(beamPivot);
+const beamMat = new THREE.MeshBasicMaterial({ color:0xffd98a, transparent:true, opacity:.16, side:THREE.DoubleSide, depthWrite:false, blending:THREE.AdditiveBlending });
+const beam = new THREE.Mesh(new THREE.ConeGeometry(2.6, 14, 20, 1, true), beamMat);
+beam.rotation.z = Math.PI/2;
+beam.position.x = 7;
+beamPivot.add(beam);
+const spot = new THREE.SpotLight(0xffd98a, 60, 30, .3, .5, 1.2);
+spot.position.set(0, 0, 0);
+beamPivot.add(spot);
+const spotTarget = new THREE.Object3D();
+spotTarget.position.set(14, -3.2, 0);
+beamPivot.add(spotTarget);
+spot.target = spotTarget;
+
+// ships
+function makeShip(){
+  const s = new THREE.Group();
+  const hull = new THREE.Mesh(new THREE.BoxGeometry(1.1, .3, .42), new THREE.MeshStandardMaterial({ color:0x5a3b2e, roughness:.9 }));
+  hull.castShadow = true; s.add(hull);
+  const mast = new THREE.Mesh(new THREE.CylinderGeometry(.03, .03, .9, 5), new THREE.MeshStandardMaterial({ color:0x3a2a20 }));
+  mast.position.y = .55; s.add(mast);
+  const sail = new THREE.Mesh(new THREE.PlaneGeometry(.5, .6), new THREE.MeshStandardMaterial({ color:0xcfc6ae, side:THREE.DoubleSide }));
+  sail.position.set(.12, .6, 0); s.add(sail);
+  const lampP = new THREE.Mesh(new THREE.SphereGeometry(.06, 6, 6), new THREE.MeshStandardMaterial({ color:0xffe2a0, emissive:0xffca6a, emissiveIntensity:2 }));
+  lampP.position.set(-.5, .2, 0); s.add(lampP);
+  return s;
+}
+const ships = [];
+[{ a: 2.4, r: 12.5, speed: .05 }, { a: 5.2, r: 14, speed: -.038 }].forEach(cfg => {
+  const s = makeShip();
+  s.userData = { a: cfg.a, r: cfg.r, speed: cfg.speed, avoid: 0 };
+  scene.add(s);
+  ships.push(s);
+});
+
+const hint = document.getElementById('hint');
+setTimeout(() => hint.classList.add('gone'), 7000);
+
+// drag to sweep beam: horizontal drag rotates beam azimuth
+let beamAngle = .8, dragging = false, lastX = 0;
+renderer.domElement.addEventListener('pointerdown', e => {
+  dragging = true; lastX = e.clientX;
+  controls.autoRotate = false;
+});
+renderer.domElement.addEventListener('pointermove', e => {
+  if (!dragging) return;
+  const dx = e.clientX - lastX;
+  lastX = e.clientX;
+  beamAngle += dx * .008;
+});
+addEventListener('pointerup', () => { dragging = false; setTimeout(() => controls.autoRotate = true, 4000); });
+
+const clock = new THREE.Clock();
+function animate(){
+  requestAnimationFrame(animate);
+  const dt = Math.min(clock.getDelta(), .05);
+  const t = clock.elapsedTime;
+  controls.update();
+
+  // waves
+  const pos = seaGeo.attributes.position.array;
+  for (let i = 0; i < pos.length; i += 3){
+    const x = seaBase[i], y = seaBase[i+1];
+    pos[i+2] = Math.sin(x * .5 + t * 1.2) * .14 + Math.cos(y * .45 + t * .9) * .12;
+  }
+  seaGeo.attributes.position.needsUpdate = true;
+  seaGeo.computeVertexNormals();
+
+  // beam slowly sweeps on its own plus user control
+  if (!dragging) beamAngle += dt * .22;
+  beamPivot.rotation.y = -beamAngle;
+  beamMat.opacity = .14 + Math.sin(t * 2.4) * .03;
+
+  // ships sail and avoid the rocks when the beam finds them
+  ships.forEach(s => {
+    const u = s.userData;
+    // beam direction vs ship direction from tower
+    const shipAngle = Math.atan2(s.position.z - beamPivot.position.z, s.position.x - beamPivot.position.x);
+    let d = shipAngle - (-beamAngle % (Math.PI*2));
+    d = Math.atan2(Math.sin(shipAngle + beamAngle), Math.cos(shipAngle + beamAngle));
+    const lit = Math.abs(d) < .3;
+    u.avoid += ((lit ? 1 : 0) - u.avoid) * Math.min(dt * 2, 1);
+    u.a += u.speed * dt * (1 + u.avoid * 1.6);
+    const r = u.r - u.avoid * 2.2; // steer away from the light/rocks
+    s.position.set(Math.cos(u.a) * r, -.62 + Math.sin(t * 1.3 + u.a * 3) * .07, Math.sin(u.a) * r);
+    s.rotation.y = -u.a + (u.speed > 0 ? -Math.PI/2 : Math.PI/2) + u.avoid * .4;
+    s.rotation.z = Math.sin(t * 1.3 + u.a * 3) * .05;
+  });
+
+  renderer.render(scene, camera);
+}
+animate();
+
+addEventListener('resize', () => {
+  camera.aspect = innerWidth / innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth, innerHeight);
+});
+</script>
+</body>
+</html>
