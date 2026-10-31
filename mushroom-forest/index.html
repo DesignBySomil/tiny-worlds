@@ -193,7 +193,7 @@ function buildMyceliumFace(roots) {
   const g = new THREE.BufferGeometry();
   g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
   g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
-  const mesh = new THREE.Mesh(g, new THREE.MeshBasicMaterial({ vertexColors: true }));
+  const mesh = new THREE.Mesh(g, new THREE.MeshBasicMaterial({ vertexColors: true, side: THREE.DoubleSide })); // pass 4: hand-wound ribbons face both ways
   return { mesh, uvs: new Float32Array(uvs), base: g.attributes.color.array.slice() };
 }
 // mushrooms will register roots here before faces are built
@@ -516,6 +516,7 @@ Promise.all(['BirchTree_Dead_1.glb', 'BirchTree_Dead_3.glb', 'Rock_Moss_1.glb',
   });
 
 // pass markers for deploy verification
+// pass 4: mycelium DoubleSide (ribbon winding faced away from camera - network was invisible)
 // pass 3: fog pushed past camera distance (was eating the cut faces + mycelium), lighter tree tint
 // pass 2: night legibility - moonlit front faces, lifted strata/floor, visible resting mycelium, tighter framing
 // pass 1: first mushroom-forest build - night palette, 3 species, mycelium faces, pulses, bloom cycle
