@@ -493,28 +493,26 @@ const lavaPts = [];
 }
 const lavaCurve = new THREE.CatmullRomCurve3(lavaPts);
 function buildLavaTube(curve, segs) {
-  const frames = curve.computeFrenetFrames(segs, false);
-  const pos = [], col = [], idx = [], R = 8;
+  // proven TubeGeometry frames, then per-ring radius + heat gradient colors
+  const g = new THREE.TubeGeometry(curve, segs, 1, 8, false);
+  const p = g.attributes.position, R = 8;
   const cTop = new THREE.Color(0xfff6c0), cMid = new THREE.Color(0xff8a26), cToe = new THREE.Color(0xd8480f);
+  const cols = new Float32Array(p.count * 3);
   for (let i = 0; i <= segs; i++) {
-    const t = i / segs, p = curve.getPoint(t);
+    const t = i / segs, c0 = curve.getPoint(t);
     const r = 0.14 + 0.07 * t + Math.sin(t * 12.0) * 0.022 + (t > 0.9 ? (t - 0.9) * 1.6 : 0);
-    const N = frames.normals[Math.min(i, segs - 1)], B = frames.binormals[Math.min(i, segs - 1)];
     const c = t < 0.22 ? cTop.clone().lerp(cMid, t / 0.22) : cMid.clone().lerp(cToe, (t - 0.22) / 0.78);
     for (let j = 0; j <= R; j++) {
-      const a2 = (j / R) * Math.PI * 2, nx = Math.cos(a2), ny = Math.sin(a2);
-      pos.push(p.x + (N.x * nx + B.x * ny) * r, p.y + (N.y * nx + B.y * ny) * r, p.z + (N.z * nx + B.z * ny) * r);
-      col.push(c.r, c.g, c.b);
+      const vi = i * (R + 1) + j;
+      p.setXYZ(vi,
+        c0.x + (p.getX(vi) - c0.x) * r,
+        c0.y + (p.getY(vi) - c0.y) * r,
+        c0.z + (p.getZ(vi) - c0.z) * r);
+      cols[vi * 3] = c.r; cols[vi * 3 + 1] = c.g; cols[vi * 3 + 2] = c.b;
     }
   }
-  for (let i = 0; i < segs; i++) for (let j = 0; j < R; j++) {
-    const a = i * (R + 1) + j, b = a + R + 1;
-    idx.push(a, b, a + 1, b, b + 1, a + 1);
-  }
-  const g = new THREE.BufferGeometry();
-  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
-  g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
-  g.setIndex(idx); g.computeVertexNormals();
+  g.setAttribute('color', new THREE.BufferAttribute(cols, 3));
+  g.computeVertexNormals();
   return g;
 }
 const lavaMat = new THREE.MeshBasicMaterial({ vertexColors: true });
