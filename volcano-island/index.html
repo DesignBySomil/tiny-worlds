@@ -495,7 +495,7 @@ const lavaCurve = new THREE.CatmullRomCurve3(lavaPts);
 function buildLavaTube(curve, segs) {
   const frames = curve.computeFrenetFrames(segs, false);
   const pos = [], col = [], idx = [], R = 8;
-  const cTop = new THREE.Color(0xfff3b0), cMid = new THREE.Color(0xff7a1e), cToe = new THREE.Color(0xc33c0d);
+  const cTop = new THREE.Color(0xfff6c0), cMid = new THREE.Color(0xff8a26), cToe = new THREE.Color(0xd8480f);
   for (let i = 0; i <= segs; i++) {
     const t = i / segs, p = curve.getPoint(t);
     const r = 0.14 + 0.07 * t + Math.sin(t * 12.0) * 0.022 + (t > 0.9 ? (t - 0.9) * 1.6 : 0);
@@ -717,7 +717,7 @@ function animate() {
   stateT += dt;
   if (state === 'erupt') {
     const k = Math.min(stateT / 6, 1);           // lava advances over 6s
-    { const b = 0.35 + 0.65 * k + Math.sin(t * 9) * 0.06; lavaMat.color.setRGB(b, b, b); }
+    { const b = 0.68 + 0.32 * k + Math.sin(t * 9) * 0.06; lavaMat.color.setRGB(b, b, b); }
     craterLight.intensity = 0.6 + 2.6 * k + Math.sin(t * 11) * 0.5;
     lavaLight.intensity = 2.1 * k;
     scorchMat.opacity = Math.min(scorchMat.opacity + dt * 0.2, 0.35);
