@@ -483,6 +483,7 @@ for (let i = 0; i < 3; i++) {
   birds.push(b); scene.add(b);
 }
 
+// pass 25: flat-normals water (real patch kill), lava dives underwater w/ tapered toe
 // pass 24: uniform water + soft specular (patch kill), gentler beach pour
 // pass 23: water camo kill (narrow shallows, close tones), lava beach S-curve channel
 // pass 21: shoulder peak, crag asymmetry, island-wide tap target, livelier water, bigger framing
@@ -517,7 +518,8 @@ const lavaPts = [];
     lavaPts.push(hit ? hit.point.clone().add(new THREE.Vector3(0, 0.055, 0))
                      : new THREE.Vector3(bx, 0.5, bz));
   }
-  lavaPts.push(new THREE.Vector3(-2.5, 0.02, 5.9));
+  lavaPts.push(new THREE.Vector3(-2.28, 0.06, 5.32));   // pour over the waterline
+  lavaPts.push(new THREE.Vector3(-2.5, -0.34, 5.72));  // dive under the surface
 }
 const lavaCurve = new THREE.CatmullRomCurve3(lavaPts);
 function buildLavaTube(curve, segs) {
@@ -528,7 +530,7 @@ function buildLavaTube(curve, segs) {
   const cols = new Float32Array(p.count * 3);
   for (let i = 0; i <= segs; i++) {
     const t = i / segs, c0 = curve.getPoint(t);
-    const r = 0.14 + 0.07 * t + Math.sin(t * 12.0) * 0.022 + (t > 0.9 ? (t - 0.9) * 1.0 : 0);
+    const r = (0.14 + 0.07 * t + Math.sin(t * 12.0) * 0.022) * (t > 0.93 ? Math.max(0.3, 1 - (t - 0.93) / 0.07 * 0.7) : 1);
     const c = t < 0.22 ? cTop.clone().lerp(cMid, t / 0.22) : cMid.clone().lerp(cToe, (t - 0.22) / 0.78);
     for (let j = 0; j <= R; j++) {
       const vi = i * (R + 1) + j;
@@ -602,7 +604,7 @@ const smoke = makePoints(44, 1.15, 0x453e4c, THREE.NormalBlending, true);
 smoke.pts.material.opacity = 0.42;
 const steam = makePoints(24, 0.55, 0xf2ede4, THREE.NormalBlending, true);
 steam.pts.material.opacity = 0.5;
-const steamSrc = lavaCurve.getPoint(1);
+const steamSrc = lavaCurve.getPoint(0.985).setY(0.1);
 
 function resetParticles() {
   for (const P of [embers, ash, smoke, steam]) {
@@ -721,10 +723,10 @@ function animate() {
   const wp = waterGeo.attributes.position.array;
   for (let i = 0; i < wp.length; i += 3) {
     const x = waterBase[i], z = waterBase[i + 2];
-    wp[i + 1] = Math.sin(x * 2.1 + t * 1.2) * 0.05 + Math.cos(z * 2.7 + t * 1.5) * 0.045 + Math.sin((x + z) * 3.4 + t * 2.1) * 0.03;
+    wp[i + 1] = Math.sin(x * 2.1 + t * 1.2) * 0.012 + Math.cos(z * 2.7 + t * 1.5) * 0.011 + Math.sin((x + z) * 3.4 + t * 2.1) * 0.007;
   }
   waterGeo.attributes.position.needsUpdate = true;
-  waterGeo.computeVertexNormals();
+  // pass 25: no per-frame computeVertexNormals - smooth-shaded sine bumps were the camo patches
   foam.material.opacity = 0.4 + Math.sin(t * 1.8) * 0.16;
   foam.scale.setScalar(1 + Math.sin(t * 1.8) * 0.012);
 
