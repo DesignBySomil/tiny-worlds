@@ -1,0 +1,645 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+<title>Mushroom Forest — a tiny world</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
+  html, body { width: 100%; height: 100%; overflow: hidden; }
+  body {
+    background: linear-gradient(180deg, #05081a 0%, #0c1430 30%, #16234d 55%, #1e3a5e 78%, #28536b 92%, #2f6270 100%);
+    font-family: Georgia, 'Times New Roman', serif;
+    color: #e8eeff;
+  }
+  #scene { position: fixed; inset: 0; }
+  #vignette { position: fixed; inset: 0; pointer-events: none;
+    background: radial-gradient(ellipse at 50% 42%, rgba(0,0,0,0) 52%, rgba(4,8,24,0.5) 100%); }
+  #overlay { position: fixed; top: max(20px, env(safe-area-inset-top)); left: 0; right: 0; text-align: center; pointer-events: none; z-index: 5; }
+  #title { font-size: 15px; letter-spacing: 0.42em; text-indent: 0.42em; font-variant: small-caps; color: #eef2ff;
+    text-shadow: 0 1px 10px rgba(6,10,30,0.8), 0 0 2px rgba(6,10,30,0.9); }
+  #rule { width: 54px; height: 1px; margin: 9px auto 8px; background: linear-gradient(90deg, transparent, rgba(190,220,255,0.85), transparent); }
+  #hint { font-size: 11px; letter-spacing: 0.3em; text-indent: 0.3em; font-variant: small-caps; color: #cfe4ff;
+    opacity: 0.95; transition: opacity 1.2s ease; text-shadow: 0 1px 8px rgba(6,10,30,0.9), 0 0 2px rgba(6,10,30,1); }
+  #hint.faded { opacity: 0.55; }
+  #credit { position: fixed; bottom: max(10px, env(safe-area-inset-bottom)); left: 0; right: 0; text-align: center;
+    font-size: 9px; letter-spacing: 0.28em; font-variant: small-caps; color: rgba(210,226,255,0.7); pointer-events: none; z-index: 5;
+    text-shadow: 0 1px 6px rgba(6,10,30,0.7); }
+</style>
+<script type="importmap">
+{ "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+} }
+</script>
+</head>
+<body>
+<div id="scene"></div>
+<div id="vignette"></div>
+<div id="overlay">
+  <div id="title">Mushroom Forest</div>
+  <div id="rule"></div>
+  <div id="hint">Tap a mushroom to wake its glow</div>
+</div>
+<div id="credit">a tiny world</div>
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+// 3D models: Quaternius nature pack, CC0-1.0 (quaternius.com), via the
+// trebeljahr/quaternius-showcase mirror (LICENSES.md verifies CC0 per pack).
+// Mushrooms are procedural lathe/tube builds (species design in
+// design/mushroom-forest-brief.txt); Quaternius used for trees/rocks/plants.
+
+const container = document.getElementById('scene');
+const hintEl = document.getElementById('hint');
+const scene = new THREE.Scene();
+scene.fog = new THREE.Fog(0x101a3d, 26, 62);
+
+const camera = new THREE.PerspectiveCamera(44, innerWidth / innerHeight, 0.1, 220);
+const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+renderer.setSize(innerWidth, innerHeight);
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.1;
+container.appendChild(renderer.domElement);
+
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true; controls.dampingFactor = 0.06;
+controls.enablePan = false;
+controls.minDistance = 7; controls.maxDistance = 40;
+controls.minPolarAngle = Math.PI * 0.18; controls.maxPolarAngle = Math.PI * 0.5;
+
+// bounds fit: solve camera distance so the whole cutaway + caps project inside NDC margins
+function frameInitialCamera() {
+  const aspect = innerWidth / innerHeight;
+  let dir, target;
+  if (aspect < 0.78)      { camera.fov = 58; target = new THREE.Vector3(0, 0.7, 0); dir = new THREE.Vector3(13, 11, 21); }
+  else if (aspect < 1.15) { camera.fov = 48; target = new THREE.Vector3(0, 0.9, 0); dir = new THREE.Vector3(11, 7, 15.5); }
+  else                    { camera.fov = 44; target = new THREE.Vector3(0, 0.5, 0); dir = new THREE.Vector3(15, 7.2, 19); }
+  camera.updateProjectionMatrix();
+  dir.normalize();
+  const corners = [];
+  for (const x of [-8.15, 8.15]) for (const y of [-4.35, 5.0]) for (const z of [-8.15, 8.15])
+    corners.push(new THREE.Vector3(x, y, z));
+  const mX = 0.94, mY = aspect < 0.78 ? 0.84 : 0.90;
+  let d = 7;
+  for (; d < 60; d += 0.25) {
+    camera.position.copy(target).addScaledVector(dir, d);
+    camera.lookAt(target); camera.updateMatrixWorld(true);
+    camera.matrixWorldInverse.copy(camera.matrixWorld).invert();
+    let ok = true;
+    for (const c of corners) {
+      const p = c.clone().project(camera);
+      if (Math.abs(p.x) > mX || Math.abs(p.y) > mY) { ok = false; break; }
+    }
+    if (ok) break;
+  }
+  controls.target.copy(target); controls.update();
+}
+frameInitialCamera();
+
+// ---------- lighting (night) ----------
+const moon = new THREE.DirectionalLight(0xa8bcf5, 0.95);
+moon.position.set(-10, 13, -6); moon.castShadow = true;
+moon.shadow.mapSize.set(2048, 2048);
+moon.shadow.camera.left = -13; moon.shadow.camera.right = 13;
+moon.shadow.camera.top = 13; moon.shadow.camera.bottom = -13;
+moon.shadow.camera.near = 2; moon.shadow.camera.far = 45;
+moon.shadow.bias = -0.0015;
+scene.add(moon);
+scene.add(new THREE.HemisphereLight(0x2c3d70, 0x14100e, 0.6));
+const fill = new THREE.DirectionalLight(0x3a5a9a, 0.3);
+fill.position.set(8, 5, 10); scene.add(fill);
+
+// ---------- helpers ----------
+const rand = (a, b) => a + Math.random() * (b - a);
+function hash3(x, y, z) {
+  const n = Math.sin(Math.round(x * 53) * 127.1 + Math.round(y * 53) * 311.7 + Math.round(z * 53) * 74.7) * 43758.5453;
+  return n - Math.floor(n);
+}
+
+// ---------- cutaway block (night soil strata) ----------
+const block = new THREE.Group(); scene.add(block);
+function slab(h, yTop, color, rough = 0.98) {
+  const m = new THREE.Mesh(new THREE.BoxGeometry(16, h, 16),
+    new THREE.MeshStandardMaterial({ color, roughness: rough, metalness: 0 }));
+  m.position.y = yTop - h / 2; m.receiveShadow = true; block.add(m); return m;
+}
+slab(1.6, -2.7, 0x3c3a44);            // stone
+slab(1.1, -1.6, 0x4a3b32);            // clay soil
+slab(0.7, -0.5, 0x352a24);            // humus
+slab(0.5, 0.0, 0x2e241f);             // dark topsoil sides
+const shadowDisc = new THREE.Mesh(new THREE.CircleGeometry(11.5, 40),
+  new THREE.MeshBasicMaterial({ color: 0x02040c, transparent: true, opacity: 0.55 }));
+shadowDisc.rotation.x = -Math.PI / 2; shadowDisc.position.y = -4.32; scene.add(shadowDisc);
+
+// ---------- forest floor ----------
+const floorGeo = new THREE.PlaneGeometry(16, 16, 56, 56);
+floorGeo.rotateX(-Math.PI / 2);
+{
+  const p = floorGeo.attributes.position, cols = [];
+  const soil = new THREE.Color(0x3a2d25), moss = new THREE.Color(0x2c4630), litter = new THREE.Color(0x4a3826);
+  for (let i = 0; i < p.count; i++) {
+    const x = p.getX(i), z = p.getZ(i);
+    const e = Math.max(Math.abs(x), Math.abs(z)) / 8;
+    p.setY(i, (hash3(x, 0, z) - 0.5) * 0.14 * (e > 0.94 ? 0.15 : 1));   // gentle bumps, crisp edges
+    const h = hash3(x * 2.3, 7, z * 2.3);
+    const c = h < 0.32 ? moss.clone() : (h < 0.42 ? litter.clone() : soil.clone());
+    c.offsetHSL(rand(-0.01, 0.01), rand(-0.03, 0.03), rand(-0.025, 0.025));
+    cols.push(c.r, c.g, c.b);
+  }
+  floorGeo.setAttribute('color', new THREE.Float32BufferAttribute(cols, 3));
+  floorGeo.computeVertexNormals();
+}
+const floor = new THREE.Mesh(floorGeo, new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 1 }));
+floor.receiveShadow = true; block.add(floor);
+
+// ---------- mycelium network on the two visible cut faces ----------
+// flat ribbon segments in the face planes, vertex-colored, pulse-driven
+const MYC_BASE = new THREE.Color(0x1e5a4e);
+const MYC_GLOW = new THREE.Color(0x86ffd9);
+function buildMyceliumFace(roots) {
+  // roots: array of u-coords along the face top edge; returns {mesh, verts:{u,y}[]}
+  const segs = [];
+  function branch(u, y, ang, w, depth) {
+    if (depth > 5 || y < -3.85 || w < 0.012) return;
+    const len = rand(0.45, 0.85);
+    const u2 = u + Math.cos(ang) * len, y2 = y - Math.abs(Math.sin(ang)) * len;
+    if (Math.abs(u2) > 7.6) return;
+    segs.push([u, y, u2, y2, w]);
+    const n = depth < 2 ? 2 : (Math.random() < 0.7 ? 2 : 1);
+    for (let i = 0; i < n; i++)
+      branch(u2, y2, ang + rand(-0.9, 0.9) + (i === 0 ? -0.25 : 0.25), w * rand(0.62, 0.8), depth + 1);
+  }
+  for (const r of roots) branch(r, -0.06, rand(-0.5, 0.5), 0.055, 0);
+  // horizontal connectors between sorted roots
+  const sr = [...roots].sort((a, b) => a - b);
+  for (let i = 0; i + 1 < sr.length; i++) {
+    const y = -rand(0.5, 1.5);
+    segs.push([sr[i], y + rand(-0.2, 0.2), sr[i + 1], y + rand(-0.2, 0.2), 0.035]);
+  }
+  const pos = [], col = [], uvs = [];
+  for (const [u1, y1, u2, y2, w] of segs) {
+    const du = u2 - u1, dy = y2 - y1, L = Math.hypot(du, dy) || 1;
+    const pu = -dy / L * w, py = du / L * w;
+    // quad (two tris), non-indexed
+    const quad = [[u1 - pu, y1 - py], [u1 + pu, y1 + py], [u2 + pu, y2 + py],
+                  [u1 - pu, y1 - py], [u2 + pu, y2 + py], [u2 - pu, y2 - py]];
+    for (const [u, y] of quad) { pos.push(u, y, 0); uvs.push(u, y); col.push(MYC_BASE.r, MYC_BASE.g, MYC_BASE.b); }
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
+  const mesh = new THREE.Mesh(g, new THREE.MeshBasicMaterial({ vertexColors: true }));
+  return { mesh, uvs: new Float32Array(uvs), base: g.attributes.color.array.slice() };
+}
+// mushrooms will register roots here before faces are built
+const mycRootsFront = [];   // u = x on +z face
+const mycRootsRight = [];   // u = z on +x face
+
+// ---------- mushrooms ----------
+const MSH = [];   // {group, capMats, light, rootFaceU: {front, right}, lit, species, glowColor, sporeColor, breathePhase}
+const tapTargets = [];
+
+function bentStem(h, r, bend) {
+  const pts = [];
+  for (let i = 0; i <= 4; i++) {
+    const f = i / 4;
+    pts.push(new THREE.Vector3(bend.x * f * f, h * f, bend.z * f * f));
+  }
+  const g = new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 8, r, 7, false);
+  return { geo: g, top: pts[4].clone() };
+}
+function latheCap(r, h, bulge) {
+  const pts = [];
+  for (let i = 0; i <= 8; i++) {
+    const f = i / 8;                       // 0 rim -> 1 crown
+    const a = f * Math.PI * 0.52;
+    pts.push(new THREE.Vector2(Math.max(0.001, Math.cos(a) * r * (1 + bulge * Math.sin(f * 9))), Math.sin(a) * h));
+  }
+  return new THREE.LatheGeometry(pts, 18);
+}
+function gillRing(r, y) {
+  const g = new THREE.TorusGeometry(r * 0.86, r * 0.1, 5, 18);
+  const m = new THREE.Mesh(g, new THREE.MeshStandardMaterial({ color: 0x1c1410, roughness: 1 }));
+  m.rotation.x = Math.PI / 2; m.position.y = y; return m;
+}
+
+function makeAmberTall(x, z, scale) {
+  const g = new THREE.Group();
+  const h = rand(1.7, 2.2) * scale, r = rand(0.09, 0.12) * scale;
+  const bend = new THREE.Vector3(rand(-0.4, 0.4), 0, rand(-0.4, 0.4));
+  const { geo: stemGeo, top } = bentStem(h, r, bend);
+  const stemMat = new THREE.MeshStandardMaterial({ color: 0xcfc0a8, roughness: 0.9 });
+  const stem = new THREE.Mesh(stemGeo, stemMat); stem.castShadow = true; g.add(stem);
+  const capR = rand(0.55, 0.78) * scale, capH = capR * rand(0.55, 0.7);
+  const capMat = new THREE.MeshStandardMaterial({ color: 0xc27a34, roughness: 0.75,
+    emissive: 0xffb84d, emissiveIntensity: 0.05 });
+  const cap = new THREE.Mesh(latheCap(capR, capH, 0.02), capMat);
+  cap.position.copy(top); cap.rotation.set(rand(-0.16, 0.16), 0, rand(-0.16, 0.16));
+  cap.castShadow = true; g.add(cap);
+  const gr = gillRing(capR, 0); gr.position.set(top.x, top.y + 0.01, top.z); g.add(gr);
+  g.position.set(x, 0, z);
+  return { group: g, capMats: [capMat], stemMats: [stemMat] };
+}
+function makeRedToadstool(x, z, scale) {
+  const g = new THREE.Group();
+  const h = rand(0.75, 1.05) * scale, r = rand(0.15, 0.19) * scale;
+  const bend = new THREE.Vector3(rand(-0.15, 0.15), 0, rand(-0.15, 0.15));
+  const { geo: stemGeo, top } = bentStem(h, r, bend);
+  const stemMat = new THREE.MeshStandardMaterial({ color: 0xd8cbb2, roughness: 0.95 });
+  const stem = new THREE.Mesh(stemGeo, stemMat); stem.castShadow = true; g.add(stem);
+  const capR = rand(0.55, 0.72) * scale, capH = capR * rand(0.7, 0.85);
+  const capMat = new THREE.MeshStandardMaterial({ color: 0xa83c34, roughness: 0.7,
+    emissive: 0xff6a55, emissiveIntensity: 0.04 });
+  const cap = new THREE.Mesh(latheCap(capR, capH, 0.03), capMat);
+  cap.position.copy(top); cap.rotation.set(rand(-0.12, 0.12), rand(0, 6.28), rand(-0.12, 0.12));
+  cap.castShadow = true; g.add(cap);
+  // white dots on the cap
+  const dotMat = new THREE.MeshStandardMaterial({ color: 0xe8e0cc, roughness: 0.9 });
+  for (let i = 0; i < 9; i++) {
+    const a = rand(0, Math.PI * 2), rr = rand(0.15, 0.8) * capR;
+    const dot = new THREE.Mesh(new THREE.SphereGeometry(rand(0.03, 0.055) * scale, 6, 5), dotMat);
+    const yy = Math.sqrt(Math.max(0, 1 - (rr / capR) ** 2)) * capH;
+    dot.position.set(top.x + Math.cos(a) * rr, top.y + yy * 0.96 + 0.01, top.z + Math.sin(a) * rr);
+    dot.scale.y = 0.45; g.add(dot);
+  }
+  const gr = gillRing(capR, 0); gr.position.set(top.x, top.y + 0.01, top.z); g.add(gr);
+  g.position.set(x, 0, z);
+  return { group: g, capMats: [capMat], stemMats: [stemMat] };
+}
+function makeTealButtons(x, z, scale) {
+  const g = new THREE.Group(); const capMats = [];
+  const n = 4 + Math.floor(rand(0, 3));
+  for (let i = 0; i < n; i++) {
+    const bx = rand(-0.4, 0.4) * scale, bz = rand(-0.4, 0.4) * scale;
+    const h = rand(0.28, 0.55) * scale, r = rand(0.05, 0.075) * scale;
+    const { geo: stemGeo, top } = bentStem(h, r, new THREE.Vector3(rand(-0.06, 0.06), 0, rand(-0.06, 0.06)));
+    const stem = new THREE.Mesh(stemGeo, new THREE.MeshStandardMaterial({ color: 0xb8c4b0, roughness: 0.95 }));
+    stem.position.set(bx, 0, bz); stem.castShadow = true; g.add(stem);
+    const capR = rand(0.13, 0.22) * scale;
+    const capMat = new THREE.MeshStandardMaterial({ color: 0x2f8a7a, roughness: 0.7,
+      emissive: 0x5cffd9, emissiveIntensity: 0.06 });
+    const cap = new THREE.Mesh(latheCap(capR, capR * 0.8, 0.04), capMat);
+    cap.position.set(bx + top.x, top.y, bz + top.z); cap.castShadow = true; g.add(cap);
+    capMats.push(capMat);
+  }
+  g.position.set(x, 0, z);
+  return { group: g, capMats, stemMats: [] };
+}
+
+const PLACEMENTS = [
+  { mk: makeAmberTall,   x: -3.4, z: -1.8, s: 1.0,  glow: 0xffb84d, spore: 0xffcf7a, name: 'amber' },
+  { mk: makeAmberTall,   x: 3.1,  z: -3.0, s: 0.85, glow: 0xffb84d, spore: 0xffcf7a, name: 'amber' },
+  { mk: makeRedToadstool, x: -0.6, z: 2.2, s: 1.1,  glow: 0xff7a5e, spore: 0xff9a80, name: 'red' },
+  { mk: makeRedToadstool, x: 4.2,  z: 1.6, s: 0.9,  glow: 0xff7a5e, spore: 0xff9a80, name: 'red' },
+  { mk: makeTealButtons, x: -4.6, z: 2.8,  s: 1.1,  glow: 0x5cffd9, spore: 0x8affe2, name: 'teal' },
+  { mk: makeTealButtons, x: 1.4,  z: -0.6, s: 1.0,  glow: 0x5cffd9, spore: 0x8affe2, name: 'teal' },
+  { mk: makeTealButtons, x: -1.8, z: -4.0, s: 0.9,  glow: 0x5cffd9, spore: 0x8affe2, name: 'teal' },
+];
+for (const pl of PLACEMENTS) {
+  const { group, capMats, stemMats } = pl.mk(pl.x, pl.z, pl.s);
+  scene.add(group);
+  const light = new THREE.PointLight(pl.glow, 0, 6.5, 1.8);
+  light.position.set(pl.x, 0.9, pl.z); scene.add(light);
+  const m = { group, capMats, stemMats, light, lit: false, species: pl.name,
+    glowColor: new THREE.Color(pl.glow), sporeColor: pl.spore, breathePhase: rand(0, 6.28),
+    x: pl.x, z: pl.z };
+  group.traverse(o => { if (o.isMesh) { o.userData.msh = m; tapTargets.push(o); } });
+  MSH.push(m);
+  mycRootsFront.push(pl.x); mycRootsRight.push(pl.z);
+}
+
+// floor-detail scatter: pebbles, leaves, moss clumps, twigs
+{
+  const pebMat = new THREE.MeshStandardMaterial({ color: 0x5a5a62, roughness: 0.95 });
+  for (let i = 0; i < 22; i++) {
+    const p = new THREE.Mesh(new THREE.DodecahedronGeometry(rand(0.05, 0.13), 0), pebMat);
+    p.position.set(rand(-7.2, 7.2), 0.03, rand(-7.2, 7.2));
+    p.rotation.set(rand(0, 3), rand(0, 3), rand(0, 3)); p.castShadow = true; block.add(p);
+  }
+  const leafCols = [0x6a4a26, 0x7a5326, 0x5c4426];
+  for (let i = 0; i < 26; i++) {
+    const leaf = new THREE.Mesh(new THREE.CircleGeometry(rand(0.07, 0.13), 5),
+      new THREE.MeshStandardMaterial({ color: leafCols[i % 3], roughness: 1, side: THREE.DoubleSide }));
+    leaf.position.set(rand(-7.4, 7.4), 0.045, rand(-7.4, 7.4));
+    leaf.rotation.set(-Math.PI / 2 + rand(-0.3, 0.3), rand(0, 6.28), 0); block.add(leaf);
+  }
+  const mossMat = new THREE.MeshStandardMaterial({ color: 0x2f5238, roughness: 1 });
+  for (let i = 0; i < 14; i++) {
+    const m = new THREE.Mesh(new THREE.SphereGeometry(rand(0.1, 0.22), 7, 5), mossMat);
+    m.position.set(rand(-7.2, 7.2), 0.0, rand(-7.2, 7.2)); m.scale.y = 0.35; block.add(m);
+  }
+  const twigMat = new THREE.MeshStandardMaterial({ color: 0x4a3626, roughness: 1 });
+  for (let i = 0; i < 7; i++) {
+    const t = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.028, rand(0.4, 0.9), 5), twigMat);
+    t.position.set(rand(-7, 7), 0.05, rand(-7, 7));
+    t.rotation.set(Math.PI / 2 + rand(-0.15, 0.15), rand(0, 6.28), 0); t.castShadow = true; block.add(t);
+  }
+}
+
+// now build the mycelium faces with the registered roots
+const mycFront = buildMyceliumFace(mycRootsFront);
+mycFront.mesh.position.set(0, 0, 8.02); scene.add(mycFront.mesh);
+const mycRight = buildMyceliumFace(mycRootsRight);
+mycRight.mesh.rotation.y = Math.PI / 2; mycRight.mesh.position.set(8.02, 0, 0); scene.add(mycRight.mesh);
+const pulses = [];   // {originU, originY, t0}
+function firePulse(m) {
+  pulses.push({ originU: m.x, originY: -0.05, t0: perfT(), face: 'front' });
+  pulses.push({ originU: m.z, originY: -0.05, t0: perfT(), face: 'right' });
+}
+let bloomGlow = 0;   // whole-network glow level during bloom/fade
+
+// ---------- sky: stars, moon, mist, fireflies ----------
+{
+  const n = 260, pos = new Float32Array(n * 3);
+  for (let i = 0; i < n; i++) {
+    const a = rand(0, Math.PI * 2), e = rand(0.12, 1.4), r = rand(34, 60);
+    pos[i * 3] = Math.cos(a) * Math.cos(e) * r;
+    pos[i * 3 + 1] = Math.sin(e) * r;
+    pos[i * 3 + 2] = Math.sin(a) * Math.cos(e) * r;
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  scene.add(new THREE.Points(g, new THREE.PointsMaterial({ color: 0xcdd8ff, size: 0.14, sizeAttenuation: true, fog: false })));
+}
+function makePuffTexture() {
+  const c = document.createElement('canvas'); c.width = c.height = 64;
+  const ctx = c.getContext('2d');
+  const grad = ctx.createRadialGradient(32, 32, 2, 32, 32, 30);
+  grad.addColorStop(0, 'rgba(255,255,255,0.9)');
+  grad.addColorStop(0.55, 'rgba(255,255,255,0.45)');
+  grad.addColorStop(1, 'rgba(255,255,255,0)');
+  ctx.fillStyle = grad; ctx.fillRect(0, 0, 64, 64);
+  return new THREE.CanvasTexture(c);
+}
+const puffTex = makePuffTexture();
+const moonDisc = new THREE.Mesh(new THREE.CircleGeometry(1.7, 32),
+  new THREE.MeshBasicMaterial({ color: 0xe8efff, fog: false }));
+moonDisc.position.set(-19, 17, -26); moonDisc.lookAt(0, 0, 0); scene.add(moonDisc);
+const moonGlow = new THREE.Sprite(new THREE.SpriteMaterial({ map: puffTex, color: 0xaac0ff,
+  transparent: true, opacity: 0.4, blending: THREE.AdditiveBlending, depthWrite: false, fog: false }));
+moonGlow.position.copy(moonDisc.position); moonGlow.scale.setScalar(11); scene.add(moonGlow);
+
+const mists = [];
+for (let i = 0; i < 2; i++) {
+  const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: puffTex, color: 0x8fa8d8,
+    transparent: true, opacity: 0.07, depthWrite: false }));
+  s.scale.set(13, 4.5, 1); s.position.set(rand(-4, 4), 0.5 + i * 0.5, rand(-4, 4));
+  mists.push(s); scene.add(s);
+}
+const fireflies = [];
+{
+  const n = 7, pos = new Float32Array(n * 3);
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  const pts = new THREE.Points(g, new THREE.PointsMaterial({ color: 0xb8ffc8, size: 0.22,
+    map: puffTex, alphaMap: puffTex, transparent: true, blending: THREE.AdditiveBlending,
+    depthWrite: false, sizeAttenuation: true }));
+  scene.add(pts);
+  for (let i = 0; i < n; i++)
+    fireflies.push({ pts, i, cx: rand(-6, 6), cz: rand(-6, 6), h: rand(0.7, 2.6),
+      r: rand(0.5, 1.6), sp: rand(0.3, 0.7), ph: rand(0, 6.28) });
+}
+
+// ---------- spores ----------
+function makePoints(n, size, color, blending, soft) {
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(new Float32Array(n * 3), 3));
+  const m = new THREE.PointsMaterial({ size, color, transparent: true, opacity: 0.9,
+    blending, depthWrite: false, sizeAttenuation: true,
+    map: soft ? puffTex : null, alphaMap: soft ? puffTex : null });
+  const pts = new THREE.Points(g, m); pts.visible = false; scene.add(pts);
+  return { pts, vel: new Float32Array(n * 3), life: new Float32Array(n).fill(-1), n };
+}
+const spores = makePoints(200, 0.16, 0xffffff, THREE.NormalBlending, true);
+function burstSpores(origin, color, count, spread, up) {
+  spores.pts.material.color.set(color);
+  spores.pts.visible = true;
+  let done = 0;
+  for (let i = 0; i < spores.n && done < count; i++) {
+    if (spores.life[i] >= 0) continue;
+    const p = spores.pts.geometry.attributes.position.array;
+    p[i * 3] = origin.x + rand(-0.1, 0.1); p[i * 3 + 1] = origin.y; p[i * 3 + 2] = origin.z + rand(-0.1, 0.1);
+    spores.vel[i * 3] = rand(-spread, spread); spores.vel[i * 3 + 1] = rand(up * 0.5, up); spores.vel[i * 3 + 2] = rand(-spread, spread);
+    spores.life[i] = rand(1.6, 3.2);
+    done++;
+  }
+}
+
+// ---------- state machine ----------
+let state = 'idle', stateT = 0;
+const HINTS = {
+  idle: 'Tap a mushroom to wake its glow',
+  partial: 'The network stirs - light them all',
+  bloom: 'The whole forest blooms as one'
+};
+let perfBase = performance.now();
+function perfT() { return (performance.now() - perfBase) / 1000; }
+function setHint(s) {
+  hintEl.textContent = HINTS[s]; hintEl.classList.remove('faded');
+  clearTimeout(setHint._t);
+  setHint._t = setTimeout(() => hintEl.classList.add('faded'), 6000);
+}
+function litCount() { return MSH.filter(m => m.lit).length; }
+function lightMushroom(m) {
+  m.lit = true;
+  m.litAt = perfT();
+  firePulse(m);
+  const capTop = new THREE.Vector3(m.x, 1.0, m.z);
+  burstSpores(capTop, m.sporeColor, 30, 0.5, 0.9);
+  if (litCount() === MSH.length) { state = 'bloom'; stateT = 0; bloomGlow = 0; setHint('bloom'); }
+  else setHint('partial');
+}
+
+// ---------- tap handling ----------
+const ray = new THREE.Raycaster(); const ndc = new THREE.Vector2();
+let downX = 0, downY = 0, downT = 0;
+renderer.domElement.addEventListener('pointerdown', e => { downX = e.clientX; downY = e.clientY; downT = performance.now(); });
+renderer.domElement.addEventListener('pointerup', e => {
+  if (state === 'bloom') return;
+  if (Math.hypot(e.clientX - downX, e.clientY - downY) > 7 || performance.now() - downT > 450) return;
+  ndc.set((e.clientX / innerWidth) * 2 - 1, -(e.clientY / innerHeight) * 2 + 1);
+  ray.setFromCamera(ndc, camera);
+  const hits = ray.intersectObjects(tapTargets, false);
+  if (hits.length) {
+    const m = hits[0].object.userData.msh;
+    if (m && !m.lit) lightMushroom(m);
+  }
+});
+
+// ---------- Quaternius CC0 set dressing (dead birches, mossy rocks, grass) ----------
+const GLB_BASE = 'https://cdn.jsdelivr.net/gh/trebeljahr/quaternius-showcase@main/public/glb/nature_pack/';
+const gltfLoader = new GLTFLoader();
+function loadGLB(file) {
+  return new Promise(res => gltfLoader.load(GLB_BASE + file, g => res(g.scene), undefined, () => res(null)));
+}
+function prepClone(src, targetMax, x, y, z, rotY, tint) {
+  const c = src.clone(true);
+  const box = new THREE.Box3().setFromObject(c);
+  const size = box.getSize(new THREE.Vector3());
+  c.scale.setScalar(targetMax / Math.max(size.x, size.y, size.z, 0.001));
+  const box2 = new THREE.Box3().setFromObject(c);
+  c.position.set(x, y - box2.min.y, z);
+  c.rotation.y = rotY;
+  c.traverse(o => {
+    if (o.isMesh) {
+      o.castShadow = true;
+      if (tint) { o.material = o.material.clone(); o.material.color.multiply(tint); }
+    }
+  });
+  block.add(c);
+}
+const nightTint = new THREE.Color(0x8a94c0);   // cool moonlit multiply
+Promise.all(['BirchTree_Dead_1.glb', 'BirchTree_Dead_3.glb', 'Rock_Moss_1.glb',
+             'Rock_Moss_2.glb', 'Grass.glb', 'Grass_2.glb', 'Plant_1.glb'].map(loadGLB))
+  .then(([birch1, birch3, rock1, rock2, grass, grass2, plant]) => {
+    if (birch1) {
+      prepClone(birch1, 4.6, -6.2, 0, -5.4, 0.6, nightTint);
+      prepClone(birch1, 3.8, 6.4, 0, -4.8, 2.4, nightTint);
+    }
+    if (birch3) {
+      prepClone(birch3, 4.2, -6.6, 0, 3.9, 4.0, nightTint);
+      prepClone(birch3, 3.4, 5.9, 0, 5.6, 1.2, nightTint);
+    }
+    if (rock1) { prepClone(rock1, 0.9, -2.6, 0, 4.4, 0.7, nightTint); prepClone(rock1, 0.6, 6.3, 0, -1.2, 2.1, nightTint); }
+    if (rock2) { prepClone(rock2, 0.8, 2.2, 0, -5.2, 1.4, nightTint); prepClone(rock2, 0.5, -5.8, 0, 0.6, 3.3, nightTint); }
+    if (grass) for (const [x, z] of [[-3.9, 0.4], [0.8, 3.8], [5.0, -0.2], [-1.4, -2.6], [3.4, 4.3], [-5.2, -2.9]])
+      prepClone(grass, rand(0.4, 0.6), x, 0, z, rand(0, 6.28), nightTint);
+    if (grass2) for (const [x, z] of [[-2.2, 1.6], [2.6, 2.4], [-4.4, -4.2], [1.0, -4.6]])
+      prepClone(grass2, rand(0.35, 0.5), x, 0, z, rand(0, 6.28), nightTint);
+    if (plant) for (const [x, z] of [[-0.4, -3.2], [4.8, 3.6], [-6.0, 1.8]])
+      prepClone(plant, rand(0.55, 0.8), x, 0, z, rand(0, 6.28), nightTint);
+  });
+
+// pass markers for deploy verification
+// pass 1: first mushroom-forest build - night palette, 3 species, mycelium faces, pulses, bloom cycle
+
+// ---------- animate ----------
+const clock = new THREE.Clock();
+function updateMycelium(face, t) {
+  const g = face.mesh.geometry, col = g.attributes.color.array, base = face.base, uv = face.uvs;
+  let dirty = false;
+  const glows = [];
+  for (const pu of pulses) {
+    if (pu.face !== face.name) continue;
+    const front = 3.2 * (t - pu.t0);
+    if (front < 6.5) glows.push(pu);
+  }
+  if (state === 'bloom' || bloomGlow > 0.01 || glows.length) dirty = true;
+  if (!dirty) {
+    if (face.wasActive) {
+      face.wasActive = false;
+      g.attributes.color.array.set(face.base);
+      g.attributes.color.needsUpdate = true;
+    }
+    return;
+  }
+  face.wasActive = true;
+  for (let i = 0; i < uv.length / 2; i++) {
+    const u = uv[i * 2], y = uv[i * 2 + 1];
+    let glow = bloomGlow;
+    for (const pu of glows) {
+      const front = 3.2 * (t - pu.t0);
+      const d = Math.hypot(u - pu.originU, y - pu.originY);
+      glow += Math.exp(-((d - front) * (d - front)) / 0.22) * 1.5;
+    }
+    glow = Math.min(glow, 2.2);
+    col[i * 3] = Math.min(1, base[i * 3] + MYC_GLOW.r * glow * 0.5);
+    col[i * 3 + 1] = Math.min(1, base[i * 3 + 1] + MYC_GLOW.g * glow * 0.5);
+    col[i * 3 + 2] = Math.min(1, base[i * 3 + 2] + MYC_GLOW.b * glow * 0.5);
+  }
+  g.attributes.color.needsUpdate = true;
+}
+mycFront.name = 'front'; mycRight.name = 'right';
+
+function animate() {
+  requestAnimationFrame(animate);
+  const dt = Math.min(clock.getDelta(), 0.05), t = clock.elapsedTime;
+  stateT += dt;
+
+  // mushroom breathing + lit ramps
+  for (const m of MSH) {
+    const breathe = 0.05 + Math.sin(t * 1.3 + m.breathePhase) * 0.025;
+    const target = m.lit ? 1.5 : breathe;
+    for (const cm of m.capMats)
+      cm.emissiveIntensity += (target - cm.emissiveIntensity) * Math.min(1, dt * 3.2);
+    const lt = m.lit ? 1.5 : 0;
+    m.light.intensity += (lt - m.light.intensity) * Math.min(1, dt * 3.2);
+  }
+
+  // bloom cycle: 7s full glow, then 20s fade back to dark idle
+  if (state === 'bloom') {
+    bloomGlow = Math.min(1.6, bloomGlow + dt * 2.2);
+    if (stateT > 7) { state = 'fade'; stateT = 0; }
+  } else if (state === 'fade') {
+    bloomGlow = Math.max(0, bloomGlow - dt * 0.08);
+    if (stateT > 20) {
+      state = 'idle'; stateT = 0;
+      for (const m of MSH) m.lit = false;
+      pulses.length = 0; bloomGlow = 0;
+      setHint('idle');
+    }
+  }
+  // prune dead pulses
+  for (let i = pulses.length - 1; i >= 0; i--)
+    if (3.2 * (t - pulses[i].t0) > 14) pulses.splice(i, 1);
+  updateMycelium(mycFront, t);
+  updateMycelium(mycRight, t);
+
+  // spores
+  {
+    let any = false;
+    const p = spores.pts.geometry.attributes.position.array;
+    for (let i = 0; i < spores.n; i++) {
+      if (spores.life[i] < 0) continue;
+      any = true;
+      spores.life[i] -= dt;
+      p[i * 3] += spores.vel[i * 3] * dt;
+      p[i * 3 + 1] += spores.vel[i * 3 + 1] * dt;
+      p[i * 3 + 2] += spores.vel[i * 3 + 2] * dt;
+      spores.vel[i * 3 + 1] *= (1 - dt * 0.35);
+      spores.vel[i * 3] += Math.sin(t * 2 + i) * 0.06 * dt;
+    }
+    spores.pts.geometry.attributes.position.needsUpdate = true;
+    spores.pts.visible = any;
+  }
+
+  // fireflies
+  {
+    const p = fireflies[0].pts.geometry.attributes.position.array;
+    for (const f of fireflies) {
+      p[f.i * 3] = f.cx + Math.sin(t * f.sp + f.ph) * f.r + Math.sin(t * 1.7 + f.ph * 2) * 0.2;
+      p[f.i * 3 + 1] = f.h + Math.sin(t * f.sp * 1.4 + f.ph * 1.7) * 0.4;
+      p[f.i * 3 + 2] = f.cz + Math.cos(t * f.sp * 0.8 + f.ph) * f.r;
+    }
+    fireflies[0].pts.geometry.attributes.position.needsUpdate = true;
+    fireflies[0].pts.material.size = 0.19 + Math.sin(t * 2.4) * 0.05;
+  }
+
+  // mist drift
+  for (let i = 0; i < mists.length; i++) {
+    const s = mists[i];
+    s.position.x += dt * (0.25 + i * 0.12);
+    if (s.position.x > 9) s.position.x = -9;
+    s.material.opacity = 0.055 + Math.sin(t * 0.5 + i * 2.1) * 0.02;
+  }
+
+  controls.update();
+  renderer.render(scene, camera);
+}
+animate();
+
+addEventListener('resize', () => {
+  camera.aspect = innerWidth / innerHeight;
+  renderer.setSize(innerWidth, innerHeight);
+  renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+  frameInitialCamera();
+});
+setTimeout(() => hintEl.classList.add('faded'), 6000);
+</script>
+</body>
+</html>
