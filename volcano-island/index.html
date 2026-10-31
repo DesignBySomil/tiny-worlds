@@ -79,8 +79,8 @@ function frameInitialCamera() {
     camera.fov = 46; controls.target.set(0, 2.0, 0);
     camera.position.set(10.5, 9.5, 14.5);
   } else {
-    camera.fov = 42; controls.target.set(0, 1.5, 0);
-    camera.position.set(15.0, 10.4, 16.7);
+    camera.fov = 42; controls.target.set(0, 1.3, 0);
+    camera.position.set(16.6, 11.4, 18.5);
   }
   camera.updateProjectionMatrix(); controls.update();
 }
@@ -189,9 +189,10 @@ const foam = new THREE.Mesh(foamGeo,
 foam.position.y = 0.16; scene.add(foam);
 
 // ---------- island ----------
+// pass 11: wet-sand waterline band + desktop bottom-corner camera clearance
 const ISLAND_Y = 1.2;
 function shoreR(a) { return 5.1 + 0.35 * Math.sin(3 * a + 0.7) + 0.22 * Math.sin(5 * a + 2.1); }
-const sideGeo = new THREE.CylinderGeometry(1, 0.94, ISLAND_Y, 96, 1, true);
+const sideGeo = new THREE.CylinderGeometry(1, 0.94, ISLAND_Y, 96, 6, true);
 {
   const p = sideGeo.attributes.position;
   for (let i = 0; i < p.count; i++) {
@@ -200,10 +201,21 @@ const sideGeo = new THREE.CylinderGeometry(1, 0.94, ISLAND_Y, 96, 1, true);
     const m = Math.hypot(x, z) || 1;
     p.setX(i, x / m * r); p.setZ(i, z / m * r);
   }
+  // wet-sand waterline band: darker/cooler near the water, dry sand up top
+  const cols = [];
+  const dry = new THREE.Color(0xe3c89a), wet = new THREE.Color(0xa8896b);
+  for (let i = 0; i < p.count; i++) {
+    const t = (p.getY(i) + ISLAND_Y / 2) / ISLAND_Y;   // 0 waterline -> 1 top
+    const band = THREE.MathUtils.smoothstep(t, 0.0, 0.55);
+    const c = wet.clone().lerp(dry, band);
+    c.offsetHSL(0, 0, rand(-0.025, 0.025));
+    cols.push(c.r, c.g, c.b);
+  }
+  sideGeo.setAttribute('color', new THREE.Float32BufferAttribute(cols, 3));
   sideGeo.computeVertexNormals();
 }
 const islandSide = new THREE.Mesh(sideGeo,
-  new THREE.MeshStandardMaterial({ color: 0xe3c89a, roughness: 1 }));
+  new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 1 }));
 islandSide.position.y = ISLAND_Y / 2; islandSide.castShadow = true; islandSide.receiveShadow = true;
 scene.add(islandSide);
 
