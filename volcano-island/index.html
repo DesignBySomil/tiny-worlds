@@ -476,12 +476,12 @@ const lavaPts = [];
   for (let i = 1; i <= N; i++) {
     const f = i / N;
     const y = VOLC_TOP - 0.2 - f * (VOLC_TOP - ISLAND_Y - 0.15);
-    const th = th0 + (thSea - th0) * f + Math.sin(f * 9.0) * 0.15;
+    const th = th0 + (thSea - th0) * f + Math.sin(f * 9.0) * 0.10;
     const out = new THREE.Vector3(Math.cos(th), 0, Math.sin(th));
     rc.set(new THREE.Vector3(VOLC.x + out.x * 7, y, VOLC.z + out.z * 7),
       out.clone().multiplyScalar(-1).setY(-0.06).normalize());
     const hit = rc.intersectObject(volcano, false)[0];
-    if (hit) lavaPts.push(hit.point.clone().addScaledVector(out, 0.045));
+    if (hit) lavaPts.push(hit.point.clone().addScaledVector(out, 0.10));
   }
   for (const [bx, bz] of [[-2.62, 3.35], [-2.58, 3.7], [-2.55, 4.05], [-2.5, 4.45], [-2.47, 4.85]]) {
     rc.set(new THREE.Vector3(bx, 6, bz), new THREE.Vector3(0, -1, 0));
