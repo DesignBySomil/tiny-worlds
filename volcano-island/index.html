@@ -95,7 +95,9 @@ sun.shadow.camera.top = 13; sun.shadow.camera.bottom = -13;
 sun.shadow.camera.near = 2; sun.shadow.camera.far = 45;
 sun.shadow.bias = -0.0015;
 scene.add(sun);
-scene.add(new THREE.HemisphereLight(0xd89a8c, 0x4a3a5c, 0.75));
+scene.add(new THREE.HemisphereLight(0xd89a8c, 0x4a3a5c, 0.9));
+const fill = new THREE.DirectionalLight(0xffc9b0, 0.55);
+fill.position.set(-7, 6, 9); scene.add(fill);
 
 const craterLight = new THREE.PointLight(0xff7a33, 0.9, 12, 1.6);
 const lavaLight = new THREE.PointLight(0xff6a1f, 0, 10, 1.7);
