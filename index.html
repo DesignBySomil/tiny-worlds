@@ -30,7 +30,7 @@
 <div class="wrap">
 <header>
   <h1>Tiny Worlds</h1>
-  <p class="sub">Fifty interactive miniatures, each small enough to hold in one hand. One atmosphere, one touch. Open source, built with Three.js. New worlds land in batches.</p>
+  <p class="sub">Fifty interactive miniatures, each small enough to hold in one hand. One atmosphere, one touch. Open source, built with Three.js. New worlds land in batches; everything here is work in progress while each world is rebuilt and tested.</p>
 </header>
 <div id="list"></div>
 <footer>
@@ -121,7 +121,7 @@ CATS.forEach(([cat, items]) => {
       const a = document.createElement('a');
       a.className = 'row';
       a.href = './' + slug + '/';
-      a.innerHTML = '<span class="num">' + n + '</span><span class="name">' + name + '</span><span class="tag live">enter</span>';
+      a.innerHTML = '<span class="num">' + n + '</span><span class="name">' + name + '</span><span class="tag live">preview</span>';
       li.appendChild(a);
     } else {
       const d = document.createElement('div');
