@@ -70,14 +70,14 @@ controls.minPolarAngle = Math.PI * 0.16; controls.maxPolarAngle = Math.PI * 0.47
 function frameInitialCamera() {
   const aspect = innerWidth / innerHeight;
   if (aspect < 0.78) {
-    camera.fov = 55; controls.target.set(0, 2.9, 0);
-    camera.position.set(12.5, 13.5, 18.5);
+    camera.fov = 58; controls.target.set(0, 1.6, 0);
+    camera.position.set(14, 15, 20.5);
   } else if (aspect < 1.15) {
     camera.fov = 46; controls.target.set(0, 2.0, 0);
     camera.position.set(10.5, 9.5, 14.5);
   } else {
-    camera.fov = 42; controls.target.set(0, 2.0, 0);
-    camera.position.set(12.4, 8.6, 13.8);
+    camera.fov = 42; controls.target.set(0, 1.6, 0);
+    camera.position.set(13.8, 9.6, 15.4);
   }
   camera.updateProjectionMatrix(); controls.update();
 }
@@ -100,12 +100,19 @@ const hutLight = new THREE.PointLight(0xffca7a, 0.85, 5.5, 1.8);
 
 // ---------- helpers ----------
 const rand = (a, b) => a + Math.random() * (b - a);
+function hash3(x, y, z) {
+  const n = Math.sin(Math.round(x * 53) * 127.1 + Math.round(y * 53) * 311.7 + Math.round(z * 53) * 74.7) * 43758.5453;
+  return n - Math.floor(n);
+}
 function jitterGeo(geo, amt, keepAboveY = null) {
   const p = geo.attributes.position;
   for (let i = 0; i < p.count; i++) {
-    const y = p.getY(i);
+    const x = p.getX(i), y = p.getY(i), z = p.getZ(i);
     if (keepAboveY !== null && y > keepAboveY) continue;
-    p.setXYZ(i, p.getX(i) + rand(-amt, amt), y + rand(-amt * 0.6, amt * 0.6), p.getZ(i) + rand(-amt, amt));
+    p.setXYZ(i,
+      x + (hash3(x, y, z) - 0.5) * 2 * amt,
+      y + (hash3(y, z, x) - 0.5) * 1.2 * amt,
+      z + (hash3(z, x, y) - 0.5) * 2 * amt);
   }
   geo.computeVertexNormals();
   return geo;
@@ -418,7 +425,7 @@ const lavaPts = [];
   const th0 = thSea + 1.15;
   lavaPts.push(new THREE.Vector3(VOLC.x, VOLC_TOP - 0.34, VOLC.z));            // inside the bowl
   lavaPts.push(new THREE.Vector3(VOLC.x + Math.cos(th0) * 0.62, VOLC_TOP - 0.05, VOLC.z + Math.sin(th0) * 0.62)); // over the rim
-  const N = 16;
+  const N = 24;
   for (let i = 1; i <= N; i++) {
     const f = i / N;
     const y = VOLC_TOP - 0.2 - f * (VOLC_TOP - ISLAND_Y - 0.15);
@@ -597,7 +604,7 @@ function animate() {
     });
     // spawn particles
     for (let i = 0; i < embers.n; i++) if (embers.life[i] < 0 && Math.random() < 0.5)
-      spawn(embers, i, craterMouth, new THREE.Vector3(rand(-1.2, 1.2), rand(3.0, 5.6), rand(-1.2, 1.2)), rand(1.2, 2.2));
+      spawn(embers, i, craterMouth, new THREE.Vector3(rand(-1.0, 1.0), rand(2.4, 4.4), rand(-1.0, 1.0)), rand(1.0, 1.8));
     for (let i = 0; i < ash.n; i++) if (ash.life[i] < 0 && Math.random() < 0.35)
       spawn(ash, i, craterMouth, new THREE.Vector3(rand(0.4, 1.4), rand(1.2, 2.6), rand(-0.5, 0.5)), rand(3.5, 6));
     for (let i = 0; i < smoke.n; i++) if (smoke.life[i] < 0 && Math.random() < 0.3)
@@ -642,7 +649,7 @@ function animate() {
       p[i * 3] += P.vel[i * 3] * dt;
       p[i * 3 + 1] += P.vel[i * 3 + 1] * dt;
       p[i * 3 + 2] += P.vel[i * 3 + 2] * dt;
-      if (P === embers) P.vel[i * 3 + 1] -= 6.5 * dt;
+      if (P === embers) P.vel[i * 3 + 1] -= 7.5 * dt;
       if (P === smoke) { P.vel[i * 3] += 0.15 * dt; }
     }
     P.pts.geometry.attributes.position.needsUpdate = true;
