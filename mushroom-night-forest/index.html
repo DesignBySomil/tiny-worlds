@@ -1,242 +1,1212 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="utf-8"/>
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
-<title>Mushroom Night Forest - Tiny Worlds</title>
-<meta name="description" content="A dark forest floor. Tap mushrooms to light them and puff out spores; the cutaway below glows with the mycelium network that connects them all."/>
-<style>
-  html,body{margin:0;height:100%;background:#070a12;overflow:hidden;font-family:system-ui,-apple-system,sans-serif}
-  #app{position:fixed;inset:0;touch-action:none}
-  .hud{position:fixed;left:0;right:0;pointer-events:none;color:#dfe8f5;text-align:center;z-index:2}
-  .hud.top{top:max(14px,env(safe-area-inset-top))}
-  .hud h1{font-size:15px;font-weight:650;letter-spacing:.02em;margin:0;opacity:.95}
-  .hud p{font-size:11.5px;margin:4px 0 0;opacity:.55}
-  .hud.bottom{bottom:max(14px,env(safe-area-inset-bottom));font-size:11.5px;opacity:.6;transition:opacity 1s}
-  .hud.bottom.gone{opacity:0}
-  #vignette{position:fixed;inset:0;pointer-events:none;background:radial-gradient(ellipse at 50% 42%,transparent 52%,rgba(0,0,0,.55) 100%);z-index:1}
-</style>
-<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"}}</script>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Mushroom Night Forest</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      user-select: none;
+      -webkit-user-select: none;
+      -webkit-touch-callout: none;
+    }
+
+    html, body {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background-color: #05070b;
+      font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, Roboto, Helvetica, Arial, sans-serif;
+      color: #e2e8f0;
+    }
+
+    #canvas-container {
+      position: fixed;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      z-index: 1;
+      touch-action: none;
+    }
+
+    /* Subtle mood vignette + ambient radial depth */
+    .vignette {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      z-index: 2;
+      background: radial-gradient(
+        circle at 50% 50%,
+        rgba(8, 13, 22, 0) 42%,
+        rgba(4, 7, 13, 0.55) 78%,
+        rgba(2, 3, 7, 0.92) 100%
+      );
+    }
+
+    /* UI Overlay */
+    .ui-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      padding: clamp(16px, 4vw, 32px) 16px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      pointer-events: none;
+      z-index: 3;
+      text-align: center;
+    }
+
+    .title {
+      font-size: clamp(1.05rem, 3.5vw, 1.4rem);
+      font-weight: 500;
+      letter-spacing: 0.22em;
+      text-transform: uppercase;
+      color: rgba(226, 238, 255, 0.88);
+      text-shadow: 0 2px 14px rgba(80, 180, 255, 0.28), 0 0 30px rgba(0, 0, 0, 0.8);
+      margin-bottom: 6px;
+    }
+
+    .hint {
+      font-size: clamp(0.75rem, 2.5vw, 0.88rem);
+      font-weight: 400;
+      letter-spacing: 0.08em;
+      color: rgba(168, 202, 232, 0.72);
+      text-shadow: 0 1px 8px rgba(0, 0, 0, 0.9);
+      transition: opacity 1.8s cubic-bezier(0.22, 1, 0.36, 1), transform 1.8s cubic-bezier(0.22, 1, 0.36, 1);
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+    .hint.fade-out {
+      opacity: 0;
+      transform: translateY(-6px);
+    }
+
+    .status-pill {
+      position: fixed;
+      bottom: clamp(14px, 3.5vw, 24px);
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 3;
+      pointer-events: none;
+      font-size: 0.72rem;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: rgba(180, 215, 240, 0.55);
+      background: rgba(10, 17, 28, 0.55);
+      border: 1px solid rgba(120, 180, 230, 0.14);
+      padding: 6px 14px;
+      border-radius: 999px;
+      backdrop-filter: blur(6px);
+      -webkit-backdrop-filter: blur(6px);
+      transition: border-color 0.5s ease, color 0.5s ease, box-shadow 0.5s ease;
+    }
+
+    .status-pill.resonating {
+      color: rgba(210, 248, 255, 0.9);
+      border-color: rgba(90, 235, 220, 0.45);
+      box-shadow: 0 0 18px rgba(64, 224, 208, 0.25);
+    }
+  </style>
+
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+        "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+      }
+    }
+  </script>
 </head>
 <body>
-<div id="app"></div>
-<div id="vignette"></div>
-<div class="hud top"><h1>Mushroom Night Forest</h1><p>a tiny world, one of fifty</p></div>
-<div class="hud bottom" id="hint">Tap a mushroom to wake its glow</div>
-<script type="module">
-import * as THREE from 'three';
-import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+  <div id="canvas-container"></div>
+  <div class="vignette"></div>
 
-const app = document.getElementById('app');
-const renderer = new THREE.WebGLRenderer({ antialias:true });
-renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
-renderer.setSize(innerWidth, innerHeight);
-renderer.shadowMap.enabled = true;
-renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-renderer.toneMapping = THREE.ACESFilmicToneMapping;
-renderer.toneMappingExposure = 1.35;
-app.appendChild(renderer.domElement);
+  <div class="ui-overlay">
+    <h1 class="title">Mushroom Night Forest</h1>
+    <p id="hint-text" class="hint">Tap mushrooms to awaken bioluminescence &bull; Drag to orbit</p>
+  </div>
 
-const scene = new THREE.Scene();
-scene.background = new THREE.Color(0x070a12);
-scene.fog = new THREE.FogExp2(0x070a12, .04);
+  <div id="status-pill" class="status-pill">Mycelium Dormant &bull; 0 / 9 Lit</div>
 
-const camera = new THREE.PerspectiveCamera(38, innerWidth/innerHeight, .1, 100);
-camera.position.set(8.5, 6.5, 8.5);
+  <script type="module">
+    import * as THREE from 'three';
+    import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 
-const controls = new OrbitControls(camera, renderer.domElement);
-controls.target.set(0, .8, 0);
-controls.enableDamping = true;
-controls.enablePan = false;
-controls.minDistance = 6; controls.maxDistance = 18;
-controls.maxPolarAngle = Math.PI * .47;
-controls.autoRotate = true; controls.autoRotateSpeed = .4;
+    // --- SCENE, CAMERA, RENDERER ---
+    const container = document.getElementById('canvas-container');
+    const hintEl = document.getElementById('hint-text');
+    const statusPillEl = document.getElementById('status-pill');
 
-scene.add(new THREE.HemisphereLight(0x3a4c72, 0x0a0e18, 1.6));
-const moon = new THREE.DirectionalLight(0x9db4e2, 1.1);
-moon.position.set(-6, 10, 3);
-moon.castShadow = true;
-moon.shadow.mapSize.set(1024, 1024);
-moon.shadow.camera.left = -7; moon.shadow.camera.right = 7;
-moon.shadow.camera.top = 7; moon.shadow.camera.bottom = -7;
-scene.add(moon);
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x05080f);
+    scene.fog = new THREE.FogExp2(0x05080f, 0.042);
 
-// cutaway base with glowing mycelium painted on the sides
-function myceliumTexture(){
-  const c = document.createElement('canvas'); c.width = c.height = 512;
-  const g = c.getContext('2d');
-  const grad = g.createLinearGradient(0, 0, 0, 512);
-  grad.addColorStop(0, '#241a12'); grad.addColorStop(1, '#120d08');
-  g.fillStyle = grad; g.fillRect(0, 0, 512, 512);
-  g.strokeStyle = '#57f0d8'; g.lineCap = 'round';
-  function branch(x, y, a, len, w, depth){
-    if (depth <= 0 || w < .4) return;
-    const nx = x + Math.cos(a) * len, ny = y + Math.sin(a) * len;
-    g.lineWidth = w;
-    g.globalAlpha = .5 + Math.random() * .5;
-    g.beginPath(); g.moveTo(x, y); g.lineTo(nx, ny); g.stroke();
-    const n = 1 + Math.floor(Math.random() * 2);
-    for (let i = 0; i <= n; i++) branch(nx, ny, a + (Math.random() - .5) * 1.6, len * (.62 + Math.random() * .2), w * .62, depth - 1);
-  }
-  for (let i = 0; i < 9; i++) branch(40 + Math.random() * 430, 30 + Math.random() * 120, Math.PI / 2 + (Math.random() - .5), 60 + Math.random() * 60, 3.4, 5);
-  return new THREE.CanvasTexture(c);
-}
-const sideTex = myceliumTexture();
-const sideMat = new THREE.MeshStandardMaterial({ map: sideTex, emissive:0x57f0d8, emissiveMap:sideTex, emissiveIntensity:.12, roughness:1 });
-const soilMat = new THREE.MeshStandardMaterial({ color:0x241a12, roughness:1 });
-const topMat = new THREE.MeshStandardMaterial({ color:0x1d2e1a, roughness:1 });
-const base = new THREE.Mesh(new THREE.BoxGeometry(9, 2.2, 9), [sideMat, sideMat, topMat, soilMat, sideMat, sideMat]);
-base.position.y = -1.1;
-base.receiveShadow = true;
-scene.add(base);
+    const camera = new THREE.PerspectiveCamera(
+      40,
+      window.innerWidth / window.innerHeight,
+      0.1,
+      100
+    );
 
-// forest floor details: moss lumps, tiny plants, fallen log
-const mossMat = new THREE.MeshStandardMaterial({ color:0x1d3020, roughness:1, flatShading:true });
-for (let i = 0; i < 22; i++){
-  const m = new THREE.Mesh(new THREE.IcosahedronGeometry(.12 + Math.random() * .22, 0), mossMat);
-  const a = Math.random() * Math.PI * 2, r = Math.random() * 4;
-  m.position.set(Math.cos(a) * r, .05, Math.sin(a) * r);
-  m.scale.y = .5;
-  m.receiveShadow = true;
-  scene.add(m);
-}
-const log = new THREE.Mesh(new THREE.CylinderGeometry(.22, .26, 2.4, 7), new THREE.MeshStandardMaterial({ color:0x3a2a1c, roughness:1, flatShading:true }));
-log.rotation.z = Math.PI / 2; log.rotation.y = .5;
-log.position.set(-2.2, .22, 1.6);
-log.castShadow = true; log.receiveShadow = true;
-scene.add(log);
+    const renderer = new THREE.WebGLRenderer({
+      antialias: true,
+      powerPreference: 'high-performance'
+    });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 1.18;
+    container.appendChild(renderer.domElement);
 
-// mushrooms
-const mushrooms = [];
-const capColors = [0x2a4d5a, 0x3a2a52, 0x24444e, 0x33284a, 0x2a4d5a, 0x3a2a52, 0x24444e, 0x33284a, 0x2a4d5a];
-const glowColors = [0x4de8ff, 0xb06dff, 0x4dffc8, 0xff6dd4, 0x4de8ff, 0xb06dff, 0x4dffc8, 0xff6dd4, 0x8aff6d];
-const stemMat = new THREE.MeshStandardMaterial({ color:0xd8cdb6, roughness:.85 });
-const spots = [[0,0],[1.6,.9],[-1.4,1.2],[2.4,-.8],[-2.4,-1],[.8,-1.9],[-.9,-2.2],[3.1,1.8],[-3.2,.2]];
-spots.forEach(([x, z], i) => {
-  const grp = new THREE.Group();
-  const h = .5 + Math.random() * .9;
-  const stem = new THREE.Mesh(new THREE.CylinderGeometry(.09, .14, h, 7), stemMat);
-  stem.position.y = h / 2; stem.castShadow = true; grp.add(stem);
-  const capMat = new THREE.MeshStandardMaterial({ color:capColors[i], roughness:.7, emissive:glowColors[i], emissiveIntensity:0, flatShading:true });
-  const cap = new THREE.Mesh(new THREE.SphereGeometry(.32 + Math.random() * .18, 9, 6, 0, Math.PI * 2, 0, Math.PI / 2), capMat);
-  cap.position.y = h; cap.castShadow = true; grp.add(cap);
-  const light = new THREE.PointLight(glowColors[i], 0, 4.5, 1.8);
-  light.position.y = h + .2;
-  grp.add(light);
-  grp.position.set(x, 0, z);
-  grp.userData = { capMat, light, lit:false, glow:glowColors[i], cap };
-  scene.add(grp);
-  mushrooms.push(grp);
-});
+    // Responsive initial camera framing so 320px phones fit the cutaway block comfortably
+    function updateCameraFraming() {
+      const aspect = window.innerWidth / window.innerHeight;
+      const distance = aspect < 0.75 ? 13.8 : aspect < 1.1 ? 11.4 : 9.6;
+      const dir = camera.position.clone().sub(controls.target).normalize();
+      if (dir.lengthSq() === 0) dir.set(0.7, 0.55, 0.7).normalize();
+      camera.position.copy(controls.target).addScaledVector(dir, distance);
+    }
 
-// fireflies
-const flyGeo = new THREE.BufferGeometry();
-const flyPos = new Float32Array(24 * 3);
-flyGeo.setAttribute('position', new THREE.BufferAttribute(flyPos, 3));
-const flies = new THREE.Points(flyGeo, new THREE.PointsMaterial({ color:0xcaff8a, size:.09, transparent:true, opacity:.9, depthWrite:false }));
-scene.add(flies);
-const flySeed = Array.from({ length:24 }, () => ({ a: Math.random()*6.3, r: 1+Math.random()*3.6, h: .5+Math.random()*2, s: .3+Math.random()*.7, p: Math.random()*6.3 }));
+    const controls = new OrbitControls(camera, renderer.domElement);
+    controls.target.set(0, -0.15, 0);
+    camera.position.set(6.8, 5.2, 6.8);
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.05;
+    controls.enablePan = false;
+    controls.minDistance = 5.2;
+    controls.maxDistance = 17.5;
+    controls.minPolarAngle = 0.25;
+    controls.maxPolarAngle = Math.PI * 0.56; // allow peeking slightly beneath the cutaway sides
+    controls.autoRotate = true;
+    controls.autoRotateSpeed = 0.55;
+    updateCameraFraming();
+    controls.update();
 
-// spores
-const SMAX = 200;
-const sGeo = new THREE.BufferGeometry();
-const sPos = new Float32Array(SMAX * 3);
-sPos.fill(-60);
-sGeo.setAttribute('position', new THREE.BufferAttribute(sPos, 3));
-const sMat = new THREE.PointsMaterial({ color:0xd8f4ff, size:.08, transparent:true, opacity:.9, depthWrite:false });
-const sporePts = new THREE.Points(sGeo, sMat);
-scene.add(sporePts);
-const spores = [];
+    // Auto-fade hint text after 7 seconds or on first mushroom tap
+    let hintFaded = false;
+    function dismissHint() {
+      if (!hintFaded) {
+        hintFaded = true;
+        hintEl.classList.add('fade-out');
+      }
+    }
+    setTimeout(dismissHint, 7200);
 
-const hint = document.getElementById('hint');
-setTimeout(() => hint.classList.add('gone'), 6000);
+    // --- DETERMINISTIC PSEUDO-RANDOM HELPER FOR HANDMADE LOW-POLY FEEL ---
+    let seed = 421337;
+    function rand() {
+      seed = (seed * 1664525 + 1013904223) % 4294967296;
+      return seed / 4294967296;
+    }
+    function randRange(min, max) {
+      return min + rand() * (max - min);
+    }
 
-function tapMushroom(m){
-  const u = m.userData;
-  u.lit = !u.lit;
-  if (u.lit){
-    for (let i = 0; i < 26 && spores.length < SMAX; i++){
-      spores.push({
-        x: m.position.x + (Math.random()-.5)*.3,
-        y: u.cap.position.y + m.position.y + .1,
-        z: m.position.z + (Math.random()-.5)*.3,
-        vx: (Math.random()-.5)*.5, vy: .3+Math.random()*.5, vz: (Math.random()-.5)*.5,
-        life: 0
+    // --- SURFACE HEIGHT FUNCTION ---
+    function getSurfaceY(x, z) {
+      const d = Math.hypot(x, z);
+      return (
+        Math.sin(x * 0.85) * Math.cos(z * 0.85) * 0.14 +
+        Math.cos(x * 1.6 - z * 1.1) * 0.05 -
+        Math.max(0, d - 1.55) * 0.09
+      );
+    }
+
+    // --- LIGHTING (Moody moonlit night that reads clearly) ---
+    const hemiLight = new THREE.HemisphereLight(0x3a608c, 0x0d141c, 0.85);
+    scene.add(hemiLight);
+
+    const moonLight = new THREE.DirectionalLight(0x8cb8ff, 1.55);
+    moonLight.position.set(5.5, 9.5, 4.2);
+    moonLight.castShadow = true;
+    moonLight.shadow.mapSize.width = 2048;
+    moonLight.shadow.mapSize.height = 2048;
+    moonLight.shadow.camera.near = 2;
+    moonLight.shadow.camera.far = 22;
+    const sc = 3.6;
+    moonLight.shadow.camera.left = -sc;
+    moonLight.shadow.camera.right = sc;
+    moonLight.shadow.camera.top = sc;
+    moonLight.shadow.camera.bottom = -sc;
+    moonLight.shadow.bias = -0.0008;
+    moonLight.shadow.normalBias = 0.025;
+    scene.add(moonLight);
+
+    // Subtle cool rim light from opposite side so dark side of cutaway is readable
+    const rimLight = new THREE.DirectionalLight(0x284b7a, 0.55);
+    rimLight.position.set(-6, 3.5, -5.5);
+    scene.add(rimLight);
+
+    // Soft under-glow light reflecting mycelium onto the floating base bottom
+    const underLight = new THREE.PointLight(0x1f9e96, 0.5, 7, 1.8);
+    underLight.position.set(0, -2.5, 0);
+    scene.add(underLight);
+
+    // --- DIORAMA ROOT GROUP (for subtle floating bob) ---
+    const dioramaGroup = new THREE.Group();
+    scene.add(dioramaGroup);
+
+    // --- 1. CUTAWAY BASE & FOREST FLOOR ---
+    const BASE_WIDTH = 4.4;
+    const BASE_HALF = BASE_WIDTH / 2;
+    const BASE_DEPTH = 2.05;
+
+    function createCutawayDiorama() {
+      // Subdivided box so we can sculpt the top forest floor and craggy cutaway walls
+      const geo = new THREE.BoxGeometry(BASE_WIDTH, BASE_DEPTH, BASE_WIDTH, 26, 14, 26);
+      const pos = geo.attributes.position;
+      const colors = [];
+
+      const colorTopSoil = new THREE.Color(0x13201e);
+      const colorTopMoss = new THREE.Color(0x1d3b2a);
+      const colorUpperWall = new THREE.Color(0x1a1924);
+      const colorDeepWall = new THREE.Color(0x0c0b12);
+      const tmpColor = new THREE.Color();
+
+      for (let i = 0; i < pos.count; i++) {
+        let x = pos.getX(i);
+        let y = pos.getY(i);
+        let z = pos.getZ(i);
+
+        const normY = (y + BASE_DEPTH / 2) / BASE_DEPTH; // 0 at bottom, 1 at top
+
+        // Top surface follows organic forest floor height
+        const topSurface = getSurfaceY(x, z);
+        if (normY > 0.98) {
+          y = topSurface;
+        } else {
+          // Interpolate internal/side Y smoothly from bottom to topSurface
+          const bottomY = -BASE_DEPTH + Math.sin(x * 1.9 + z * 1.7) * 0.06;
+          y = THREE.MathUtils.lerp(bottomY, topSurface, normY);
+        }
+
+        // Slight inward taper toward bottom + faceted rocky noise on cutaway sides
+        const taper = 1.0 - (1.0 - normY) * 0.09;
+        const sideNoise =
+          (Math.sin(x * 3.7 + y * 4.3) * Math.cos(z * 3.7 - y * 3.9)) * 0.045 * (1.0 - normY * 0.5);
+
+        x = x * taper + (Math.abs(x) > BASE_HALF - 0.05 ? Math.sign(x) * sideNoise : 0);
+        z = z * taper + (Math.abs(z) > BASE_HALF - 0.05 ? Math.sign(z) * sideNoise : 0);
+
+        pos.setXYZ(i, x, y, z);
+
+        // Vertex color gradient: mossy dark forest floor on top, deep earth strata on sides
+        if (normY > 0.94) {
+          const mossMix = Math.max(0, Math.min(1, (Math.sin(x * 1.4) * Math.cos(z * 1.4) + 0.6) * 0.65));
+          tmpColor.copy(colorTopSoil).lerp(colorTopMoss, mossMix);
+        } else {
+          tmpColor.copy(colorDeepWall).lerp(colorUpperWall, Math.pow(normY, 0.8));
+        }
+        colors.push(tmpColor.r, tmpColor.g, tmpColor.b);
+      }
+
+      geo.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
+      const nonIndexedGeo = geo.toNonIndexed();
+      nonIndexedGeo.computeVertexNormals();
+
+      const mat = new THREE.MeshStandardMaterial({
+        vertexColors: true,
+        roughness: 0.92,
+        metalness: 0.05,
+        flatShading: true
+      });
+
+      const mesh = new THREE.Mesh(nonIndexedGeo, mat);
+      mesh.receiveShadow = true;
+      mesh.castShadow = true;
+      dioramaGroup.add(mesh);
+
+      // Subtle grass/soil rim lip along the top edge
+      const rimGeo = new THREE.BoxGeometry(BASE_WIDTH + 0.05, 0.12, BASE_WIDTH + 0.05, 22, 2, 22);
+      const rPos = rimGeo.attributes.position;
+      for (let i = 0; i < rPos.count; i++) {
+        const rx = rPos.getX(i);
+        const ry = rPos.getY(i);
+        const rz = rPos.getZ(i);
+        const h = getSurfaceY(
+          THREE.MathUtils.clamp(rx, -BASE_HALF, BASE_HALF),
+          THREE.MathUtils.clamp(rz, -BASE_HALF, BASE_HALF)
+        );
+        rPos.setY(i, ry + h - 0.04);
+      }
+      const rimNonIndexed = rimGeo.toNonIndexed();
+      rimNonIndexed.computeVertexNormals();
+      const rimMat = new THREE.MeshStandardMaterial({
+        color: 0x1a3428,
+        roughness: 0.9,
+        flatShading: true
+      });
+      const rimMesh = new THREE.Mesh(rimNonIndexed, rimMat);
+      rimMesh.receiveShadow = true;
+      rimMesh.castShadow = true;
+      dioramaGroup.add(rimMesh);
+    }
+
+    createCutawayDiorama();
+
+    // --- 2. MOSS PATCHES, STONES, AND FALLEN HOLLOW LOG ---
+    function createForestFloorDetails() {
+      // Lush low-poly moss cushions
+      const mossMat1 = new THREE.MeshStandardMaterial({
+        color: 0x265437,
+        roughness: 0.88,
+        flatShading: true
+      });
+      const mossMat2 = new THREE.MeshStandardMaterial({
+        color: 0x336943,
+        roughness: 0.85,
+        flatShading: true
+      });
+
+      const mossLayouts = [
+        { x: -0.9, z: 0.6, r: 0.52, sy: 0.25 },
+        { x: 0.4, z: -0.4, r: 0.65, sy: 0.22 },
+        { x: -0.3, z: -1.1, r: 0.48, sy: 0.24 },
+        { x: 1.15, z: 0.85, r: 0.56, sy: 0.22 },
+        { x: -1.45, z: -0.45, r: 0.44, sy: 0.25 },
+        { x: 0.15, z: 1.25, r: 0.5, sy: 0.2 },
+        { x: 1.35, z: -0.95, r: 0.4, sy: 0.23 },
+        { x: -1.2, z: 1.35, r: 0.36, sy: 0.26 },
+        { x: 0.65, z: 0.35, r: 0.45, sy: 0.2 }
+      ];
+
+      mossLayouts.forEach((m, idx) => {
+        const geo = new THREE.IcosahedronGeometry(m.r, 1);
+        const pos = geo.attributes.position;
+        for (let i = 0; i < pos.count; i++) {
+          let vx = pos.getX(i);
+          let vy = pos.getY(i);
+          let vz = pos.getZ(i);
+          if (vy < 0) vy *= 0.25;
+          const n = 1 + (rand() - 0.5) * 0.22;
+          pos.setXYZ(i, vx * n, vy * m.sy * n, vz * n);
+        }
+        const flatGeo = geo.toNonIndexed();
+        flatGeo.computeVertexNormals();
+        const mesh = new THREE.Mesh(flatGeo, idx % 2 === 0 ? mossMat1 : mossMat2);
+        mesh.position.set(m.x, getSurfaceY(m.x, m.z) - 0.02, m.z);
+        mesh.rotation.y = rand() * Math.PI * 2;
+        mesh.receiveShadow = true;
+        mesh.castShadow = true;
+        dioramaGroup.add(mesh);
+      });
+
+      // Low-poly pebbles & rocks
+      const rockMat = new THREE.MeshStandardMaterial({
+        color: 0x3b4654,
+        roughness: 0.82,
+        flatShading: true
+      });
+      const rockCoords = [
+        [-1.6, 0.9, 0.22],
+        [1.55, -0.35, 0.26],
+        [-0.85, -1.55, 0.19],
+        [0.85, 1.5, 0.24],
+        [1.4, 1.35, 0.16],
+        [-1.55, -1.25, 0.28],
+        [0.2, -1.65, 0.17]
+      ];
+      rockCoords.forEach(([rx, rz, rr]) => {
+        const rGeo = new THREE.DodecahedronGeometry(rr, 0);
+        const rPos = rGeo.attributes.position;
+        for (let i = 0; i < rPos.count; i++) {
+          rPos.setXYZ(
+            i,
+            rPos.getX(i) * randRange(0.85, 1.2),
+            rPos.getY(i) * randRange(0.6, 0.95),
+            rPos.getZ(i) * randRange(0.85, 1.2)
+          );
+        }
+        const flatRock = rGeo.toNonIndexed();
+        flatRock.computeVertexNormals();
+        const rock = new THREE.Mesh(flatRock, rockMat);
+        rock.position.set(rx, getSurfaceY(rx, rz) + rr * 0.25, rz);
+        rock.rotation.set(rand() * 3, rand() * 3, rand() * 3);
+        rock.castShadow = true;
+        rock.receiveShadow = true;
+        dioramaGroup.add(rock);
+      });
+
+      // Fallen weathered log with moss & heartwood ends
+      const logGroup = new THREE.Group();
+      const logLength = 2.45;
+      const logRadius = 0.29;
+      const logGeo = new THREE.CylinderGeometry(logRadius * 0.88, logRadius, logLength, 9, 10, false);
+      const lPos = logGeo.attributes.position;
+      for (let i = 0; i < lPos.count; i++) {
+        const lx = lPos.getX(i);
+        const ly = lPos.getY(i);
+        const lz = lPos.getZ(i);
+        const barkWave = Math.sin(ly * 3.5 + lx * 6.0) * 0.022;
+        const bend = Math.sin((ly / logLength) * Math.PI) * 0.07;
+        lPos.setXYZ(i, lx + barkWave + bend, ly, lz + barkWave);
+      }
+      const flatLogGeo = logGeo.toNonIndexed();
+      flatLogGeo.computeVertexNormals();
+
+      const barkMat = new THREE.MeshStandardMaterial({
+        color: 0x3a261c,
+        roughness: 0.94,
+        flatShading: true
+      });
+      const logMesh = new THREE.Mesh(flatLogGeo, barkMat);
+      logMesh.rotation.z = Math.PI / 2;
+      logMesh.castShadow = true;
+      logMesh.receiveShadow = true;
+      logGroup.add(logMesh);
+
+      // Inner wood rings at both ends of the log
+      const endMat = new THREE.MeshStandardMaterial({
+        color: 0x6e4c36,
+        roughness: 0.88,
+        flatShading: true
+      });
+      [-1, 1].forEach((dir) => {
+        const capGeo = new THREE.CylinderGeometry(
+          dir === -1 ? logRadius * 0.72 : logRadius * 0.8,
+          dir === -1 ? logRadius * 0.72 : logRadius * 0.8,
+          0.03,
+          8
+        );
+        const cap = new THREE.Mesh(capGeo, endMat);
+        cap.rotation.z = Math.PI / 2;
+        cap.position.x = dir * (logLength * 0.5 + 0.005);
+        logGroup.add(cap);
+      });
+
+      // Moss strip blanketing the top of the fallen log
+      const logMossGeo = new THREE.BoxGeometry(1.75, 0.12, 0.34, 8, 2, 4);
+      const lmPos = logMossGeo.attributes.position;
+      for (let i = 0; i < lmPos.count; i++) {
+        lmPos.setXYZ(
+          i,
+          lmPos.getX(i) + (rand() - 0.5) * 0.04,
+          lmPos.getY(i) + Math.cos(lmPos.getZ(i) * 5) * 0.04 + (rand() - 0.5) * 0.03,
+          lmPos.getZ(i) + (rand() - 0.5) * 0.04
+        );
+      }
+      const flatLogMoss = logMossGeo.toNonIndexed();
+      flatLogMoss.computeVertexNormals();
+      const logMoss = new THREE.Mesh(flatLogMoss, mossMat2);
+      logMoss.position.set(-0.08, logRadius * 0.82, 0);
+      logMoss.castShadow = true;
+      logMoss.receiveShadow = true;
+      logGroup.add(logMoss);
+
+      // Place log diagonally across the rear-left of the forest floor
+      const logX = -0.35;
+      const logZ = -0.38;
+      logGroup.position.set(logX, getSurfaceY(logX, logZ) + 0.21, logZ);
+      logGroup.rotation.y = 0.58;
+      logGroup.rotation.z = -0.05;
+      dioramaGroup.add(logGroup);
+    }
+
+    createForestFloorDetails();
+
+    // --- 3. INTERACTIVE BIOLUMINESCENT MUSHROOMS ---
+    const mushrooms = [];
+    const pickableTargets = [];
+
+    // 9 mushrooms of varied sizes, silhouettes, and bioluminescent palettes
+    const mushroomSpecs = [
+      // Hero tall cyan mushroom near center-right
+      { x: 0.55, z: 0.22, scale: 1.28, capRadius: 0.46, capHeight: 0.38, stemHeight: 0.96, color: 0x00f5d4, leanX: 0.08, leanZ: -0.06, defaultLit: true },
+      // Medium magenta-violet mushroom emerging right beside the fallen log
+      { x: -0.82, z: 0.14, scale: 1.05, capRadius: 0.42, capHeight: 0.32, stemHeight: 0.78, color: 0xe056fd, leanX: -0.14, leanZ: 0.12, defaultLit: false },
+      // Growing directly on top of the fallen log (warm amber-gold)
+      { x: -0.22, z: -0.32, yOffset: 0.42, scale: 0.82, capRadius: 0.35, capHeight: 0.27, stemHeight: 0.55, color: 0xffbe0b, leanX: 0.05, leanZ: 0.16, defaultLit: false },
+      // Companion small lime-green mushroom on the fallen log
+      { x: -0.58, z: -0.52, yOffset: 0.39, scale: 0.58, capRadius: 0.28, capHeight: 0.24, stemHeight: 0.44, color: 0x7ae582, leanX: -0.18, leanZ: -0.08, defaultLit: false },
+      // Tall slender electric-blue mushroom in back-right cluster
+      { x: 0.92, z: -0.68, scale: 1.02, capRadius: 0.36, capHeight: 0.36, stemHeight: 0.88, color: 0x3a86ff, leanX: 0.14, leanZ: -0.1, defaultLit: false },
+      // Small twin beside the back-right mushroom (aqua)
+      { x: 1.24, z: -0.42, scale: 0.64, capRadius: 0.3, capHeight: 0.25, stemHeight: 0.5, color: 0x4cc9f0, leanX: 0.22, leanZ: 0.08, defaultLit: false },
+      // Front-left cluster large coral-pink toadstool
+      { x: -0.28, z: 0.92, scale: 0.94, capRadius: 0.44, capHeight: 0.3, stemHeight: 0.68, color: 0xff4d8d, leanX: -0.06, leanZ: 0.15, defaultLit: false },
+      // Tiny front-right mint sprout
+      { x: 0.88, z: 0.88, scale: 0.62, capRadius: 0.29, capHeight: 0.24, stemHeight: 0.48, color: 0x38f9d7, leanX: 0.16, leanZ: 0.14, defaultLit: false },
+      // Far-left violet sentinel
+      { x: -1.32, z: -0.18, scale: 0.76, capRadius: 0.34, capHeight: 0.29, stemHeight: 0.62, color: 0x9d4edd, leanX: -0.2, leanZ: -0.05, defaultLit: false }
+    ];
+
+    function buildMushroom(spec, index) {
+      const group = new THREE.Group();
+      const baseFloorY = getSurfaceY(spec.x, spec.z) + (spec.yOffset || 0);
+      group.position.set(spec.x, baseFloorY, spec.z);
+
+      // Pivot wrapper for organic lean & tap bounce animation
+      const rig = new THREE.Group();
+      rig.rotation.set(spec.leanX, rand() * Math.PI * 2, spec.leanZ);
+      group.add(rig);
+
+      const s = spec.scale;
+      const stemH = spec.stemHeight * s;
+      const capR = spec.capRadius * s;
+      const capH = spec.capHeight * s;
+
+      // 1. Curved low-poly stem
+      const stemGeo = new THREE.CylinderGeometry(capR * 0.22, capR * 0.34, stemH, 8, 7, false);
+      const sPos = stemGeo.attributes.position;
+      for (let i = 0; i < sPos.count; i++) {
+        const sy = sPos.getY(i);
+        const normH = (sy + stemH / 2) / stemH; // 0 to 1
+        const curveX = Math.sin(normH * Math.PI) * 0.055 * s;
+        const flare = normH < 0.2 ? (0.2 - normH) * 0.25 : 0;
+        sPos.setXYZ(
+          i,
+          sPos.getX(i) * (1 + flare) + curveX,
+          sy,
+          sPos.getZ(i) * (1 + flare)
+        );
+      }
+      const flatStemGeo = stemGeo.toNonIndexed();
+      flatStemGeo.computeVertexNormals();
+
+      const stemMat = new THREE.MeshStandardMaterial({
+        color: 0xd8d2c5,
+        emissive: new THREE.Color(spec.color),
+        emissiveIntensity: 0.03,
+        roughness: 0.82,
+        flatShading: true
+      });
+      const stemMesh = new THREE.Mesh(flatStemGeo, stemMat);
+      stemMesh.position.y = stemH * 0.5;
+      stemMesh.castShadow = true;
+      stemMesh.receiveShadow = true;
+      rig.add(stemMesh);
+
+      // 2. Glowing gill underside disc
+      const gillGeo = new THREE.ConeGeometry(capR * 0.92, capH * 0.35, 11, 1, false);
+      const flatGillGeo = gillGeo.toNonIndexed();
+      flatGillGeo.computeVertexNormals();
+      const gillMat = new THREE.MeshStandardMaterial({
+        color: new THREE.Color(spec.color).multiplyScalar(0.35),
+        emissive: new THREE.Color(spec.color),
+        emissiveIntensity: 0.15,
+        roughness: 0.65,
+        flatShading: true
+      });
+      const gillMesh = new THREE.Mesh(flatGillGeo, gillMat);
+      gillMesh.rotation.x = Math.PI;
+      gillMesh.position.y = stemH - capH * 0.05;
+      rig.add(gillMesh);
+
+      // 3. Low-poly sculpted mushroom cap
+      const capGeo = new THREE.SphereGeometry(capR, 11, 7, 0, Math.PI * 2, 0, Math.PI * 0.62);
+      const cPos = capGeo.attributes.position;
+      for (let i = 0; i < cPos.count; i++) {
+        let cx = cPos.getX(i);
+        let cy = cPos.getY(i);
+        let cz = cPos.getZ(i);
+        const rRatio = Math.hypot(cx, cz) / capR;
+        // Bell-shaped silhouette with slightly fluted rim
+        const flute = Math.sin(Math.atan2(cz, cx) * 6) * 0.025 * capR * rRatio;
+        cy = cy * (capH / (capR * 0.75)) + (1 - rRatio) * capH * 0.18;
+        cPos.setXYZ(i, cx + flute, cy, cz + flute);
+      }
+      const flatCapGeo = capGeo.toNonIndexed();
+      flatCapGeo.computeVertexNormals();
+
+      const baseCapColor = new THREE.Color(spec.color).lerp(new THREE.Color(0x16222f), 0.62);
+      const capMat = new THREE.MeshStandardMaterial({
+        color: baseCapColor,
+        emissive: new THREE.Color(spec.color),
+        emissiveIntensity: 0.08,
+        roughness: 0.55,
+        metalness: 0.08,
+        flatShading: true
+      });
+      const capMesh = new THREE.Mesh(flatCapGeo, capMat);
+      capMesh.position.y = stemH - capH * 0.18;
+      capMesh.castShadow = true;
+      capMesh.receiveShadow = true;
+      rig.add(capMesh);
+
+      // 4. Tiny glowing spots on the cap for extra handmade charm
+      const spotMat = new THREE.MeshStandardMaterial({
+        color: 0xffffff,
+        emissive: new THREE.Color(spec.color),
+        emissiveIntensity: 0.25,
+        roughness: 0.4,
+        flatShading: true
+      });
+      for (let k = 0; k < 5; k++) {
+        const angle = (k / 5) * Math.PI * 2 + rand() * 0.5;
+        const dist = capR * randRange(0.32, 0.72);
+        const spotGeo = new THREE.DodecahedronGeometry(capR * randRange(0.065, 0.1), 0);
+        const spot = new THREE.Mesh(spotGeo, spotMat);
+        const sx = Math.cos(angle) * dist;
+        const sz = Math.sin(angle) * dist;
+        const sy = Math.cos((dist / capR) * Math.PI * 0.42) * capH * 0.78;
+        spot.position.set(sx, sy, sz);
+        spot.scale.y = 0.45;
+        capMesh.add(spot);
+      }
+
+      // 5. Individual soft point light inside the cap
+      const light = new THREE.PointLight(spec.color, 0, 3.2, 1.7);
+      light.position.set(0, stemH + capH * 0.1, 0);
+      rig.add(light);
+
+      // 6. Invisible slightly-generous hit collider so tapping small mushrooms on a 320px phone is effortless
+      const hitGeo = new THREE.CylinderGeometry(
+        Math.max(capR * 1.35, 0.28),
+        Math.max(capR * 1.15, 0.24),
+        stemH + capH + 0.25,
+        8
+      );
+      const hitMat = new THREE.MeshBasicMaterial({ visible: false });
+      const hitMesh = new THREE.Mesh(hitGeo, hitMat);
+      hitMesh.position.y = (stemH + capH) * 0.5;
+      rig.add(hitMesh);
+
+      const mushroomObj = {
+        index,
+        spec,
+        group,
+        rig,
+        capMesh,
+        capMat,
+        gillMat,
+        stemMat,
+        spotMat,
+        light,
+        isLit: false,
+        glowFactor: 0, // smoothly animated 0 -> 1
+        bouncePhase: 0,
+        worldRootPos: new THREE.Vector3(spec.x, baseFloorY, spec.z),
+        worldCapPos: new THREE.Vector3(spec.x, baseFloorY + stemH, spec.z)
+      };
+
+      hitMesh.userData.mushroom = mushroomObj;
+      capMesh.userData.mushroom = mushroomObj;
+      stemMesh.userData.mushroom = mushroomObj;
+      pickableTargets.push(hitMesh, capMesh, stemMesh);
+
+      dioramaGroup.add(group);
+      mushrooms.push(mushroomObj);
+    }
+
+    mushroomSpecs.forEach((spec, idx) => buildMushroom(spec, idx));
+
+    // --- 4. BRANCHING MYCELIUM NETWORK ON CUTAWAY SIDES & ROOTS ---
+    // Each strand connects a mushroom's subterranean root down and across the 4 cutaway walls
+    const myceliumStrands = [];
+    const MYCELIUM_WALL_OFFSET = BASE_HALF - 0.015; // right on the outer cutaway surface
+
+    function createMyceliumNetwork() {
+      // Build branching glowing tubes wrapping the 4 cutaway sides + root tendrils beneath mushrooms
+      mushrooms.forEach((m, mIdx) => {
+        const mainColor = new THREE.Color(m.spec.color);
+        // Pick the two closest cutaway faces for this mushroom so its roots visibly reach the cutaway sides
+        const faces = [
+          { axis: 'z', sign: 1, dist: Math.abs(BASE_HALF - m.spec.z) },
+          { axis: 'z', sign: -1, dist: Math.abs(-BASE_HALF - m.spec.z) },
+          { axis: 'x', sign: 1, dist: Math.abs(BASE_HALF - m.spec.x) },
+          { axis: 'x', sign: -1, dist: Math.abs(-BASE_HALF - m.spec.x) }
+        ].sort((a, b) => a.dist - b.dist);
+
+        // Create 3 branching veins per mushroom along the cutaway walls
+        for (let b = 0; b < 3; b++) {
+          const face = faces[b % 2];
+          const points = [];
+          const topX = m.spec.x;
+          const topZ = m.spec.z;
+
+          // Entry point near the top of the cutaway wall aligned with the mushroom
+          let wallU = face.axis === 'z'
+            ? THREE.MathUtils.clamp(topX + (b - 1) * 0.28, -BASE_HALF * 0.85, BASE_HALF * 0.85)
+            : THREE.MathUtils.clamp(topZ + (b - 1) * 0.28, -BASE_HALF * 0.85, BASE_HALF * 0.85);
+
+          const startX = face.axis === 'z' ? wallU : face.sign * MYCELIUM_WALL_OFFSET;
+          const startZ = face.axis === 'z' ? face.sign * MYCELIUM_WALL_OFFSET : wallU;
+          const startY = getSurfaceY(
+            THREE.MathUtils.clamp(startX, -BASE_HALF, BASE_HALF),
+            THREE.MathUtils.clamp(startZ, -BASE_HALF, BASE_HALF)
+          ) - 0.08;
+
+          const segments = 7;
+          for (let s = 0; s <= segments; s++) {
+            const t = s / segments;
+            // Descend down the cutaway wall and spread horizontally into a root web
+            const spread = (b - 1) * t * 0.85 + Math.sin(t * Math.PI * 2.5 + mIdx + b) * 0.24;
+            const curU = THREE.MathUtils.clamp(wallU + spread, -BASE_HALF * 0.88, BASE_HALF * 0.88);
+            const curY = startY - t * (BASE_DEPTH * 0.82) + Math.cos(t * 5 + b) * 0.05;
+
+            // Taper slightly inward with the cutaway block's slope
+            const normY = THREE.MathUtils.clamp((curY + BASE_DEPTH / 2) / BASE_DEPTH, 0, 1);
+            const wallOut = (MYCELIUM_WALL_OFFSET + 0.02) * (1.0 - (1.0 - normY) * 0.085);
+
+            const px = face.axis === 'z' ? curU : face.sign * wallOut;
+            const pz = face.axis === 'z' ? face.sign * wallOut : curU;
+            points.push(new THREE.Vector3(px, curY, pz));
+          }
+
+          const curve = new THREE.CatmullRomCurve3(points);
+          const radius = b === 1 ? 0.021 : 0.013;
+          const tubeGeo = new THREE.TubeGeometry(curve, 20, radius, 5, false);
+
+          const mat = new THREE.MeshStandardMaterial({
+            color: mainColor.clone().multiplyScalar(0.35),
+            emissive: mainColor,
+            emissiveIntensity: 0.18,
+            roughness: 0.4,
+            flatShading: true
+          });
+
+          const mesh = new THREE.Mesh(tubeGeo, mat);
+          dioramaGroup.add(mesh);
+
+          myceliumStrands.push({
+            mesh,
+            mat,
+            ownerIndex: mIdx,
+            baseColor: mainColor.clone(),
+            phaseOffset: mIdx * 0.9 + b * 1.4,
+            isBridge: false
+          });
+        }
+      });
+
+      // Add horizontal interconnecting "synapse" bridges across each of the 4 cutaway walls
+      const bridgeDefs = [
+        { axis: 'z', sign: 1, yStart: -0.65, yEnd: -1.15 },
+        { axis: 'z', sign: 1, yStart: -1.35, yEnd: -1.55 },
+        { axis: 'z', sign: -1, yStart: -0.7, yEnd: -1.2 },
+        { axis: 'z', sign: -1, yStart: -1.4, yEnd: -1.1 },
+        { axis: 'x', sign: 1, yStart: -0.75, yEnd: -1.25 },
+        { axis: 'x', sign: 1, yStart: -1.45, yEnd: -1.15 },
+        { axis: 'x', sign: -1, yStart: -0.68, yEnd: -1.3 },
+        { axis: 'x', sign: -1, yStart: -1.38, yEnd: -1.05 }
+      ];
+
+      bridgeDefs.forEach((def, idx) => {
+        const pts = [];
+        const steps = 9;
+        for (let i = 0; i <= steps; i++) {
+          const t = i / steps;
+          const u = THREE.MathUtils.lerp(-BASE_HALF * 0.84, BASE_HALF * 0.84, t);
+          const y = THREE.MathUtils.lerp(def.yStart, def.yEnd, t) + Math.sin(t * Math.PI * 3 + idx) * 0.14;
+          const normY = THREE.MathUtils.clamp((y + BASE_DEPTH / 2) / BASE_DEPTH, 0, 1);
+          const wallOut = (MYCELIUM_WALL_OFFSET + 0.018) * (1.0 - (1.0 - normY) * 0.085);
+
+          const px = def.axis === 'z' ? u : def.sign * wallOut;
+          const pz = def.axis === 'z' ? def.sign * wallOut : u;
+          pts.push(new THREE.Vector3(px, y, pz));
+        }
+
+        const curve = new THREE.CatmullRomCurve3(pts);
+        const geo = new THREE.TubeGeometry(curve, 24, 0.014, 5, false);
+        const bridgeColor = new THREE.Color(0x2ce8d5);
+        const mat = new THREE.MeshStandardMaterial({
+          color: 0x0e3b43,
+          emissive: bridgeColor,
+          emissiveIntensity: 0.14,
+          roughness: 0.45,
+          flatShading: true
+        });
+        const mesh = new THREE.Mesh(geo, mat);
+        dioramaGroup.add(mesh);
+
+        myceliumStrands.push({
+          mesh,
+          mat,
+          ownerIndex: -1,
+          baseColor: bridgeColor,
+          phaseOffset: idx * 1.1,
+          isBridge: true
+        });
+      });
+
+      // Glowing root nodes (little bioluminescent knots embedded in the cutaway walls)
+      for (let n = 0; n < 24; n++) {
+        const faceIdx = n % 4;
+        const u = randRange(-BASE_HALF * 0.8, BASE_HALF * 0.8);
+        const y = randRange(-BASE_DEPTH * 0.82, -0.35);
+        const normY = THREE.MathUtils.clamp((y + BASE_DEPTH / 2) / BASE_DEPTH, 0, 1);
+        const wallOut = (MYCELIUM_WALL_OFFSET + 0.022) * (1.0 - (1.0 - normY) * 0.085);
+
+        let nx = 0, nz = 0;
+        if (faceIdx === 0) { nx = u; nz = wallOut; }
+        else if (faceIdx === 1) { nx = u; nz = -wallOut; }
+        else if (faceIdx === 2) { nx = wallOut; nz = u; }
+        else { nx = -wallOut; nz = u; }
+
+        const ownerIdx = n % mushrooms.length;
+        const nodeColor = new THREE.Color(mushrooms[ownerIdx].spec.color);
+        const nodeGeo = new THREE.IcosahedronGeometry(randRange(0.025, 0.045), 0);
+        const nodeMat = new THREE.MeshStandardMaterial({
+          color: nodeColor.clone().multiplyScalar(0.4),
+          emissive: nodeColor,
+          emissiveIntensity: 0.2,
+          roughness: 0.4,
+          flatShading: true
+        });
+        const nodeMesh = new THREE.Mesh(nodeGeo, nodeMat);
+        nodeMesh.position.set(nx, y, nz);
+        dioramaGroup.add(nodeMesh);
+
+        myceliumStrands.push({
+          mesh: nodeMesh,
+          mat: nodeMat,
+          ownerIndex: ownerIdx,
+          baseColor: nodeColor,
+          phaseOffset: n * 0.7,
+          isBridge: false
+        });
+      }
+    }
+
+    createMyceliumNetwork();
+
+    // --- 5. SOFT RADIAL PARTICLE TEXTURE GENERATOR ---
+    function createSoftGlowTexture() {
+      const canvas = document.createElement('canvas');
+      canvas.width = 64;
+      canvas.height = 64;
+      const ctx = canvas.getContext('2d');
+      const grad = ctx.createRadialGradient(32, 32, 2, 32, 32, 30);
+      grad.addColorStop(0, 'rgba(255, 255, 255, 1)');
+      grad.addColorStop(0.35, 'rgba(255, 255, 255, 0.75)');
+      grad.addColorStop(0.7, 'rgba(255, 255, 255, 0.2)');
+      grad.addColorStop(1, 'rgba(255, 255, 255, 0)');
+      ctx.fillStyle = grad;
+      ctx.fillRect(0, 0, 64, 64);
+      const tex = new THREE.CanvasTexture(canvas);
+      return tex;
+    }
+
+    const glowParticleTex = createSoftGlowTexture();
+
+    // --- 6. DRIFTING FIREFLIES ABOVE THE FOREST FLOOR ---
+    const FIREFLY_COUNT = 34;
+    const fireflyGeo = new THREE.BufferGeometry();
+    const fireflyPositions = new Float32Array(FIREFLY_COUNT * 3);
+    const fireflyColors = new Float32Array(FIREFLY_COUNT * 3);
+    const fireflyData = [];
+
+    const fireflyPalette = [
+      new THREE.Color(0x9ef01a),
+      new THREE.Color(0x72efdd),
+      new THREE.Color(0xffe169),
+      new THREE.Color(0x80ffdb)
+    ];
+
+    for (let i = 0; i < FIREFLY_COUNT; i++) {
+      const angle = rand() * Math.PI * 2;
+      const radius = randRange(0.25, 2.35);
+      const x = Math.cos(angle) * radius;
+      const z = Math.sin(angle) * radius;
+      const y = randRange(0.25, 2.1);
+
+      fireflyPositions[i * 3] = x;
+      fireflyPositions[i * 3 + 1] = y;
+      fireflyPositions[i * 3 + 2] = z;
+
+      const c = fireflyPalette[i % fireflyPalette.length];
+      fireflyColors[i * 3] = c.r;
+      fireflyColors[i * 3 + 1] = c.g;
+      fireflyColors[i * 3 + 2] = c.b;
+
+      fireflyData.push({
+        baseX: x,
+        baseY: y,
+        baseZ: z,
+        baseColor: c.clone(),
+        speed: randRange(0.45, 1.05),
+        phase: rand() * Math.PI * 2,
+        orbitRadius: randRange(0.18, 0.48)
       });
     }
-  }
-}
 
-const ray = new THREE.Raycaster();
-const ndc = new THREE.Vector2();
-let downAt = null;
-renderer.domElement.addEventListener('pointerdown', e => { downAt = { x:e.clientX, y:e.clientY, t:performance.now() }; });
-renderer.domElement.addEventListener('pointerup', e => {
-  if (!downAt) return;
-  const moved = Math.hypot(e.clientX - downAt.x, e.clientY - downAt.y);
-  const dt = performance.now() - downAt.t;
-  downAt = null;
-  if (moved > 8 || dt > 500) return;
-  ndc.set(e.clientX / innerWidth * 2 - 1, -(e.clientY / innerHeight) * 2 + 1);
-  ray.setFromCamera(ndc, camera);
-  const caps = mushrooms.map(m => m.userData.cap);
-  const hits = ray.intersectObjects(caps, false);
-  if (hits.length){
-    const m = mushrooms.find(mm => mm.userData.cap === hits[0].object);
-    if (m) tapMushroom(m);
-  }
-});
+    fireflyGeo.setAttribute('position', new THREE.BufferAttribute(fireflyPositions, 3));
+    fireflyGeo.setAttribute('color', new THREE.BufferAttribute(fireflyColors, 3));
 
-const clock = new THREE.Clock();
-function animate(){
-  requestAnimationFrame(animate);
-  const dt = Math.min(clock.getDelta(), .05);
-  const t = clock.elapsedTime;
-  controls.update();
+    const fireflyMat = new THREE.PointsMaterial({
+      size: 0.24,
+      map: glowParticleTex,
+      vertexColors: true,
+      transparent: true,
+      opacity: 0.92,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending
+    });
 
-  mushrooms.forEach((m, i) => {
-    const u = m.userData;
-    const target = u.lit ? 1 : 0;
-    u.capMat.emissiveIntensity += ((u.lit ? 1.5 : 0) - u.capMat.emissiveIntensity) * Math.min(dt * 5, 1);
-    u.light.intensity += ((u.lit ? 1.6 : 0) - u.light.intensity) * Math.min(dt * 5, 1);
-    if (u.lit) u.capMat.emissiveIntensity = 1.3 + Math.sin(t * 3 + i) * .25;
-  });
+    const fireflyPoints = new THREE.Points(fireflyGeo, fireflyMat);
+    dioramaGroup.add(fireflyPoints);
 
-  const fa = flyGeo.attributes.position.array;
-  flySeed.forEach((f, i) => {
-    fa[i*3] = Math.cos(t * f.s + f.p) * f.r;
-    fa[i*3+1] = f.h + Math.sin(t * f.s * 1.7 + f.p) * .35;
-    fa[i*3+2] = Math.sin(t * f.s + f.p) * f.r;
-  });
-  flyGeo.attributes.position.needsUpdate = true;
+    // --- 7. DRIFTING SPORE PUFF SYSTEM ON MUSHROOM TAP ---
+    const sporeBursts = [];
 
-  const sa = sGeo.attributes.position.array;
-  for (let i = spores.length - 1; i >= 0; i--){
-    const p = spores[i];
-    p.life += dt;
-    p.x += p.vx * dt + Math.sin(t * 2 + i) * .008;
-    p.y += p.vy * dt;
-    p.z += p.vz * dt;
-    if (p.life > 4){ spores.splice(i, 1); continue; }
-    sa[i*3] = p.x; sa[i*3+1] = p.y; sa[i*3+2] = p.z;
-  }
-  for (let i = spores.length; i < SMAX; i++){ sa[i*3+1] = -60; }
-  sGeo.attributes.position.needsUpdate = true;
+    function spawnSporePuff(origin, hexColor) {
+      const count = 28;
+      const geo = new THREE.BufferGeometry();
+      const positions = new Float32Array(count * 3);
+      const velocities = [];
 
-  // mycelium pulses gently, stronger when anything is lit
-  const anyLit = mushrooms.some(m => m.userData.lit);
-  const basePulse = anyLit ? .55 : .12;
-  sideMat.emissiveIntensity = basePulse + Math.sin(t * 1.8) * (anyLit ? .18 : .05);
+      for (let i = 0; i < count; i++) {
+        const theta = Math.random() * Math.PI * 2;
+        const r = Math.random() * 0.16;
+        positions[i * 3] = origin.x + Math.cos(theta) * r;
+        positions[i * 3 + 1] = origin.y + (Math.random() - 0.3) * 0.1;
+        positions[i * 3 + 2] = origin.z + Math.sin(theta) * r;
 
-  renderer.render(scene, camera);
-}
-animate();
+        const speed = 0.25 + Math.random() * 0.55;
+        velocities.push({
+          vx: Math.cos(theta) * speed,
+          vy: 0.38 + Math.random() * 0.55,
+          vz: Math.sin(theta) * speed,
+          swirlPhase: Math.random() * Math.PI * 2
+        });
+      }
 
-addEventListener('resize', () => {
-  camera.aspect = innerWidth / innerHeight;
-  camera.updateProjectionMatrix();
-  renderer.setSize(innerWidth, innerHeight);
-});
-</script>
+      geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+      const mat = new THREE.PointsMaterial({
+        color: hexColor,
+        size: 0.19,
+        map: glowParticleTex,
+        transparent: true,
+        opacity: 1.0,
+        depthWrite: false,
+        blending: THREE.AdditiveBlending
+      });
+
+      const points = new THREE.Points(geo, mat);
+      dioramaGroup.add(points);
+
+      sporeBursts.push({
+        points,
+        geo,
+        mat,
+        velocities,
+        age: 0,
+        maxAge: 2.3
+      });
+    }
+
+    // --- 8. MUSHROOM TOGGLE & STATUS UI ---
+    function updateStatusUI() {
+      const litCount = mushrooms.reduce((acc, m) => acc + (m.isLit ? 1 : 0), 0);
+      if (litCount === 0) {
+        statusPillEl.textContent = `Mycelium Dormant • 0 / ${mushrooms.length} Lit`;
+        statusPillEl.classList.remove('resonating');
+      } else if (litCount >= 3) {
+        statusPillEl.textContent = `Mycelium Resonating • ${litCount} / ${mushrooms.length} Lit`;
+        statusPillEl.classList.add('resonating');
+      } else {
+        statusPillEl.textContent = `Bioluminescence Active • ${litCount} / ${mushrooms.length} Lit`;
+        statusPillEl.classList.remove('resonating');
+      }
+    }
+
+    function toggleMushroom(mushroom, emitSpores = true) {
+      mushroom.isLit = !mushroom.isLit;
+      mushroom.bouncePhase = 1.0; // trigger springy squash-and-stretch
+
+      if (mushroom.isLit && emitSpores) {
+        spawnSporePuff(mushroom.worldCapPos, mushroom.spec.color);
+      }
+      updateStatusUI();
+    }
+
+    // Initialize default-lit mushroom so the diorama immediately invites interaction
+    mushrooms.forEach((m) => {
+      if (m.spec.defaultLit) {
+        m.isLit = true;
+        m.glowFactor = 1.0;
+      }
+    });
+    updateStatusUI();
+
+    // --- 9. RELIABLE TAP-VS-DRAG RAYCAST DETECTION ---
+    const raycaster = new THREE.Raycaster();
+    const pointerNDC = new THREE.Vector2();
+    let pointerDownPos = { x: 0, y: 0 };
+    let pointerDownTime = 0;
+    let activePointerId = null;
+    let multiTouchActive = false;
+
+    renderer.domElement.addEventListener('pointerdown', (e) => {
+      if (!e.isPrimary) {
+        multiTouchActive = true;
+        return;
+      }
+      multiTouchActive = false;
+      activePointerId = e.pointerId;
+      pointerDownPos.x = e.clientX;
+      pointerDownPos.y = e.clientY;
+      pointerDownTime = performance.now();
+    });
+
+    renderer.domElement.addEventListener('pointerup', (e) => {
+      if (e.pointerId !== activePointerId || multiTouchActive) return;
+
+      const dx = e.clientX - pointerDownPos.x;
+      const dy = e.clientY - pointerDownPos.y;
+      const dist = Math.hypot(dx, dy);
+      const elapsed = performance.now() - pointerDownTime;
+
+      // Strict tap threshold so dragging to orbit or pinching never accidentally toggles a mushroom
+      if (dist < 9 && elapsed < 380) {
+        const rect = renderer.domElement.getBoundingClientRect();
+        pointerNDC.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+        pointerNDC.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+
+        raycaster.setFromCamera(pointerNDC, camera);
+        const hits = raycaster.intersectObjects(pickableTargets, false);
+
+        if (hits.length > 0) {
+          const hitMushroom = hits[0].object.userData.mushroom;
+          if (hitMushroom) {
+            dismissHint();
+            toggleMushroom(hitMushroom, true);
+          }
+        }
+      }
+    });
+
+    // Subtle pointer cursor feedback on desktop when hovering over a mushroom
+    renderer.domElement.addEventListener('pointermove', (e) => {
+      if (e.pointerType !== 'mouse' || e.buttons > 0) return;
+      const rect = renderer.domElement.getBoundingClientRect();
+      pointerNDC.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+      pointerNDC.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+      raycaster.setFromCamera(pointerNDC, camera);
+      const hits = raycaster.intersectObjects(pickableTargets, false);
+      renderer.domElement.style.cursor = hits.length > 0 ? 'pointer' : 'grab';
+    });
+
+    // --- 10. ANIMATION LOOP ---
+    const clock = new THREE.Clock();
+
+    function animate() {
+      requestAnimationFrame(animate);
+
+      const dt = Math.min(clock.getDelta(), 0.1);
+      const elapsed = clock.getElapsedTime();
+
+      controls.update();
+
+      // Gentle floating levitation of the entire cutaway block
+      dioramaGroup.position.y = Math.sin(elapsed * 0.95) * 0.065;
+
+      // Count active mushrooms & compute collective mycelium resonance
+      let litCount = 0;
+      mushrooms.forEach((m) => {
+        if (m.isLit) litCount++;
+
+        // Smooth transition for bioluminescent glow
+        const targetGlow = m.isLit ? 1.0 : 0.0;
+        m.glowFactor = THREE.MathUtils.lerp(m.glowFactor, targetGlow, dt * 6.5);
+
+        const breath = 1.0 + Math.sin(elapsed * 2.6 + m.index * 1.3) * 0.12;
+        const g = m.glowFactor;
+
+        m.capMat.emissiveIntensity = THREE.MathUtils.lerp(0.06, 1.55 * breath, g);
+        m.gillMat.emissiveIntensity = THREE.MathUtils.lerp(0.12, 2.2 * breath, g);
+        m.stemMat.emissiveIntensity = THREE.MathUtils.lerp(0.02, 0.42 * breath, g);
+        m.spotMat.emissiveIntensity = THREE.MathUtils.lerp(0.18, 2.6 * breath, g);
+        m.light.intensity = THREE.MathUtils.lerp(0.0, 2.35 * breath, g);
+
+        // Elastic squash & stretch when tapped
+        if (m.bouncePhase > 0.001) {
+          m.bouncePhase = Math.max(0, m.bouncePhase - dt * 3.2);
+          const wave = Math.sin(m.bouncePhase * Math.PI * 3.5) * m.bouncePhase * 0.18;
+          m.rig.scale.set(1 - wave * 0.55, 1 + wave, 1 - wave * 0.55);
+        } else {
+          m.rig.scale.set(1, 1, 1);
+        }
+      });
+
+      // Mycelium network illumination & collective pulse when several mushrooms are lit
+      const litRatio = litCount / mushrooms.length;
+      const multiBoost = litCount >= 3 ? Math.pow((litCount - 2) / (mushrooms.length - 2), 0.75) : 0;
+      const pulseSpeed = 2.0 + litRatio * 3.2 + multiBoost * 2.5;
+
+      myceliumStrands.forEach((strand) => {
+        const wave = 0.5 + 0.5 * Math.sin(elapsed * pulseSpeed - strand.phaseOffset);
+        const ownerGlow = strand.ownerIndex >= 0 ? mushrooms[strand.ownerIndex].glowFactor : litRatio;
+
+        // Base faint bioluminescence + owner mushroom boost + collective network resonance
+        const baseIntensity = 0.16 + wave * 0.1;
+        const activeOwnerBoost = ownerGlow * (0.95 + wave * 0.65);
+        const resonancePulse = multiBoost * (0.85 + Math.pow(wave, 1.5) * 1.65);
+
+        strand.mat.emissiveIntensity = baseIntensity + activeOwnerBoost + resonancePulse;
+      });
+
+      // Modulate under-base glow with mycelium resonance
+      underLight.intensity = 0.35 + litRatio * 0.9 + multiBoost * Math.sin(elapsed * pulseSpeed) * 0.45;
+
+      // Update drifting fireflies
+      const fPos = fireflyGeo.attributes.position.array;
+      const fCol = fireflyGeo.attributes.color.array;
+      for (let i = 0; i < FIREFLY_COUNT; i++) {
+        const d = fireflyData[i];
+        const t = elapsed * d.speed + d.phase;
+
+        fPos[i * 3] = d.baseX + Math.cos(t) * d.orbitRadius;
+        fPos[i * 3 + 1] = d.baseY + Math.sin(t * 1.4) * 0.18;
+        fPos[i * 3 + 2] = d.baseZ + Math.sin(t * 0.85) * d.orbitRadius;
+
+        const twinkle = 0.35 + 0.65 * (0.5 + 0.5 * Math.sin(elapsed * 3.2 + d.phase * 2.0));
+        fCol[i * 3] = d.baseColor.r * twinkle;
+        fCol[i * 3 + 1] = d.baseColor.g * twinkle;
+        fCol[i * 3 + 2] = d.baseColor.b * twinkle;
+      }
+      fireflyGeo.attributes.position.needsUpdate = true;
+      fireflyGeo.attributes.color.needsUpdate = true;
+
+      // Update active spore bursts
+      for (let i = sporeBursts.length - 1; i >= 0; i--) {
+        const burst = sporeBursts[i];
+        burst.age += dt;
+        const progress = burst.age / burst.maxAge;
+
+        if (progress >= 1.0) {
+          dioramaGroup.remove(burst.points);
+          burst.geo.dispose();
+          burst.mat.dispose();
+          sporeBursts.splice(i, 1);
+          continue;
+        }
+
+        const arr = burst.geo.attributes.position.array;
+        for (let p = 0; p < burst.velocities.length; p++) {
+          const v = burst.velocities[p];
+          // Slow down horizontal expansion & gently swirl upward
+          v.vx *= 1 - dt * 1.4;
+          v.vz *= 1 - dt * 1.4;
+          arr[p * 3] += (v.vx + Math.sin(elapsed * 3 + v.swirlPhase) * 0.08) * dt;
+          arr[p * 3 + 1] += v.vy * dt;
+          arr[p * 3 + 2] += (v.vz + Math.cos(elapsed * 3 + v.swirlPhase) * 0.08) * dt;
+        }
+        burst.geo.attributes.position.needsUpdate = true;
+        burst.mat.opacity = Math.pow(1.0 - progress, 1.5);
+      }
+
+      renderer.render(scene, camera);
+    }
+
+    // --- 11. RESPONSIVE RESIZE ---
+    window.addEventListener('resize', () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+      updateCameraFraming();
+    });
+
+    animate();
+  </script>
 </body>
 </html>
