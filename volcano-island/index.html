@@ -436,6 +436,7 @@ for (let i = 0; i < 3; i++) {
   birds.push(b); scene.add(b);
 }
 
+// pass 12: soft smoke sprites + tighter lava drape
 // ---------- lava path ----------
 const lavaPts = [];
 {
@@ -445,16 +446,16 @@ const lavaPts = [];
   const th0 = thSea + 1.15;
   lavaPts.push(new THREE.Vector3(VOLC.x, VOLC_TOP - 0.34, VOLC.z));            // inside the bowl
   lavaPts.push(new THREE.Vector3(VOLC.x + Math.cos(th0) * 0.62, VOLC_TOP - 0.05, VOLC.z + Math.sin(th0) * 0.62)); // over the rim
-  const N = 24;
+  const N = 40;
   for (let i = 1; i <= N; i++) {
     const f = i / N;
     const y = VOLC_TOP - 0.2 - f * (VOLC_TOP - ISLAND_Y - 0.15);
-    const th = th0 + (thSea - th0) * f + Math.sin(f * 8.0) * 0.13;
+    const th = th0 + (thSea - th0) * f + Math.sin(f * 8.0) * 0.10;
     const out = new THREE.Vector3(Math.cos(th), 0, Math.sin(th));
     rc.set(new THREE.Vector3(VOLC.x + out.x * 7, y, VOLC.z + out.z * 7),
       out.clone().multiplyScalar(-1).setY(-0.06).normalize());
     const hit = rc.intersectObject(volcano, false)[0];
-    if (hit) lavaPts.push(hit.point.clone().addScaledVector(out, 0.06));
+    if (hit) lavaPts.push(hit.point.clone().addScaledVector(out, 0.045));
   }
   for (const [bx, bz] of [[-2.55, 4.0], [-2.5, 4.7]]) {
     rc.set(new THREE.Vector3(bx, 6, bz), new THREE.Vector3(0, -1, 0));
@@ -498,19 +499,31 @@ for (let i = 0; i < 14; i++) {
 }
 
 // ---------- particles ----------
-function makePoints(n, size, color, blending) {
+function makePuffTexture() {
+  const c = document.createElement('canvas'); c.width = c.height = 64;
+  const ctx = c.getContext('2d');
+  const grad = ctx.createRadialGradient(32, 32, 2, 32, 32, 30);
+  grad.addColorStop(0, 'rgba(255,255,255,0.9)');
+  grad.addColorStop(0.55, 'rgba(255,255,255,0.45)');
+  grad.addColorStop(1, 'rgba(255,255,255,0)');
+  ctx.fillStyle = grad; ctx.fillRect(0, 0, 64, 64);
+  const tex = new THREE.CanvasTexture(c); return tex;
+}
+const puffTex = makePuffTexture();
+function makePoints(n, size, color, blending, soft) {
   const g = new THREE.BufferGeometry();
   g.setAttribute('position', new THREE.Float32BufferAttribute(new Float32Array(n * 3), 3));
   const m = new THREE.PointsMaterial({ size, color, transparent: true, opacity: 0.9,
-    blending, depthWrite: false, sizeAttenuation: true });
+    blending, depthWrite: false, sizeAttenuation: true,
+    map: soft ? puffTex : null, alphaMap: soft ? puffTex : null });
   const pts = new THREE.Points(g, m); pts.visible = false; scene.add(pts);
   return { pts, vel: new Float32Array(n * 3), life: new Float32Array(n), n };
 }
 const embers = makePoints(320, 0.14, 0xffa03f, THREE.AdditiveBlending);
 const ash = makePoints(240, 0.1, 0x9a9390, THREE.NormalBlending);
-const smoke = makePoints(26, 0.85, 0x3a3340, THREE.NormalBlending);
-smoke.pts.material.opacity = 0.3;
-const steam = makePoints(18, 0.4, 0xf2ede4, THREE.NormalBlending);
+const smoke = makePoints(44, 1.15, 0x453e4c, THREE.NormalBlending, true);
+smoke.pts.material.opacity = 0.42;
+const steam = makePoints(24, 0.55, 0xf2ede4, THREE.NormalBlending, true);
 steam.pts.material.opacity = 0.5;
 const steamSrc = lavaCurve.getPoint(1);
 
