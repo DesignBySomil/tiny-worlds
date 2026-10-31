@@ -159,8 +159,9 @@ function slab(h, yTop, color, rough = 0.95) {
 slab(1.7, -2.5, 0x56443c);            // rock stratum
 slab(1.0, -1.5, 0x7a5a40);            // soil
 slab(0.5, -1.0, 0xd9bf8f);            // sand shelf
-const waterSide = slab(1.0, 0.0, 0x2a7a8e, 0.35); // water body sides
+const waterSide = slab(1.0, -0.07, 0x2a7a8e, 0.35); // water body sides (pass 26: sunk below the surface plane)
 waterSide.material.transparent = true; waterSide.material.opacity = 0.94;
+waterSide.receiveShadow = false; // coplanar slab-top + shadow map was the camo patch artifact
 const shadowDisc = new THREE.Mesh(new THREE.CircleGeometry(11.5, 40),
   new THREE.MeshBasicMaterial({ color: 0x241a30, transparent: true, opacity: 0.5 }));
 shadowDisc.rotation.x = -Math.PI / 2; shadowDisc.position.y = -4.28; scene.add(shadowDisc);
@@ -185,7 +186,7 @@ const waterBase = waterGeo.attributes.position.array.slice();
 const water = new THREE.Mesh(waterGeo, new THREE.MeshPhongMaterial({
   vertexColors: true, transparent: true, opacity: 0.92, shininess: 26,
   specular: 0x5a453c, emissive: 0x12333d, flatShading: false }));
-water.receiveShadow = true; scene.add(water);
+water.receiveShadow = false; scene.add(water); // pass 26: no self-shadow acne on the surface
 
 const foamGeo = new THREE.BufferGeometry();
 {
@@ -483,6 +484,7 @@ for (let i = 0; i < 3; i++) {
   birds.push(b); scene.add(b);
 }
 
+// pass 26: root-cause patch kill - sunk water-side slab (was coplanar, shadow acne), no surface self-shadow
 // pass 25: flat-normals water (real patch kill), lava dives underwater w/ tapered toe
 // pass 24: uniform water + soft specular (patch kill), gentler beach pour
 // pass 23: water camo kill (narrow shallows, close tones), lava beach S-curve channel
@@ -726,7 +728,8 @@ function animate() {
     wp[i + 1] = Math.sin(x * 2.1 + t * 1.2) * 0.012 + Math.cos(z * 2.7 + t * 1.5) * 0.011 + Math.sin((x + z) * 3.4 + t * 2.1) * 0.007;
   }
   waterGeo.attributes.position.needsUpdate = true;
-  // pass 25: no per-frame computeVertexNormals - smooth-shaded sine bumps were the camo patches
+  // pass 26: root-cause patch kill - sunk water-side slab (was coplanar, shadow acne), no surface self-shadow
+// pass 25: no per-frame computeVertexNormals - smooth-shaded sine bumps were the camo patches
   foam.material.opacity = 0.4 + Math.sin(t * 1.8) * 0.16;
   foam.scale.setScalar(1 + Math.sin(t * 1.8) * 0.012);
 
