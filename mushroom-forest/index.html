@@ -385,7 +385,10 @@ const moonDisc = new THREE.Mesh(new THREE.CircleGeometry(1.7, 32),
 moonDisc.position.set(-26, 7.5, -18); moonDisc.lookAt(0, 0, 0); scene.add(moonDisc);
 const moonGlow = new THREE.Sprite(new THREE.SpriteMaterial({ map: puffTex, color: 0xaac0ff,
   transparent: true, opacity: 0.4, blending: THREE.AdditiveBlending, depthWrite: false, fog: false }));
-moonGlow.position.copy(moonDisc.position); moonGlow.scale.setScalar(7); scene.add(moonGlow);
+// pass 7: push the glow behind the disc along the view axis - coplanar sprite/disc
+// planes z-fought along a line, cutting the moon into a diagonal half-disc
+moonGlow.position.copy(moonDisc.position).multiplyScalar(1.08);
+moonGlow.scale.setScalar(7); moonGlow.renderOrder = -1; scene.add(moonGlow);
 
 const mists = [];
 for (let i = 0; i < 2; i++) {
@@ -521,6 +524,7 @@ Promise.all(['BirchTree_Dead_1.glb', 'BirchTree_Dead_3.glb', 'Rock_Moss_1.glb',
   });
 
 // pass markers for deploy verification
+// pass 7: moon half-disc fix - glow sprite moved off the disc plane (z-fight line)
 // pass 6: coherent quality pass - portrait bounds fix, moon clear of header, hero mushroom scale (10 groups), floor density, stronger night light read
 // pass 5: mycelium calm-down - dim resting teal, sparser branching, threads off the bottom edge
 // pass 4: mycelium DoubleSide (ribbon winding faced away from camera - network was invisible)
