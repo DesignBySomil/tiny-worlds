@@ -467,6 +467,8 @@ for (let i = 0; i < 3; i++) {
 const lavaPts = [];
 {
   // drape over the actual mesh surfaces: raycast onto the cone, then the ground
+  // (world matrices are identity until the first render - force them first)
+  volcano.updateMatrixWorld(true); islandTop.updateMatrixWorld(true);
   const rc = new THREE.Raycaster();
   const thSea = Math.atan2(5.8 - VOLC.z, -2.4 - VOLC.x);
   const th0 = thSea + 1.15;
