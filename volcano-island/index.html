@@ -416,8 +416,9 @@ const lavaPts = [];
   const rc = new THREE.Raycaster();
   const thSea = Math.atan2(5.8 - VOLC.z, -2.4 - VOLC.x);
   const th0 = thSea + 1.15;
-  lavaPts.push(new THREE.Vector3(VOLC.x + Math.cos(th0) * 0.5, VOLC_TOP + 0.02, VOLC.z + Math.sin(th0) * 0.5));
-  const N = 10;
+  lavaPts.push(new THREE.Vector3(VOLC.x, VOLC_TOP - 0.34, VOLC.z));            // inside the bowl
+  lavaPts.push(new THREE.Vector3(VOLC.x + Math.cos(th0) * 0.62, VOLC_TOP - 0.05, VOLC.z + Math.sin(th0) * 0.62)); // over the rim
+  const N = 16;
   for (let i = 1; i <= N; i++) {
     const f = i / N;
     const y = VOLC_TOP - 0.2 - f * (VOLC_TOP - ISLAND_Y - 0.15);
@@ -426,7 +427,7 @@ const lavaPts = [];
     rc.set(new THREE.Vector3(VOLC.x + out.x * 7, y, VOLC.z + out.z * 7),
       out.clone().multiplyScalar(-1).setY(-0.06).normalize());
     const hit = rc.intersectObject(volcano, false)[0];
-    if (hit) lavaPts.push(hit.point.clone().addScaledVector(out, 0.1));
+    if (hit) lavaPts.push(hit.point.clone().addScaledVector(out, 0.06));
   }
   for (const [bx, bz] of [[-2.55, 4.0], [-2.5, 4.7]]) {
     rc.set(new THREE.Vector3(bx, 6, bz), new THREE.Vector3(0, -1, 0));
@@ -439,7 +440,7 @@ const lavaPts = [];
 const lavaCurve = new THREE.CatmullRomCurve3(lavaPts);
 const lavaMat = new THREE.MeshStandardMaterial({
   color: 0x3a1005, emissive: 0xff4a00, emissiveIntensity: 0, roughness: 0.6 });
-const lava = new THREE.Mesh(new THREE.TubeGeometry(lavaCurve, 48, 0.22, 7), lavaMat);
+const lava = new THREE.Mesh(new THREE.TubeGeometry(lavaCurve, 64, 0.17, 7), lavaMat);
 lava.visible = false; scene.add(lava);
 const lavaMid = lavaCurve.getPoint(0.35);
 lavaLight.position.copy(lavaMid).add(new THREE.Vector3(0, 0.6, 0)); scene.add(lavaLight);
