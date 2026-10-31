@@ -144,11 +144,11 @@ const waterGeo = new THREE.PlaneGeometry(16, 16, 72, 72);
 waterGeo.rotateX(-Math.PI / 2);
 const waterBase = waterGeo.attributes.position.array.slice();
 const water = new THREE.Mesh(waterGeo, new THREE.MeshPhongMaterial({
-  color: 0x3a9aa8, transparent: true, opacity: 0.9, shininess: 160,
-  specular: 0xffd8b0, emissive: 0x113540 }));
+  color: 0x3a9aa8, transparent: true, opacity: 0.92, shininess: 60,
+  specular: 0x8a6a50, emissive: 0x12333d, flatShading: true }));
 water.receiveShadow = true; scene.add(water);
 
-const foam = new THREE.Mesh(new THREE.RingGeometry(5.1, 5.6, 64),
+const foam = new THREE.Mesh(new THREE.RingGeometry(5.12, 5.5, 64),
   new THREE.MeshBasicMaterial({ color: 0xfff6e6, transparent: true, opacity: 0.55, side: THREE.DoubleSide }));
 foam.rotation.x = -Math.PI / 2; foam.position.y = 0.17; scene.add(foam);
 
@@ -331,12 +331,17 @@ pier.position.set(4.35, 0, 3.3); pier.rotation.y = 0.45;
 scene.add(pier);
 
 const boat = new THREE.Group();
-const hull = new THREE.Mesh(new THREE.SphereGeometry(0.5, 10, 6, 0, Math.PI * 2, 0, Math.PI * 0.55),
-  new THREE.MeshStandardMaterial({ color: 0x7a5238, roughness: 0.9, side: THREE.DoubleSide }));
-hull.scale.set(1.5, 0.7, 0.8); hull.rotation.x = Math.PI; boat.add(hull);
-const bench = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.04, 0.14),
-  new THREE.MeshStandardMaterial({ color: 0x8a6248 }));
-bench.position.y = -0.12; boat.add(bench);
+const boatMat = new THREE.MeshStandardMaterial({ color: 0x7a5238, roughness: 0.9, flatShading: true });
+const hull = new THREE.Mesh(new THREE.BoxGeometry(1.05, 0.22, 0.4), boatMat);
+boat.add(hull);
+for (const dir of [-1, 1]) {
+  const end = new THREE.Mesh(new THREE.BoxGeometry(0.26, 0.2, 0.34), boatMat);
+  end.position.set(dir * 0.6, 0.06, 0); end.rotation.z = dir * -0.5;
+  boat.add(end);
+}
+const bench = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.04, 0.3),
+  new THREE.MeshStandardMaterial({ color: 0x9c7a55 }));
+bench.position.y = 0.12; boat.add(bench);
 boat.position.set(4.6, 0.02, 5.5); boat.rotation.y = 1.25; boat.scale.setScalar(0.85);
 scene.add(boat);
 
@@ -489,7 +494,7 @@ function animate() {
   const wp = waterGeo.attributes.position.array;
   for (let i = 0; i < wp.length; i += 3) {
     const x = waterBase[i], z = waterBase[i + 2];
-    wp[i + 1] = Math.sin(x * 2.1 + t * 1.2) * 0.035 + Math.cos(z * 2.7 + t * 1.5) * 0.032 + Math.sin((x + z) * 3.4 + t * 2.1) * 0.018;
+    wp[i + 1] = Math.sin(x * 2.1 + t * 1.2) * 0.05 + Math.cos(z * 2.7 + t * 1.5) * 0.045 + Math.sin((x + z) * 3.4 + t * 2.1) * 0.028;
   }
   waterGeo.attributes.position.needsUpdate = true;
   waterGeo.computeVertexNormals();
