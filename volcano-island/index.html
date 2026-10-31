@@ -23,7 +23,7 @@
     opacity: 0.95; transition: opacity 1.2s ease; text-shadow: 0 1px 8px rgba(60,20,40,0.8), 0 0 2px rgba(60,20,40,0.9); }
   #hint.faded { opacity: 0.55; }
   #credit { position: fixed; bottom: max(10px, env(safe-area-inset-bottom)); left: 0; right: 0; text-align: center;
-    font-size: 9px; letter-spacing: 0.28em; font-variant: small-caps; color: rgba(255,240,215,0.5); pointer-events: none; z-index: 5;
+    font-size: 9px; letter-spacing: 0.28em; font-variant: small-caps; color: rgba(255,240,215,0.78); pointer-events: none; z-index: 5;
     text-shadow: 0 1px 6px rgba(60,20,40,0.6); }
 </style>
 <script type="importmap">
@@ -81,9 +81,9 @@ function frameInitialCamera() {
   camera.updateProjectionMatrix();
   dir.normalize();
   const corners = [];
-  for (const x of [-8.3, 8.3]) for (const y of [-4.4, 7.2]) for (const z of [-8.3, 8.3])
+  for (const x of [-8.15, 8.15]) for (const y of [-4.3, 6.9]) for (const z of [-8.15, 8.15])
     corners.push(new THREE.Vector3(x, y, z));
-  const mX = 0.90, mY = aspect < 0.78 ? 0.78 : 0.85;  // keep header + caption clear
+  const mX = 0.94, mY = aspect < 0.78 ? 0.84 : 0.90;  // keep header + caption clear
   let d = 8;
   for (; d < 60; d += 0.25) {
     camera.position.copy(target).addScaledVector(dir, d);
@@ -171,7 +171,7 @@ waterGeo.rotateX(-Math.PI / 2);
 const waterBase = waterGeo.attributes.position.array.slice();
 {
   const wp0 = waterGeo.attributes.position, wcols = [];
-  const deep = new THREE.Color(0x1b5f74), mid = new THREE.Color(0x2f8d8d), shallow = new THREE.Color(0x63c2b2);
+  const deep = new THREE.Color(0x164f63), mid = new THREE.Color(0x2b8789), shallow = new THREE.Color(0x63c2b2);
   for (let i = 0; i < wp0.count; i++) {
     const x = wp0.getX(i), z = wp0.getZ(i);
     const d = Math.hypot(x, z) - shoreR(Math.atan2(z, x));
@@ -262,15 +262,16 @@ islandTop.position.y = ISLAND_Y; islandTop.receiveShadow = true; scene.add(islan
 
 // ---------- volcano ----------
 const VOLC = new THREE.Vector3(-1.6, ISLAND_Y, -1.5);
-const volcGeo = new THREE.CylinderGeometry(0.62, 3.45, 5.0, 12, 7, true);
+const volcGeo = new THREE.CylinderGeometry(0.62, 3.45, 5.0, 14, 8, true);
 jitterGeo(volcGeo, 0.24, 2.1);
-{ // erosion gullies: radial displacement by angle (periodic -> seam-safe)
+{ // erosion gullies + low-frequency asymmetry (periodic -> seam-safe)
   const p = volcGeo.attributes.position;
   for (let i = 0; i < p.count; i++) {
     const x = p.getX(i), y = p.getY(i), z = p.getZ(i);
     const a = Math.atan2(z, x), h = (y + 2.5) / 5.0;
     const gully = Math.sin(a * 7 + 1.3) * 0.6 + Math.sin(a * 3 - 0.6) * 0.4;
-    const s = 1 + 0.055 * gully * (1 - h * 0.6);
+    const asym = Math.sin(a * 2 + 0.5) * 0.10 + Math.sin(a + 2.2) * 0.06;
+    const s = 1 + (0.075 * gully * (1 - h * 0.6) + asym * (1 - h * 0.85));
     p.setX(i, x * s); p.setZ(i, z * s);
   }
 }
@@ -282,17 +283,38 @@ const volcano = new THREE.Mesh(volcColored, new THREE.MeshStandardMaterial({
 volcano.position.copy(VOLC).add(new THREE.Vector3(0, 2.5, 0));
 volcano.castShadow = true; volcano.receiveShadow = true;
 scene.add(volcano);
+// shoulder peak: gives the silhouette a mountain ridge instead of a lone cone
+const shoulderGeo = new THREE.CylinderGeometry(0.4, 1.9, 2.6, 11, 5, true);
+jitterGeo(shoulderGeo, 0.3);
+{
+  const p = shoulderGeo.attributes.position;
+  for (let i = 0; i < p.count; i++) {
+    const x = p.getX(i), y = p.getY(i), z = p.getZ(i);
+    const a = Math.atan2(z, x), h = (y + 1.3) / 2.6;
+    const s = 1 + 0.08 * (Math.sin(a * 5 + 0.8) * 0.6 + Math.sin(a * 2 - 1.1) * 0.4) * (1 - h * 0.7);
+    p.setX(i, x * s); p.setZ(i, z * s);
+  }
+}
+const shoulder = new THREE.Mesh(
+  faceColors(shoulderGeo, [new THREE.Color(0x7a4a38), new THREE.Color(0x6b4a3c),
+    new THREE.Color(0x5f4238), new THREE.Color(0x8a5f46)], 0.02),
+  new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.98, flatShading: true }));
+shoulder.position.set(VOLC.x + 2.05, ISLAND_Y + 1.05, VOLC.z + 0.55);
+shoulder.castShadow = true; shoulder.receiveShadow = true;
+scene.add(shoulder);
 const VOLC_TOP = VOLC.y + 5.0;
 
 // crater rim + ember bowl
 const rim = new THREE.Group();
-for (let i = 0; i < 7; i++) {
-  const a = (i / 7) * Math.PI * 2 + rand(-0.15, 0.15);
+for (let i = 0; i < 9; i++) {
+  const a = (i / 9) * Math.PI * 2 + rand(-0.12, 0.12);
+  const g = jitterGeo(new THREE.IcosahedronGeometry(rand(0.16, 0.27), 1), 0.35);
   const chunk = new THREE.Mesh(
-    faceColors(jitterGeo(new THREE.IcosahedronGeometry(rand(0.15, 0.24), 0), 0.05),
-      [new THREE.Color(0x4a3630), new THREE.Color(0x5a4238)]),
+    faceColors(g, [new THREE.Color(0x3a2a24), new THREE.Color(0x54403a), new THREE.Color(0x2e2220)]),
     new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 1, flatShading: true }));
-  chunk.position.set(VOLC.x + Math.cos(a) * 0.72, VOLC_TOP + rand(-0.1, 0.03), VOLC.z + Math.sin(a) * 0.72);
+  chunk.position.set(VOLC.x + Math.cos(a) * rand(0.66, 0.78), VOLC_TOP + rand(-0.12, 0.05), VOLC.z + Math.sin(a) * rand(0.66, 0.78));
+  chunk.rotation.set(rand(0, 3), rand(0, 3), rand(0, 3));
+  chunk.scale.set(1, rand(0.55, 0.8), 1);
   chunk.castShadow = true; rim.add(chunk);
 }
 scene.add(rim);
@@ -461,6 +483,7 @@ for (let i = 0; i < 3; i++) {
   birds.push(b); scene.add(b);
 }
 
+// pass 21: shoulder peak, crag asymmetry, island-wide tap target, livelier water, bigger framing
 // pass 20: debug hook removed; drape fix verified (46 surface points)
 // pass 14: lava form/gradient, smooth water bands, cone gullies, resize refit
 // pass 12: soft smoke sprites + tighter lava drape
@@ -642,7 +665,7 @@ renderer.domElement.addEventListener('pointerup', e => {
   if (Math.hypot(e.clientX - downX, e.clientY - downY) > 7 || performance.now() - downT > 450) return;
   ndc.set((e.clientX / innerWidth) * 2 - 1, -(e.clientY / innerHeight) * 2 + 1);
   ray.setFromCamera(ndc, camera);
-  const hits = ray.intersectObjects([volcano, rim, ember], true);
+  const hits = ray.intersectObjects([volcano, rim, ember, islandTop, islandSide], true);
   if (hits.length) setState('erupt');
 });
 
@@ -696,7 +719,7 @@ function animate() {
   const wp = waterGeo.attributes.position.array;
   for (let i = 0; i < wp.length; i += 3) {
     const x = waterBase[i], z = waterBase[i + 2];
-    wp[i + 1] = Math.sin(x * 2.1 + t * 1.2) * 0.05 + Math.cos(z * 2.7 + t * 1.5) * 0.045 + Math.sin((x + z) * 3.4 + t * 2.1) * 0.028;
+    wp[i + 1] = Math.sin(x * 2.1 + t * 1.2) * 0.065 + Math.cos(z * 2.7 + t * 1.5) * 0.06 + Math.sin((x + z) * 3.4 + t * 2.1) * 0.038;
   }
   waterGeo.attributes.position.needsUpdate = true;
   waterGeo.computeVertexNormals();
