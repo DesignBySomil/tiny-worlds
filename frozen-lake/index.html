@@ -215,7 +215,7 @@ const cracks = [];
         grp.add(b); segs.push(b);
       }
     }
-    grp.userData = { t: -1, segs };
+    grp.userData = { t0: -1, t: 0, segs };
     slabGroup.add(grp); cracks.push(grp);
   }
 }
@@ -223,13 +223,13 @@ let crackIdx = 0;
 function fireCrack(x, z) {
   const grp = cracks[crackIdx++ % cracks.length];
   grp.position.set(x, 0.135, z);
-  grp.visible = true; grp.userData.t = 0;
+  grp.visible = true; grp.userData.t0 = performance.now();
 }
-function crackStep(dt) {
+function crackStep() {
   for (const grp of cracks) {
     const u = grp.userData;
-    if (u.t < 0) continue;
-    u.t += dt;
+    if (u.t0 === undefined || u.t0 < 0) continue;
+    u.t = (performance.now() - u.t0) / 1000;
     const grow = Math.min(1, u.t / 0.7);
     const fade = u.t < 6 ? 1 : Math.max(0, 1 - (u.t - 6) / 2.5);
     for (const m of u.segs) {
@@ -239,7 +239,7 @@ function crackStep(dt) {
       m.rotation.z = -m.userData.a;
       m.material.opacity = 0.9 * fade * (grow > 0.05 ? 1 : 0);
     }
-    if (fade <= 0) { grp.visible = false; u.t = -1; }
+    if (fade <= 0) { grp.visible = false; u.t0 = -1; }
   }
 }
 
@@ -283,7 +283,7 @@ function skaterStep(dt, t) {
     s.position.set(x, 0.12, z);
     s.rotation.y = Math.atan2(dx, dz);
     s.rotation.z = -0.18 * Math.sign(u.spd);
-    if (u.scatter > 0) u.scatter = Math.max(0, u.scatter - dt * 0.25);
+    u.scatter = u.scatterT0 === undefined ? 0 : Math.max(0, 1.2 - (performance.now() - u.scatterT0) / 1000 * 0.25);
   }
 }
 
@@ -438,9 +438,15 @@ for (const x of [-7.5, 7.5]) for (const y of [-SLAB_H, 0.6]) for (const z of [-7
 FIT_PTS.push(new THREE.Vector3(-6.4, 3.4, -2.2));   // tallest pines
 FIT_PTS.push(new THREE.Vector3(6.6, 3.2, -0.6));
 FIT_PTS.push(new THREE.Vector3(5.4, 1.6, 4.4));     // signpost
+const FIT_PTS_PORTRAIT = [];
+for (const x of [-5.4, 5.4]) for (const z of [-5.4, 5.4])
+  FIT_PTS_PORTRAIT.push(new THREE.Vector3(x, 0.15, z));   // ice corners
+FIT_PTS_PORTRAIT.push(new THREE.Vector3(5.4, 1.6, 4.4));  // signpost
+FIT_PTS_PORTRAIT.push(new THREE.Vector3(0, 3.5, -3.2));   // central back pine top
+function fitPoints() { return innerWidth / innerHeight < 0.62 ? FIT_PTS_PORTRAIT : FIT_PTS; }
 function fitDir() {
   const a = innerWidth / innerHeight;
-  if (a < 0.62) return new THREE.Vector3(0.06, 0.62, 1).normalize();
+  if (a < 0.62) return new THREE.Vector3(0.05, 0.9, 1).normalize();
   if (a < 0.9) return new THREE.Vector3(0.42, 0.4, 1).normalize();
   return new THREE.Vector3(0.62, 0.42, 1).normalize();
 }
@@ -450,7 +456,7 @@ function requiredDistance(right, up, fwd, target) {
   const tanH = Math.tan(Math.atan(Math.tan(fovV/2) * camera.aspect));
   const tanV = Math.tan(fovV/2);
   let d = 4;
-  for (const c of FIT_PTS) {
+  for (const c of fitPoints()) {
     _rel.copy(c).sub(target);
     const cf = _rel.dot(fwd);
     d = Math.max(d, Math.abs(_rel.dot(right)) / tanH - cf, Math.abs(_rel.dot(up)) / tanV - cf);
@@ -463,7 +469,7 @@ function frameInitialCamera() {
   const fwd = fd.clone().negate();
   const right = new THREE.Vector3().crossVectors(fwd, new THREE.Vector3(0,1,0)).normalize();
   const up = new THREE.Vector3().crossVectors(right, fwd).normalize();
-  const dist = requiredDistance(right, up, fwd, FIT_CENTER) * (innerWidth / innerHeight < 0.62 ? 1.01 : 1.06);
+  const dist = requiredDistance(right, up, fwd, FIT_CENTER) * (innerWidth / innerHeight < 0.62 ? 0.98 : 1.06);
   camera.position.copy(FIT_CENTER).addScaledVector(fd, dist);
   controls.target.copy(FIT_CENTER);
   camera.updateProjectionMatrix(); controls.update();
@@ -483,7 +489,7 @@ renderer.domElement.addEventListener('pointerup', e => {
   const p = hits[0].point;
   if (Math.hypot(p.x, p.z) > 5.2) return;         // shore snow doesn't crack
   fireCrack(p.x, p.z);
-  for (const s of skaters) s.userData.scatter = 1.2;
+  for (const s of skaters) s.userData.scatterT0 = performance.now();
   setHint('crack');
   clearTimeout(fireCrack._t);
   fireCrack._t = setTimeout(() => setHint('idle'), 7000);
@@ -498,15 +504,14 @@ addEventListener('resize', () => {
 
 // ---------- animate ----------
 const clock = new THREE.Clock();
-let nextGust = rand(12, 18);
+let nextGustAt = performance.now() + rand(12, 18) * 1000;
 function animate() {
   requestAnimationFrame(animate);
-  const dt = Math.min(clock.getDelta(), 0.05);
+  const dt = Math.min(clock.getDelta(), 0.3);
   const t = clock.elapsedTime;
 
-  nextGust -= dt;
-  if (nextGust <= 0) {
-    nextGust = rand(14, 24);
+  if (performance.now() >= nextGustAt) {
+    nextGustAt = performance.now() + rand(14, 24) * 1000;
     gustK = 1; setHint('wind');
     setTimeout(() => { gustK = 0; setHint('idle'); }, 5200);
   }
@@ -533,6 +538,7 @@ function animate() {
   renderer.render(scene, camera);
 }
 animate();
+// pass 10: portrait fits ice area (steeper angle), wall-clock effect lifetimes (crack/scatter/gust)
 // pass 9: bird's-angle portrait fit, dark hint pill + stronger scrim
 // pass 8: falling snow + low sun glow for phone sky, stronger hint contrast
 // pass 7b: relax portrait crop
