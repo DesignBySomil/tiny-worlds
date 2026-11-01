@@ -89,7 +89,7 @@ const rand = (a, b) => a + Math.random() * (b - a);
 
 // ---------- palette ----------
 const PAL = {
-  sinterLight: 0xe9e0cc, sinterMid: 0xd9cbae, sinterDark: 0xbfae8e,
+  sinterLight: 0xe9e0cc, sinterMid: 0xcdbd9c, sinterDark: 0xa08e6c,
   strataA: 0xcdbb96, strataB: 0xa8906c, strataC: 0x77644c,
   poolDeep: 0x1b6f80, poolMid: 0x2f98a4, matOrange: 0xc07a38, matGold: 0xd2a04c,
   wood: 0x8a6a48, woodDark: 0x6e5236, pine: 0x3d5c42, pineDark: 0x2e4a34,
@@ -125,7 +125,7 @@ groundGeo.rotateX(-Math.PI / 2);
     const x = p.getX(i), z = p.getZ(i);
     const e = Math.max(Math.abs(x), Math.abs(z)) / 8;
     let y = n2(x, z, 1.7) * 0.055 * (e > 0.94 ? 0.2 : 1);
-    const c = sinter.clone().lerp(sinterD, 0.5 + 0.5 * Math.sin(x * 0.7 + z * 0.9));
+    const c = sinter.clone().lerp(sinterD, 0.28 + 0.22 * Math.sin(x * 0.7 + z * 0.9));
     // terraced micro-steps
     const terr = Math.sin(y * 40 + n2(x, z, 7.7) * 2.0);
     c.offsetHSL(0, 0, terr * 0.012);
@@ -133,8 +133,8 @@ groundGeo.rotateX(-Math.PI / 2);
       const d = Math.hypot(x - pool.x, z - pool.z);
       const sm = (a, b, v) => { const t = Math.min(1, Math.max(0, (v - a) / (b - a))); return t * t * (3 - 2 * t); };
       // orange bacterial mat ring just outside the waterline
-      const ring = sm(pool.r + 0.9, pool.r + 0.35, d) * (1 - sm(pool.r - 0.1, pool.r + 0.3, d));
-      c.lerp(matO, ring * 0.8);
+      const ring = sm(pool.r + 1.25, pool.r + 0.45, d) * (1 - sm(pool.r - 0.05, pool.r + 0.35, d));
+      c.lerp(matO, ring * 0.95);
       c.lerp(matG, ring * sm(pool.r + 0.55, pool.r + 0.4, d) * 0.45);
       if (d < pool.r + 0.15) y -= 0.06 * (1 - sm(pool.r - 0.3, pool.r + 0.15, d)); // shallow depression
     }
@@ -200,11 +200,11 @@ function sinterCone(cr, ch, seed) {
 }
 for (const gz of GEYSERS) {
   const grp = new THREE.Group();
-  const coneMat = new THREE.MeshStandardMaterial({ color: PAL.sinterMid, roughness: 0.95, flatShading: true });
+  const coneMat = new THREE.MeshStandardMaterial({ color: 0xb3a17e, roughness: 0.92, flatShading: true });
   const cone = new THREE.Mesh(sinterCone(gz.cr, gz.ch, gz.x * 3.1), coneMat);
   cone.castShadow = true; cone.receiveShadow = true; grp.add(cone);
   // wet dark vent
-  const vent = new THREE.Mesh(new THREE.CircleGeometry(gz.cr * 0.13, 14),
+  const vent = new THREE.Mesh(new THREE.CircleGeometry(gz.cr * 0.17, 14),
     new THREE.MeshStandardMaterial({ color: 0x2a3a3c, roughness: 0.25 }));
   vent.rotation.x = -Math.PI / 2; vent.position.y = gz.ch - 0.155; grp.add(vent);
   // mineral splash halo around base
@@ -487,6 +487,8 @@ function animate() {
   renderer.render(scene, camera);
 }
 animate();
+// pass 2: readability - cones darker than ground (were invisible cream-on-cream), wider/deeper orange
+//         mat rings, quieter sinter patchwork, wider dark vents
 // pass 1: first geyser-basin build - sinter terraces, three geysers (tap/auto eruption), painted
 //         bacterial mat pool rings, boardwalk, faceted pines, point-set fit + square-on portrait
 </script>
