@@ -1,0 +1,494 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Geyser Basin - a tiny world</title>
+<style>
+  html, body { margin:0; padding:0; height:100%; background:#9fbfcb; overflow:hidden;
+    font-family: Georgia, 'Times New Roman', serif; }
+  #app { position:fixed; inset:0; }
+  header { position:fixed; top:0; left:0; right:0; text-align:center; pointer-events:none;
+    padding: max(18px, env(safe-area-inset-top)) 16px 0; z-index:5; }
+  header h1 { margin:0; font-size:15px; letter-spacing:.42em; font-weight:400;
+    color:#f4f1e6; text-transform:uppercase; text-shadow:0 1px 8px rgba(30,45,55,.65); }
+  header .rule { width:44px; height:1px; background:rgba(244,241,230,.55); margin:9px auto; }
+  #hint { display:inline-block; font-size:11.5px; letter-spacing:.24em; text-transform:uppercase;
+    color:#fdfbf2; transition:opacity 1.2s ease; text-shadow:0 1px 2px rgba(30,45,55,.9), 0 0 12px rgba(30,45,55,.7); }
+  #hint.faded { opacity:.45; }
+  footer { position:fixed; bottom:0; left:0; right:0; text-align:center; pointer-events:none;
+    padding:0 16px max(14px, env(safe-area-inset-bottom)); z-index:5;
+    font-size:10px; letter-spacing:.34em; text-transform:uppercase; color:rgba(244,241,230,.5); }
+  canvas { display:block; touch-action:none; }
+</style>
+</head>
+<body>
+<div id="app"></div>
+<header>
+  <h1>Geyser Basin</h1>
+  <div class="rule"></div>
+  <span id="hint"></span>
+</header>
+<footer>A tiny world</footer>
+<script type="importmap">
+{ "imports": {
+  "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+  "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+} }
+</script>
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+const container = document.getElementById('app');
+const hintEl = document.getElementById('hint');
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x9fbfcb);
+scene.fog = new THREE.Fog(0xaec9d4, 55, 120);
+
+const camera = new THREE.PerspectiveCamera(38, innerWidth/innerHeight, 0.1, 200);
+function pickFov() {
+  const a = innerWidth / innerHeight;
+  camera.fov = a >= 0.9 ? 38 : (a >= 0.62 ? 46 : 58);
+  camera.updateProjectionMatrix();
+}
+pickFov();
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setSize(innerWidth, innerHeight);
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.12;
+container.appendChild(renderer.domElement);
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true; controls.dampingFactor = 0.08;
+controls.minDistance = 6; controls.maxDistance = 200;
+controls.maxPolarAngle = Math.PI * 0.52; controls.enablePan = false;
+
+// ---------- lights (bright basin daylight) ----------
+const sun = new THREE.DirectionalLight(0xfff2dd, 2.6);
+sun.position.set(14, 18, 8); sun.castShadow = true;
+sun.shadow.mapSize.set(2048, 2048);
+sun.shadow.camera.left = -14; sun.shadow.camera.right = 14;
+sun.shadow.camera.top = 14; sun.shadow.camera.bottom = -14;
+sun.shadow.camera.near = 2; sun.shadow.camera.far = 60;
+sun.shadow.bias = -0.0012;
+scene.add(sun);
+scene.add(new THREE.HemisphereLight(0xbfd9e8, 0x8a7a5e, 1.25));
+const bounce = new THREE.DirectionalLight(0xd8e8f0, 0.45);
+bounce.position.set(-10, 6, -8); scene.add(bounce);
+
+// deterministic position-keyed noise (crack-free displacement)
+function n2(x, z, s) {
+  return Math.sin(x * 1.9 + s) * Math.sin(z * 2.2 + s * 0.4)
+       + 0.5 * Math.sin(x * 4.3 + z * 2.8 + s + 2.2)
+       + 0.25 * Math.sin(x * 7.1 - z * 5.9 + s + 4.1);
+}
+const rand = (a, b) => a + Math.random() * (b - a);
+
+// ---------- palette ----------
+const PAL = {
+  sinterLight: 0xe9e0cc, sinterMid: 0xd9cbae, sinterDark: 0xbfae8e,
+  strataA: 0xcdbb96, strataB: 0xa8906c, strataC: 0x77644c,
+  poolDeep: 0x1b6f80, poolMid: 0x2f98a4, matOrange: 0xc07a38, matGold: 0xd2a04c,
+  wood: 0x8a6a48, woodDark: 0x6e5236, pine: 0x3d5c42, pineDark: 0x2e4a34,
+  steam: 0xf4f8f8, foam: 0xf6fbfa
+};
+
+// ---------- slab ----------
+const SLAB = 16, SLAB_H = 3.0;
+const slabGroup = new THREE.Group(); scene.add(slabGroup);
+function strataLayer(h, y, color) {
+  const m = new THREE.Mesh(new THREE.BoxGeometry(SLAB, h, SLAB),
+    new THREE.MeshStandardMaterial({ color, roughness: 0.95 }));
+  m.position.y = y; m.receiveShadow = true; slabGroup.add(m); return m;
+}
+strataLayer(0.9, -SLAB_H + 0.45, PAL.strataC);
+strataLayer(1.0, -SLAB_H + 0.9 + 0.5, PAL.strataB);
+strataLayer(1.1, -SLAB_H + 1.9 + 0.55, PAL.strataA);
+
+// ---------- sinter ground with terraced pools painted in ----------
+// pools: [x, z, r]
+const POOLS = [
+  { x: 4.4, z: -3.4, r: 2.1 },
+  { x: -4.9, z: 2.2, r: 1.7 },
+  { x: 0.6, z: 4.6, r: 1.35 },
+];
+const groundGeo = new THREE.PlaneGeometry(SLAB, SLAB, 72, 72);
+groundGeo.rotateX(-Math.PI / 2);
+{
+  const p = groundGeo.attributes.position, cols = [];
+  const sinter = new THREE.Color(PAL.sinterLight), sinterD = new THREE.Color(PAL.sinterMid);
+  const matO = new THREE.Color(PAL.matOrange), matG = new THREE.Color(PAL.matGold);
+  for (let i = 0; i < p.count; i++) {
+    const x = p.getX(i), z = p.getZ(i);
+    const e = Math.max(Math.abs(x), Math.abs(z)) / 8;
+    let y = n2(x, z, 1.7) * 0.055 * (e > 0.94 ? 0.2 : 1);
+    const c = sinter.clone().lerp(sinterD, 0.5 + 0.5 * Math.sin(x * 0.7 + z * 0.9));
+    // terraced micro-steps
+    const terr = Math.sin(y * 40 + n2(x, z, 7.7) * 2.0);
+    c.offsetHSL(0, 0, terr * 0.012);
+    for (const pool of POOLS) {
+      const d = Math.hypot(x - pool.x, z - pool.z);
+      const sm = (a, b, v) => { const t = Math.min(1, Math.max(0, (v - a) / (b - a))); return t * t * (3 - 2 * t); };
+      // orange bacterial mat ring just outside the waterline
+      const ring = sm(pool.r + 0.9, pool.r + 0.35, d) * (1 - sm(pool.r - 0.1, pool.r + 0.3, d));
+      c.lerp(matO, ring * 0.8);
+      c.lerp(matG, ring * sm(pool.r + 0.55, pool.r + 0.4, d) * 0.45);
+      if (d < pool.r + 0.15) y -= 0.06 * (1 - sm(pool.r - 0.3, pool.r + 0.15, d)); // shallow depression
+    }
+    p.setY(i, y);
+    cols.push(c.r, c.g, c.b);
+  }
+  groundGeo.setAttribute('color', new THREE.Float32BufferAttribute(cols, 3));
+  groundGeo.computeVertexNormals();
+}
+const ground = new THREE.Mesh(groundGeo,
+  new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.9 }));
+ground.position.y = 0.03; ground.receiveShadow = true; slabGroup.add(ground);
+
+// pool water: slightly domed discs, deep teal center
+const poolWaters = [];
+for (const pool of POOLS) {
+  const g = new THREE.CircleGeometry(pool.r, 36);
+  const cols = [];
+  const deep = new THREE.Color(PAL.poolDeep), mid = new THREE.Color(PAL.poolMid);
+  const pp = g.attributes.position;
+  for (let i = 0; i < pp.count; i++) {
+    const d = Math.hypot(pp.getX(i), pp.getY(i)) / pool.r;
+    const c = deep.clone().lerp(mid, Math.min(1, d * 1.15));
+    cols.push(c.r, c.g, c.b);
+  }
+  g.setAttribute('color', new THREE.Float32BufferAttribute(cols, 3));
+  const m = new THREE.Mesh(g, new THREE.MeshStandardMaterial({
+    vertexColors: true, roughness: 0.12, metalness: 0.05, transparent: true, opacity: 0.94 }));
+  m.rotation.x = -Math.PI / 2; m.position.set(pool.x, 0.045, pool.z);
+  slabGroup.add(m); poolWaters.push({ mesh: m, pool });
+}
+
+// ---------- geysers ----------
+// [x, z, coneR, coneH, jetPower, periodSec]
+const GEYSERS = [
+  { x: -1.6, z: -1.4, cr: 1.35, ch: 1.15, power: 10.5, period: 26, name: 'grand' },
+  { x: 5.6,  z: 2.8,  cr: 0.85, ch: 0.6,  power: 6.5,  period: 15, name: 'minor' },
+  { x: -5.8, z: -4.2, cr: 1.0,  ch: 0.8,  power: 8.0,  period: 34, name: 'back' },
+];
+const geysers = [];
+const tapTargets = [];
+function sinterCone(cr, ch, seed) {
+  // lathe cone with a crater dip
+  const pts = [];
+  for (let i = 0; i <= 10; i++) {
+    const f = i / 10;                    // 0 base -> 1 top
+    const r = cr * (1 - f * 0.82) * (1 + 0.06 * Math.sin(f * 9 + seed));
+    pts.push(new THREE.Vector2(Math.max(0.001, r), f * ch));
+  }
+  // crater lip + bowl
+  pts.push(new THREE.Vector2(cr * 0.2, ch + 0.05));
+  pts.push(new THREE.Vector2(cr * 0.13, ch - 0.12));
+  pts.push(new THREE.Vector2(0.001, ch - 0.16));
+  const g = new THREE.LatheGeometry(pts, 20);
+  const p = g.attributes.position;
+  for (let i = 0; i < p.count; i++) {
+    const vx = p.getX(i), vy = p.getY(i), vz = p.getZ(i);
+    const j = 1 + 0.09 * Math.sin(3.1 * vx + seed) * Math.sin(2.7 * vz + seed * 1.7) + 0.05 * Math.sin(6 * vy + seed);
+    p.setXYZ(i, vx * j, vy, vz * j);
+  }
+  g.computeVertexNormals();
+  return g;
+}
+for (const gz of GEYSERS) {
+  const grp = new THREE.Group();
+  const coneMat = new THREE.MeshStandardMaterial({ color: PAL.sinterMid, roughness: 0.95, flatShading: true });
+  const cone = new THREE.Mesh(sinterCone(gz.cr, gz.ch, gz.x * 3.1), coneMat);
+  cone.castShadow = true; cone.receiveShadow = true; grp.add(cone);
+  // wet dark vent
+  const vent = new THREE.Mesh(new THREE.CircleGeometry(gz.cr * 0.13, 14),
+    new THREE.MeshStandardMaterial({ color: 0x2a3a3c, roughness: 0.25 }));
+  vent.rotation.x = -Math.PI / 2; vent.position.y = gz.ch - 0.155; grp.add(vent);
+  // mineral splash halo around base
+  const halo = new THREE.Mesh(new THREE.RingGeometry(gz.cr * 0.9, gz.cr * 1.55, 28),
+    new THREE.MeshStandardMaterial({ color: PAL.sinterLight, roughness: 1,
+      polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -2 }));
+  halo.rotation.x = -Math.PI / 2; halo.position.y = 0.06; grp.add(halo);
+  grp.position.set(gz.x, 0, gz.z);
+  scene.add(grp);
+  // forgiving tap proxy over the cone
+  const proxy = new THREE.Mesh(new THREE.SphereGeometry(gz.cr * 1.15, 8, 6),
+    new THREE.MeshBasicMaterial({ visible: false }));
+  proxy.position.set(gz.x, gz.ch * 0.6, gz.z); proxy.userData.geyser = gz;
+  scene.add(proxy); tapTargets.push(proxy);
+  geysers.push({ ...gz, grp, eruptT: -1, nextAuto: rand(4, gz.period) });
+}
+
+// ---------- eruption particles (one shared pool) ----------
+const MAXP = 900;
+const pGeo = new THREE.BufferGeometry();
+const pPos = new Float32Array(MAXP * 3), pCol = new Float32Array(MAXP * 3);
+pGeo.setAttribute('position', new THREE.BufferAttribute(pPos, 3));
+pGeo.setAttribute('color', new THREE.BufferAttribute(pCol, 3));
+function dropTexture() {
+  const c = document.createElement('canvas'); c.width = c.height = 32;
+  const g = c.getContext('2d');
+  const grad = g.createRadialGradient(16,16,2, 16,16,15);
+  grad.addColorStop(0, 'rgba(255,255,255,1)');
+  grad.addColorStop(0.7, 'rgba(255,255,255,0.85)');
+  grad.addColorStop(1, 'rgba(255,255,255,0)');
+  g.fillStyle = grad; g.fillRect(0,0,32,32);
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t;
+}
+const pMat = new THREE.PointsMaterial({ size: 0.22, vertexColors: true, map: dropTexture(),
+  transparent: true, opacity: 0.96, depthWrite: false });
+const points = new THREE.Points(pGeo, pMat); points.frustumCulled = false; scene.add(points);
+const P = { vel: new Float32Array(MAXP * 3), life: new Float32Array(MAXP).fill(-1) };
+let pCursor = 0;
+const WATER_COL = new THREE.Color(0xdff2f6), STEAM_COL = new THREE.Color(0xf4f8f8);
+function spawnDrop(x, y, z, vx, vy, vz, life, col) {
+  const i = pCursor; pCursor = (pCursor + 1) % MAXP;
+  pPos[i*3] = x; pPos[i*3+1] = y; pPos[i*3+2] = z;
+  P.vel[i*3] = vx; P.vel[i*3+1] = vy; P.vel[i*3+2] = vz;
+  P.life[i] = life;
+  pCol[i*3] = col.r; pCol[i*3+1] = col.g; pCol[i*3+2] = col.b;
+}
+
+// steam wisps (idle cones + eruption billow)
+const steamTex = dropTexture();
+const wisps = [];
+for (const gz of geysers) {
+  for (let k = 0; k < 2; k++) {
+    const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: steamTex, color: PAL.steam,
+      transparent: true, opacity: 0.16, depthWrite: false }));
+    sp.position.set(gz.x, gz.ch + 0.4 + k * 0.5, gz.z);
+    sp.scale.setScalar(0.9 + k * 0.5);
+    scene.add(sp); wisps.push({ sp, gz, ph: rand(0, 6.28), k });
+  }
+}
+
+let camShake = 0;
+function erupt(g) {
+  g.eruptT = 0;
+  camShake = Math.max(camShake, g.power * 0.045);
+  for (let i = 0; i < 130; i++) {
+    const a = rand(0, Math.PI * 2), rr = rand(0, 0.12);
+    spawnDrop(g.x + Math.cos(a) * rr, g.ch, g.z + Math.sin(a) * rr,
+      Math.cos(a) * rand(0.1, 0.7), g.power * rand(0.75, 1.12), Math.sin(a) * rand(0.1, 0.7),
+      rand(1.4, 2.1), Math.random() < 0.6 ? WATER_COL : STEAM_COL);
+  }
+  setHint('erupt');
+}
+
+// ---------- boardwalk (hand-laid planks on posts) ----------
+{
+  const path = new THREE.CatmullRomCurve3([
+    new THREE.Vector3(-7.4, 0, -6.2), new THREE.Vector3(-3.6, 0, -4.4),
+    new THREE.Vector3(0.4, 0, -5.2), new THREE.Vector3(2.4, 0, -2.0),
+    new THREE.Vector3(1.4, 0, 1.2), new THREE.Vector3(-1.8, 0, 3.4),
+    new THREE.Vector3(-1.2, 0, 6.4), new THREE.Vector3(2.6, 0, 7.2)
+  ]);
+  const plankGeo = new THREE.BoxGeometry(0.62, 0.05, 0.24);
+  const woodMat = new THREE.MeshStandardMaterial({ color: PAL.wood, roughness: 0.9 });
+  const woodDark = new THREE.MeshStandardMaterial({ color: PAL.woodDark, roughness: 0.9 });
+  const postGeo = new THREE.CylinderGeometry(0.035, 0.045, 0.3, 6);
+  const N = 46;
+  for (let i = 0; i < N; i++) {
+    const t = i / (N - 1);
+    const pt = path.getPoint(t), tan = path.getTangent(t);
+    const plank = new THREE.Mesh(plankGeo, i % 5 === 0 ? woodDark : woodMat);
+    plank.position.set(pt.x, 0.24, pt.z);
+    plank.rotation.y = Math.atan2(tan.x, tan.z) + Math.PI / 2 + rand(-0.05, 0.05);
+    plank.castShadow = true; plank.receiveShadow = true;
+    slabGroup.add(plank);
+    if (i % 4 === 0) {
+      const post = new THREE.Mesh(postGeo, woodDark);
+      post.position.set(pt.x, 0.1, pt.z); slabGroup.add(post);
+    }
+  }
+}
+
+// ---------- pines (faceted cone stacks) ----------
+function pine(h, seed) {
+  const g = new THREE.Group();
+  const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.09, h * 0.3, 6),
+    new THREE.MeshStandardMaterial({ color: 0x5c4632, roughness: 1 }));
+  trunk.position.y = h * 0.15; g.add(trunk);
+  const cols = [PAL.pineDark, PAL.pine, PAL.pine];
+  for (let i = 0; i < 3; i++) {
+    const r = h * (0.34 - i * 0.09), ch = h * 0.34;
+    const cone = new THREE.Mesh(new THREE.ConeGeometry(r, ch, 7),
+      new THREE.MeshStandardMaterial({ color: cols[i], roughness: 0.95, flatShading: true }));
+    cone.position.y = h * (0.3 + i * 0.24); cone.rotation.y = seed + i;
+    cone.castShadow = true; g.add(cone);
+  }
+  return g;
+}
+for (const [x, z, h] of [[-7.1, -6.8, 2.6], [-6.4, 6.2, 2.2], [7.0, -5.9, 2.9],
+                          [7.2, 6.6, 2.4], [3.2, -7.1, 2.0], [-3.3, 7.0, 1.8]]) {
+  const t = pine(h, x * 1.3);
+  t.position.set(x, 0.03, z); t.rotation.y = rand(0, 6.28);
+  slabGroup.add(t);
+}
+
+// fallen sinter chunks + pebbles
+{
+  const rockMat = new THREE.MeshStandardMaterial({ color: PAL.sinterDark, roughness: 1, flatShading: true });
+  for (let i = 0; i < 16; i++) {
+    const r = new THREE.Mesh(new THREE.DodecahedronGeometry(rand(0.07, 0.2), 0), rockMat);
+    r.position.set(rand(-7.2, 7.2), 0.06, rand(-7.2, 7.2));
+    r.rotation.set(rand(0, 3), rand(0, 3), rand(0, 3)); r.castShadow = true;
+    slabGroup.add(r);
+  }
+}
+
+// ---------- hints ----------
+const HINTS = {
+  idle: 'Tap a geyser to make it blow',
+  erupt: 'She blows - watch the spray drift',
+  auto: 'The basin stirs on its own'
+};
+function setHint(s) {
+  hintEl.textContent = HINTS[s]; hintEl.classList.remove('faded');
+  clearTimeout(setHint._t);
+  setHint._t = setTimeout(() => hintEl.classList.add('faded'), 6000);
+}
+setHint('idle');
+
+// ---------- camera framing (point-set fit, portrait-aware) ----------
+const FIT_CENTER = new THREE.Vector3(0, 1.2, 0);
+const FIT_PTS = [];
+for (const x of [-8.4, 8.4]) for (const y of [-SLAB_H, 0.9]) for (const z of [-8.4, 8.4])
+  FIT_PTS.push(new THREE.Vector3(x, y, z));
+for (const g of GEYSERS)
+  FIT_PTS.push(new THREE.Vector3(g.x, g.ch + g.power * 0.62, g.z));  // jet apex
+function fitDir() {
+  const a = innerWidth / innerHeight;
+  if (a < 0.62) return new THREE.Vector3(0.1, 0.42, 1).normalize();
+  if (a < 0.9) return new THREE.Vector3(0.42, 0.4, 1).normalize();
+  return new THREE.Vector3(0.62, 0.42, 1).normalize();
+}
+const _rel = new THREE.Vector3();
+function requiredDistance(right, up, fwd, target) {
+  const fovV = THREE.MathUtils.degToRad(camera.fov);
+  const tanH = Math.tan(Math.atan(Math.tan(fovV/2) * camera.aspect));
+  const tanV = Math.tan(fovV/2);
+  let d = 4;
+  for (const c of FIT_PTS) {
+    _rel.copy(c).sub(target);
+    const cf = _rel.dot(fwd);
+    d = Math.max(d,
+      Math.abs(_rel.dot(right)) / tanH - cf,
+      Math.abs(_rel.dot(up)) / tanV - cf);
+  }
+  return d;
+}
+function frameInitialCamera() {
+  pickFov();
+  const fd = fitDir();
+  const fwd = fd.clone().negate();
+  const right = new THREE.Vector3().crossVectors(fwd, new THREE.Vector3(0,1,0)).normalize();
+  const up = new THREE.Vector3().crossVectors(right, fwd).normalize();
+  const dist = requiredDistance(right, up, fwd, FIT_CENTER) * 1.06;
+  camera.position.copy(FIT_CENTER).addScaledVector(fd, dist);
+  controls.target.copy(FIT_CENTER);
+  camera.updateProjectionMatrix(); controls.update();
+}
+frameInitialCamera();
+
+// ---------- tap handling ----------
+const ray = new THREE.Raycaster(); const ndc = new THREE.Vector2();
+let downX = 0, downY = 0, downT = 0;
+renderer.domElement.addEventListener('pointerdown', e => { downX = e.clientX; downY = e.clientY; downT = performance.now(); });
+renderer.domElement.addEventListener('pointerup', e => {
+  if (Math.hypot(e.clientX - downX, e.clientY - downY) > 7 || performance.now() - downT > 450) return;
+  ndc.set((e.clientX / innerWidth) * 2 - 1, -(e.clientY / innerHeight) * 2 + 1);
+  ray.setFromCamera(ndc, camera);
+  const hits = ray.intersectObjects(tapTargets, false);
+  if (!hits.length) return;
+  const g = geysers.find(q => q.x === hits[0].object.userData.geyser.x);
+  if (g && g.eruptT < 0) erupt(g);
+});
+
+addEventListener('resize', () => {
+  camera.aspect = innerWidth/innerHeight;
+  renderer.setSize(innerWidth, innerHeight);
+  renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+  frameInitialCamera();
+});
+
+// ---------- animate ----------
+const clock = new THREE.Clock();
+function animate() {
+  requestAnimationFrame(animate);
+  const dt = Math.min(clock.getDelta(), 0.05);
+  const t = clock.elapsedTime;
+
+  // geysers: auto timers + eruption lifecycle
+  for (const g of geysers) {
+    if (g.eruptT < 0) {
+      g.nextAuto -= dt;
+      if (g.nextAuto <= 0) { g.nextAuto = g.period * rand(0.85, 1.2); erupt(g); setHint('auto'); }
+    } else {
+      g.eruptT += dt;
+      if (g.eruptT < 1.9) {
+        // sustained jet
+        for (let i = 0; i < 6; i++) {
+          const a = rand(0, Math.PI * 2), rr = rand(0, 0.1);
+          spawnDrop(g.x + Math.cos(a) * rr, g.ch, g.z + Math.sin(a) * rr,
+            Math.cos(a) * rand(0.1, 0.5), g.power * rand(0.7, 1.1), Math.sin(a) * rand(0.1, 0.5),
+            rand(1.2, 1.8), Math.random() < 0.5 ? WATER_COL : STEAM_COL);
+        }
+      }
+      if (g.eruptT > 3.2) { g.eruptT = -1; setHint('idle'); }
+    }
+  }
+
+  // particles
+  for (let i = 0; i < MAXP; i++) {
+    if (P.life[i] < 0) { pPos[i*3+1] = -50; continue; }
+    P.life[i] -= dt;
+    P.vel[i*3+1] -= 6.2 * dt;
+    pPos[i*3] += P.vel[i*3] * dt;
+    pPos[i*3+1] += P.vel[i*3+1] * dt;
+    pPos[i*3+2] += P.vel[i*3+2] * dt;
+    if (pPos[i*3+1] < 0.04) P.life[i] = -1;
+  }
+  pGeo.attributes.position.needsUpdate = true;
+  pGeo.attributes.color.needsUpdate = true;
+
+  // steam wisps breathe + drift
+  for (const w of wisps) {
+    const boost = w.gz.eruptT >= 0 && w.gz.eruptT < 2.6 ? 1.9 : 1;
+    w.sp.position.y = w.gz.ch + 0.45 + w.k * 0.55 + Math.sin(t * 0.8 + w.ph) * 0.12;
+    w.sp.position.x = w.gz.x + Math.sin(t * 0.5 + w.ph) * 0.18;
+    w.sp.material.opacity = (0.13 + Math.sin(t * 1.1 + w.ph) * 0.05) * boost;
+    const s = (0.9 + w.k * 0.5) * boost;
+    w.sp.scale.setScalar(s);
+  }
+
+  // pool ripple shimmer
+  for (const pw of poolWaters) {
+    pw.mesh.material.opacity = 0.9 + Math.sin(t * 1.7 + pw.pool.x) * 0.05;
+  }
+
+  if (camShake > 0) {
+    camShake -= dt * 1.2;
+    camera.position.x += (Math.random()-0.5) * camShake * 0.1;
+    camera.position.y += (Math.random()-0.5) * camShake * 0.08;
+  }
+
+  // containment floor (static scene, but keep orbit from clipping inside)
+  {
+    const fwd = new THREE.Vector3(); camera.getWorldDirection(fwd);
+    const rgt = new THREE.Vector3().crossVectors(fwd, camera.up).normalize();
+    const up2 = new THREE.Vector3().crossVectors(rgt, fwd).normalize();
+    controls.minDistance = Math.min(requiredDistance(rgt, up2, fwd, controls.target) * 1.04, 26);
+  }
+  controls.update();
+  renderer.render(scene, camera);
+}
+animate();
+// pass 1: first geyser-basin build - sinter terraces, three geysers (tap/auto eruption), painted
+//         bacterial mat pool rings, boardwalk, faceted pines, point-set fit + square-on portrait
+</script>
+</body>
+</html>
