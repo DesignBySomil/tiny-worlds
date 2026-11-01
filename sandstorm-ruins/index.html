@@ -5,27 +5,29 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Sandstorm Ruins - a tiny world</title>
 <style>
-  html, body { margin:0; padding:0; height:100%; background:#e8c9a0; overflow:hidden;
-    font-family: Georgia, 'Times New Roman', serif; }
+  html, body { margin:0; padding:0; height:100%; background:#d9b382; overflow:hidden;
+    font-family: Georgia, 'Times New Roman', serif; user-select:none; -webkit-user-select:none; }
   #app { position:fixed; inset:0; }
   header { position:fixed; top:0; left:0; right:0; text-align:center; pointer-events:none;
-    padding: max(18px, env(safe-area-inset-top)) 16px 18px; z-index:5;
-    background: linear-gradient(rgba(58,34,14,.62), rgba(58,34,14,.30) 55%, rgba(58,34,14,0)); }
+    padding: max(18px, env(safe-area-inset-top)) 16px 22px; z-index:5;
+    background: linear-gradient(rgba(36,20,8,.72), rgba(36,20,8,.36) 55%, rgba(36,20,8,0)); }
   header h1 { margin:0; font-size:15px; letter-spacing:.42em; font-weight:400;
-    color:#fdf6ea; text-transform:uppercase; text-shadow:0 1px 8px rgba(46,26,10,.75); }
-  header .rule { width:44px; height:1px; background:rgba(253,246,234,.55); margin:9px auto; }
+    color:#fdf6ea; text-transform:uppercase; text-shadow:0 1px 10px rgba(28,14,4,.85); }
+  header .rule { width:48px; height:1px; background:linear-gradient(90deg, transparent, rgba(253,246,234,.75), transparent); margin:9px auto; }
   #hint { display:inline-block; font-size:11.5px; letter-spacing:.24em; text-transform:uppercase;
-    color:#fef8ec; transition:opacity 1.2s ease; padding:5px 12px; border-radius:3px;
-    background:rgba(50,30,12,.45);
-    text-shadow:0 1px 3px rgba(38,22,8,.98), 0 0 8px rgba(38,22,8,.95), 0 0 18px rgba(38,22,8,.85); }
+    color:#fef8ec; transition:opacity 1.2s ease, transform 0.4s ease; padding:5px 14px; border-radius:3px;
+    background:rgba(42,24,10,.52); border: 1px solid rgba(253,246,234,.18);
+    text-shadow:0 1px 3px rgba(28,15,5,.98), 0 0 10px rgba(28,15,5,.9); }
   #hint.faded { opacity:.45; }
   footer { position:fixed; bottom:0; left:0; right:0; text-align:center; pointer-events:none;
-    padding:0 16px max(14px, env(safe-area-inset-bottom)); z-index:5;
-    font-size:10px; letter-spacing:.34em; text-transform:uppercase; color:rgba(253,246,234,.6); }
+    padding:14px 16px max(14px, env(safe-area-inset-bottom)); z-index:5;
+    background: linear-gradient(rgba(36,20,8,0), rgba(36,20,8,.42));
+    font-size:10px; letter-spacing:.34em; text-transform:uppercase; color:rgba(253,246,234,.72);
+    text-shadow:0 1px 4px rgba(24,12,4,.8); }
   canvas { display:block; touch-action:none; }
   @media (max-width: 380px) {
     header h1 { font-size:12px; letter-spacing:.3em; }
-    #hint { font-size:10px; letter-spacing:.2em; }
+    #hint { font-size:10px; letter-spacing:.18em; padding:4px 10px; }
   }
 </style>
 </head>
@@ -44,42 +46,11 @@
 } }
 </script>
 <script type="module">
+// argon p1 (Gemini 4 Argon rework)
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 
-// pass 6
-const container = document.getElementById('app');
-const hintEl = document.getElementById('hint');
-const scene = new THREE.Scene();
-scene.background = new THREE.Color(0xe8c9a0);
-scene.fog = new THREE.Fog(0xe8c9a0, 24, 75);
-
-const camera = new THREE.PerspectiveCamera(38, innerWidth/innerHeight, 0.1, 240);
-function pickFov() {
-  const a = innerWidth / innerHeight;
-  camera.fov = a >= 0.9 ? 38 : (a >= 0.62 ? 46 : 58);
-  camera.updateProjectionMatrix();
-}
-pickFov();
-const renderer = new THREE.WebGLRenderer({ antialias: true });
-renderer.setSize(innerWidth, innerHeight);
-renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
-renderer.shadowMap.enabled = true;
-renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-container.appendChild(renderer.domElement);
-const controls = new OrbitControls(camera, renderer.domElement);
-controls.enableDamping = true; controls.dampingFactor = 0.06;
-controls.enablePan = false; controls.maxPolarAngle = Math.PI * 0.52;
-
-const sun = new THREE.DirectionalLight(0xffe8c4, 2.6);
-sun.position.set(8, 9, 4); sun.castShadow = true;
-sun.shadow.mapSize.set(1024, 1024);
-sun.shadow.camera.left = -10; sun.shadow.camera.right = 10;
-sun.shadow.camera.top = 10; sun.shadow.camera.bottom = -10;
-sun.shadow.camera.far = 60; sun.shadow.bias = -0.0006;
-scene.add(sun);
-scene.add(new THREE.HemisphereLight(0xf6e2c0, 0x7a5c3a, 1.35));
-
+// ---------- deterministic PRNG ----------
 function mulberry32(a) {
   return function() {
     a |= 0; a = a + 0x6D2B79F5 | 0;
@@ -90,7 +61,96 @@ function mulberry32(a) {
 }
 const rng = mulberry32(20261101);
 function rand(a, b) { return a + rng() * (b - a); }
+function randInt(a, b) { return Math.floor(rand(a, b + 1)); }
 
+// ---------- deterministic 2D value noise ----------
+function hash2(x, z) {
+  let n = Math.imul(x, 374761393) + Math.imul(z, 668265263) + 20261101;
+  n = (n ^ (n >>> 13)) | 0;
+  n = Math.imul(n, 1274126177);
+  return ((n ^ (n >>> 16)) >>> 0) / 4294967296;
+}
+function noise2(x, z) {
+  const xi = Math.floor(x), zi = Math.floor(z);
+  const xf = x - xi, zf = z - zi;
+  const u = xf * xf * (3 - 2 * xf);
+  const v = zf * zf * (3 - 2 * zf);
+  const a = hash2(xi, zi), b = hash2(xi + 1, zi);
+  const c = hash2(xi, zi + 1), d = hash2(xi + 1, zi + 1);
+  return (a * (1 - u) + b * u) * (1 - v) + (c * (1 - u) + d * u) * v;
+}
+function fbm(x, z, octaves = 4) {
+  let val = 0, amp = 0.5, freq = 1;
+  for (let i = 0; i < octaves; i++) {
+    val += amp * noise2(x * freq, z * freq);
+    freq *= 2.03;
+    amp *= 0.5;
+  }
+  return val;
+}
+
+// ---------- scene, camera, renderer ----------
+const container = document.getElementById('app');
+const hintEl = document.getElementById('hint');
+const scene = new THREE.Scene();
+const bgBase = new THREE.Color(0xe6c499);
+const bgStorm = new THREE.Color(0xb37742);
+scene.background = bgBase.clone();
+scene.fog = new THREE.FogExp2(0xe6c499, 0.022);
+
+const camera = new THREE.PerspectiveCamera(38, innerWidth / innerHeight, 0.1, 240);
+function pickFov() {
+  const a = innerWidth / innerHeight;
+  camera.fov = a >= 0.9 ? 36 : (a >= 0.62 ? 44 : 54);
+  camera.updateProjectionMatrix();
+}
+pickFov();
+
+const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
+renderer.setSize(innerWidth, innerHeight);
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.08;
+container.appendChild(renderer.domElement);
+
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+controls.dampingFactor = 0.055;
+controls.enablePan = false;
+controls.maxPolarAngle = Math.PI * 0.49;
+controls.minPolarAngle = Math.PI * 0.12;
+controls.minDistance = 4.5;
+controls.maxDistance = 26;
+
+// ---------- lighting (warm key + cool sky fill + warm rim) ----------
+const sun = new THREE.DirectionalLight(0xffe1b0, 3.1);
+sun.position.set(8.5, 11.5, 5.5);
+sun.castShadow = true;
+sun.shadow.mapSize.set(2048, 2048);
+sun.shadow.camera.left = -5.8;
+sun.shadow.camera.right = 5.8;
+sun.shadow.camera.top = 5.8;
+sun.shadow.camera.bottom = -5.8;
+sun.shadow.camera.near = 2;
+sun.shadow.camera.far = 28;
+sun.shadow.bias = -0.00045;
+sun.shadow.normalBias = 0.02;
+scene.add(sun);
+
+const hemi = new THREE.HemisphereLight(0xd8e8f8, 0x9c6e44, 1.15);
+scene.add(hemi);
+
+const rimLight = new THREE.DirectionalLight(0xffb46e, 1.35);
+rimLight.position.set(-8, 4.5, -7);
+scene.add(rimLight);
+
+const bounceLight = new THREE.PointLight(0xffaa55, 0.7, 9);
+bounceLight.position.set(0, 1.2, 0);
+scene.add(bounceLight);
+
+// ---------- procedural textures ----------
 function makeSoftTexture(inner, outer) {
   const c = document.createElement('canvas'); c.width = c.height = 128;
   const ctx = c.getContext('2d');
@@ -100,205 +160,1044 @@ function makeSoftTexture(inner, outer) {
   return new THREE.CanvasTexture(c);
 }
 
-// ---------- slab + dunes ----------
-const SLAB_H = 1.4;
-const slabGroup = new THREE.Group(); scene.add(slabGroup);
-{
-  const top = new THREE.Mesh(new THREE.BoxGeometry(6.5, 0.22, 6.5), new THREE.MeshStandardMaterial({ color: 0xd9b57e, roughness: 1 }));
-  top.position.y = -0.11; top.receiveShadow = true; slabGroup.add(top);
-  const mid = new THREE.Mesh(new THREE.BoxGeometry(6.5, SLAB_H, 6.5),
-    new THREE.MeshStandardMaterial({ color: 0xa87f52, roughness: 1 }));
-  mid.position.y = -SLAB_H/2 - 0.2; slabGroup.add(mid);
-  const base = new THREE.Mesh(new THREE.BoxGeometry(6.9, 0.5, 6.9),
-    new THREE.MeshStandardMaterial({ color: 0x7a5a3a, roughness: 1 }));
-  base.position.y = -SLAB_H - 0.45; slabGroup.add(base);
+function makeWispTexture() {
+  const c = document.createElement('canvas'); c.width = 256; c.height = 64;
+  const ctx = c.getContext('2d');
+  const g = ctx.createRadialGradient(128, 32, 4, 128, 32, 120);
+  g.addColorStop(0, 'rgba(248, 222, 182, 0.75)');
+  g.addColorStop(0.5, 'rgba(228, 188, 138, 0.35)');
+  g.addColorStop(1, 'rgba(210, 165, 112, 0)');
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, 256, 64);
+  return new THREE.CanvasTexture(c);
 }
-// wind-rippled dunes: flattened, stretched spheres
+
+function makeSandBumpTexture() {
+  const c = document.createElement('canvas'); c.width = c.height = 256;
+  const ctx = c.getContext('2d');
+  const img = ctx.createImageData(256, 256);
+  for (let y = 0; y < 256; y++) {
+    for (let x = 0; x < 256; x++) {
+      const ripple = Math.sin(x * 0.35 + Math.sin(y * 0.08) * 3.0) * 0.5 + 0.5;
+      const grain = hash2(x, y);
+      const v = Math.floor((ripple * 0.65 + grain * 0.35) * 255);
+      const idx = (y * 256 + x) * 4;
+      img.data[idx] = img.data[idx + 1] = img.data[idx + 2] = v;
+      img.data[idx + 3] = 255;
+    }
+  }
+  ctx.putImageData(img, 0, 0);
+  const tex = new THREE.CanvasTexture(c);
+  tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+  tex.repeat.set(6, 6);
+  return tex;
+}
+
+function makeStoneBumpTexture() {
+  const c = document.createElement('canvas'); c.width = c.height = 128;
+  const ctx = c.getContext('2d');
+  const img = ctx.createImageData(128, 128);
+  for (let y = 0; y < 128; y++) {
+    for (let x = 0; x < 128; x++) {
+      const strata = Math.sin(y * 0.4 + noise2(x * 0.1, y * 0.1) * 4) * 0.35 + 0.5;
+      const pit = noise2(x * 0.35, y * 0.35);
+      const v = Math.floor(Math.max(0, Math.min(1, strata * 0.6 + pit * 0.4)) * 255);
+      const idx = (y * 128 + x) * 4;
+      img.data[idx] = img.data[idx + 1] = img.data[idx + 2] = v;
+      img.data[idx + 3] = 255;
+    }
+  }
+  ctx.putImageData(img, 0, 0);
+  const tex = new THREE.CanvasTexture(c);
+  tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+  tex.repeat.set(2, 2);
+  return tex;
+}
+
+const sandBump = makeSandBumpTexture();
+const stoneBump = makeStoneBumpTexture();
+
+// ---------- materials with strong value contrast ----------
+// Ground is pale warm golden sand; ruins are dark roasted umber/charcoal-weathered sandstone
+const sandMat = new THREE.MeshStandardMaterial({
+  vertexColors: true,
+  roughness: 0.92,
+  metalness: 0.02,
+  bumpMap: sandBump,
+  bumpScale: 0.018
+});
+
+const stoneDarkMat = new THREE.MeshStandardMaterial({
+  color: 0x433326,
+  roughness: 0.88,
+  metalness: 0.05,
+  bumpMap: stoneBump,
+  bumpScale: 0.025
+});
+
+const stoneMidMat = new THREE.MeshStandardMaterial({
+  color: 0x5c4635,
+  roughness: 0.85,
+  metalness: 0.04,
+  bumpMap: stoneBump,
+  bumpScale: 0.022
+});
+
+const stoneWeatheredMat = new THREE.MeshStandardMaterial({
+  color: 0x36281d,
+  roughness: 0.94,
+  metalness: 0.03,
+  bumpMap: stoneBump,
+  bumpScale: 0.03
+});
+
+const terracottaMat = new THREE.MeshStandardMaterial({
+  color: 0x9e472a,
+  roughness: 0.72,
+  metalness: 0.05,
+  bumpMap: stoneBump,
+  bumpScale: 0.012
+});
+
+const faienceMat = new THREE.MeshStandardMaterial({
+  color: 0x228b8d,
+  roughness: 0.3,
+  metalness: 0.15,
+  emissive: 0x0b383b,
+  emissiveIntensity: 0.55
+});
+
+const goldLeafMat = new THREE.MeshStandardMaterial({
+  color: 0xd9a74a,
+  roughness: 0.32,
+  metalness: 0.78,
+  emissive: 0x3a2408,
+  emissiveIntensity: 0.25
+});
+
+// ---------- terrain height function ----------
+function getSandHeight(x, z) {
+  // Primary sweeping dune ridge in background (-z) and right (+x)
+  const ridge1 = Math.exp(-Math.pow((z + 2.15) * 0.75 + Math.sin(x * 0.65) * 0.35, 2)) * 0.72;
+  const ridge2 = Math.exp(-Math.pow((x - 2.1) * 0.7 - (z - 0.6) * 0.4, 2)) * 0.42;
+  const ridge3 = Math.exp(-Math.pow((x + 2.0) * 0.8 + (z - 1.5) * 0.5, 2)) * 0.36;
+  // Center courtyard depression where temple floor peeks through
+  const courtyard = Math.exp(-(x * x * 0.45 + (z - 0.1) * (z - 0.1) * 0.55)) * -0.18;
+  // Wind ripples
+  const diag = x * 0.82 + z * 0.57;
+  const ripples = Math.sin(diag * 7.5 + fbm(x * 1.4, z * 1.4, 2) * 2.2) * 0.018;
+  const detail = (fbm(x * 0.8 + 5, z * 0.8 + 5, 3) - 0.5) * 0.16;
+  // Soft taper near slab edges
+  const edgeDist = Math.max(Math.abs(x), Math.abs(z));
+  const edgeMask = THREE.MathUtils.smoothstep(edgeDist, 2.5, 3.25);
+  const raw = (ridge1 + ridge2 + ridge3 + courtyard + detail + ripples) * (1 - edgeMask * 0.75);
+  return Math.max(-0.04, raw);
+}
+
+// ---------- diorama slab + continuous sculpted dune surface ----------
+const SLAB_H = 1.4;
+const slabGroup = new THREE.Group();
+scene.add(slabGroup);
+
 {
-  const duneA = new THREE.MeshStandardMaterial({ color: 0xeacf9e, roughness: 1 });
-  const duneB = new THREE.MeshStandardMaterial({ color: 0xdcbc88, roughness: 1 });
-  for (let i = 0; i < 10; i++) {
-    const d = new THREE.Mesh(new THREE.SphereGeometry(rand(0.5, 1.1), 12, 8), i % 2 ? duneA : duneB);
-    d.scale.set(rand(1.6, 2.4), rand(0.22, 0.4), rand(0.9, 1.3));
-    d.position.set(rand(-2.8, 2.8), 0, rand(-2.8, 2.8));
-    d.rotation.y = -0.5 + rand(-0.15, 0.15);
-    d.receiveShadow = true; d.castShadow = true;
-    slabGroup.add(d);
+  // Sculpted top sand mesh
+  const topGeo = new THREE.PlaneGeometry(6.5, 6.5, 96, 96);
+  topGeo.rotateX(-Math.PI / 2);
+  const pos = topGeo.attributes.position;
+  const colors = new Float32Array(pos.count * 3);
+  const cLight = new THREE.Color(0xf3d7a8);
+  const cMid = new THREE.Color(0xe2bc85);
+  const cShadow = new THREE.Color(0xc69963);
+  const cTmp = new THREE.Color();
+
+  for (let i = 0; i < pos.count; i++) {
+    const x = pos.getX(i);
+    const z = pos.getZ(i);
+    const y = getSandHeight(x, z);
+    pos.setY(i, y);
+
+    const hNorm = THREE.MathUtils.clamp((y + 0.05) / 0.78, 0, 1);
+    const nVal = noise2(x * 2.2 + 11, z * 2.2 + 7);
+    cTmp.copy(cShadow).lerp(cMid, THREE.MathUtils.clamp(hNorm * 1.3, 0, 1));
+    cTmp.lerp(cLight, Math.pow(hNorm, 1.6) * 0.85 + nVal * 0.15);
+    colors[i * 3] = cTmp.r;
+    colors[i * 3 + 1] = cTmp.g;
+    colors[i * 3 + 2] = cTmp.b;
+  }
+  topGeo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+  topGeo.computeVertexNormals();
+  const topMesh = new THREE.Mesh(topGeo, sandMat);
+  topMesh.receiveShadow = true;
+  topMesh.castShadow = true;
+  slabGroup.add(topMesh);
+
+  // Upper sandstone rim collar
+  const collarGeo = new THREE.BoxGeometry(6.54, 0.24, 6.54);
+  const collarMat = new THREE.MeshStandardMaterial({ color: 0xc89d66, roughness: 0.92, bumpMap: stoneBump, bumpScale: 0.015 });
+  const collar = new THREE.Mesh(collarGeo, collarMat);
+  collar.position.y = -0.12;
+  collar.receiveShadow = true;
+  slabGroup.add(collar);
+
+  // Stratified cliff pedestal body
+  const midGeo = new THREE.BoxGeometry(6.48, SLAB_H, 6.48, 24, 12, 24);
+  const mPos = midGeo.attributes.position;
+  const mCol = new Float32Array(mPos.count * 3);
+  const cStrataA = new THREE.Color(0x8c6239);
+  const cStrataB = new THREE.Color(0x634326);
+  const cStrataC = new THREE.Color(0xa6794b);
+  for (let i = 0; i < mPos.count; i++) {
+    let vx = mPos.getX(i), vy = mPos.getY(i), vz = mPos.getZ(i);
+    const edge = Math.max(Math.abs(vx), Math.abs(vz));
+    if (edge > 3.2) {
+      const strata = Math.sin(vy * 9.0 + noise2(vx * 1.5, vz * 1.5) * 2.5);
+      const inset = (strata * 0.035) + (noise2(vx * 3, vy * 4) - 0.5) * 0.04;
+      if (Math.abs(vx) > 3.2) vx += Math.sign(vx) * inset;
+      if (Math.abs(vz) > 3.2) vz += Math.sign(vz) * inset;
+      mPos.setXYZ(i, vx, vy, vz);
+    }
+    const band = Math.sin(vy * 8.5 + noise2(vx, vz) * 1.5) * 0.5 + 0.5;
+    const c = cStrataA.clone().lerp(cStrataB, band).lerp(cStrataC, Math.max(0, (vy + 0.7) / 1.4) * 0.45);
+    mCol[i * 3] = c.r; mCol[i * 3 + 1] = c.g; mCol[i * 3 + 2] = c.b;
+  }
+  midGeo.setAttribute('color', new THREE.BufferAttribute(mCol, 3));
+  midGeo.computeVertexNormals();
+  const midMesh = new THREE.Mesh(midGeo, new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.95 }));
+  midMesh.position.y = -SLAB_H / 2 - 0.2;
+  midMesh.castShadow = true;
+  midMesh.receiveShadow = true;
+  slabGroup.add(midMesh);
+
+  // Heavy dark plinth base with stepped molding
+  const step1 = new THREE.Mesh(
+    new THREE.BoxGeometry(6.74, 0.22, 6.74),
+    new THREE.MeshStandardMaterial({ color: 0x4a3420, roughness: 0.9 })
+  );
+  step1.position.y = -SLAB_H - 0.31;
+  step1.receiveShadow = true;
+  slabGroup.add(step1);
+
+  const base = new THREE.Mesh(
+    new THREE.BoxGeometry(7.0, 0.36, 7.0),
+    new THREE.MeshStandardMaterial({ color: 0x332315, roughness: 0.92 })
+  );
+  base.position.y = -SLAB_H - 0.56;
+  base.receiveShadow = true;
+  slabGroup.add(base);
+}
+
+// ---------- helper: fluted column drum & capital ----------
+function makeFlutedCylinder(rTop, rBot, height, radialSegs = 32, heightSegs = 12, flutes = 16, chipAmount = 0.015) {
+  const geo = new THREE.CylinderGeometry(rTop, rBot, height, radialSegs, heightSegs);
+  const pos = geo.attributes.position;
+  for (let i = 0; i < pos.count; i++) {
+    const vx = pos.getX(i), vy = pos.getY(i), vz = pos.getZ(i);
+    const r = Math.hypot(vx, vz);
+    if (r > 0.001) {
+      const angle = Math.atan2(vz, vx);
+      // Concave flute channels along the shaft
+      const flute = Math.pow(Math.max(0, Math.cos(angle * flutes)), 1.6) * -0.018;
+      const chip = (noise2(angle * 3.5 + vy * 2.2, vy * 4.5 + rTop * 10) - 0.5) * chipAmount;
+      const scale = (r + flute + chip) / r;
+      pos.setX(i, vx * scale);
+      pos.setZ(i, vz * scale);
+    }
+  }
+  geo.computeVertexNormals();
+  return geo;
+}
+
+// Lotus/papyrus bell capital via LatheGeometry
+const capitalProfile = [
+  new THREE.Vector2(0.18, 0.0),
+  new THREE.Vector2(0.20, 0.04),
+  new THREE.Vector2(0.19, 0.08),
+  new THREE.Vector2(0.24, 0.18),
+  new THREE.Vector2(0.32, 0.28),
+  new THREE.Vector2(0.35, 0.34),
+  new THREE.Vector2(0.31, 0.38),
+  new THREE.Vector2(0.0, 0.38)
+];
+const capitalLatheGeo = new THREE.LatheGeometry(capitalProfile, 20);
+
+const baseMoldingProfile = [
+  new THREE.Vector2(0.0, 0.0),
+  new THREE.Vector2(0.30, 0.0),
+  new THREE.Vector2(0.31, 0.07),
+  new THREE.Vector2(0.27, 0.13),
+  new THREE.Vector2(0.25, 0.19),
+  new THREE.Vector2(0.21, 0.22)
+];
+const baseLatheGeo = new THREE.LatheGeometry(baseMoldingProfile, 20);
+
+// ---------- partially buried courtyard flagstones ----------
+{
+  const tileGeo = new THREE.BoxGeometry(0.58, 0.09, 0.58);
+  for (let gx = -2; gx <= 2; gx++) {
+    for (let gz = -2; gz <= 2; gz++) {
+      if (rng() < 0.32) continue;
+      const tx = gx * 0.66 + rand(-0.05, 0.05);
+      const tz = gz * 0.66 + 0.15 + rand(-0.05, 0.05);
+      const sh = getSandHeight(tx, tz);
+      if (sh > 0.22) continue;
+      const tile = new THREE.Mesh(tileGeo, (gx + gz) % 2 === 0 ? stoneMidMat : stoneDarkMat);
+      tile.position.set(tx, sh - 0.015 + rand(-0.01, 0.02), tz);
+      tile.rotation.set(rand(-0.06, 0.06), rand(-0.08, 0.08), rand(-0.06, 0.06));
+      tile.scale.set(rand(0.85, 1.05), 1, rand(0.85, 1.05));
+      tile.receiveShadow = true;
+      tile.castShadow = true;
+      slabGroup.add(tile);
+    }
   }
 }
 
-// ---------- ruins ----------
-const stoneMat = new THREE.MeshStandardMaterial({ color: 0x9a8468, roughness: 0.9 });
-const stoneDark = new THREE.MeshStandardMaterial({ color: 0x7e6a4e, roughness: 0.95 });
-// broken columns with capitals
-function makeColumn(x, z, h, tilt, broken) {
-  const g = new THREE.Group(); g.position.set(x, 0, z); g.rotation.z = tilt;
-  const base = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.16, 0.42), stoneDark);
-  base.position.y = 0.08; base.castShadow = true; g.add(base);
-  const shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.14, 0.17, h, 10), stoneMat);
-  shaft.position.y = 0.16 + h / 2; shaft.castShadow = true; g.add(shaft);
+// ---------- HERO RUINS: Colonnade & Cracked Architraves ----------
+function makeHeroColumn(x, z, h, tiltX, tiltZ, broken, hasBands) {
+  const g = new THREE.Group();
+  const groundY = getSandHeight(x, z);
+  g.position.set(x, groundY - 0.04, z);
+  g.rotation.x = tiltX;
+  g.rotation.z = tiltZ;
+
+  // Square plinth
+  const plinth = new THREE.Mesh(new THREE.BoxGeometry(0.66, 0.16, 0.66), stoneWeatheredMat);
+  plinth.position.y = 0.08;
+  plinth.castShadow = true;
+  plinth.receiveShadow = true;
+  g.add(plinth);
+
+  // Lathe torus base molding
+  const torus = new THREE.Mesh(baseLatheGeo, stoneDarkMat);
+  torus.position.y = 0.16;
+  torus.castShadow = true;
+  torus.receiveShadow = true;
+  g.add(torus);
+
+  // Stacked fluted drums
+  const numDrums = Math.max(2, Math.round(h / 0.55));
+  const drumH = h / numDrums;
+  let curY = 0.36;
+  for (let i = 0; i < numDrums; i++) {
+    const t0 = i / numDrums;
+    const t1 = (i + 1) / numDrums;
+    const rBot = THREE.MathUtils.lerp(0.22, 0.175, t0);
+    const rTop = THREE.MathUtils.lerp(0.22, 0.175, t1);
+    const drumGeo = makeFlutedCylinder(rTop, rBot, drumH - 0.012, 28, 6, 16, 0.012);
+    const drumMat = i % 2 === 0 ? stoneDarkMat : stoneMidMat;
+    const drum = new THREE.Mesh(drumGeo, drumMat);
+    drum.position.set(rand(-0.012, 0.012), curY + drumH / 2, rand(-0.012, 0.012));
+    drum.rotation.y = rand(-0.08, 0.08);
+    drum.castShadow = true;
+    drum.receiveShadow = true;
+    g.add(drum);
+
+    if (hasBands && (i === 1 || i === 2)) {
+      const band = new THREE.Mesh(
+        new THREE.CylinderGeometry(rTop + 0.012, rBot + 0.012, 0.11, 24),
+        i === 1 ? terracottaMat : goldLeafMat
+      );
+      band.position.y = curY + drumH * 0.5;
+      band.castShadow = true;
+      g.add(band);
+    }
+    curY += drumH;
+  }
+
   if (!broken) {
-    const cap = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.14, 0.4), stoneDark);
-    cap.position.y = 0.16 + h + 0.07; cap.castShadow = true; g.add(cap);
+    const cap = new THREE.Mesh(capitalLatheGeo, stoneDarkMat);
+    cap.position.y = curY - 0.02;
+    cap.castShadow = true;
+    cap.receiveShadow = true;
+    g.add(cap);
+
+    const abacus = new THREE.Mesh(new THREE.BoxGeometry(0.68, 0.14, 0.68), stoneWeatheredMat);
+    abacus.position.y = curY + 0.42;
+    abacus.castShadow = true;
+    abacus.receiveShadow = true;
+    g.add(abacus);
   } else {
-    // jagged top: short angled stub
-    const stub = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.15, 0.16, 7), stoneMat);
-    stub.position.y = 0.16 + h + 0.06; stub.rotation.z = 0.2; g.add(stub);
+    // Fractured jagged top crest
+    for (let k = 0; k < 4; k++) {
+      const shard = new THREE.Mesh(
+        new THREE.DodecahedronGeometry(rand(0.09, 0.14), 0),
+        stoneWeatheredMat
+      );
+      const ang = (k / 4) * Math.PI * 2 + rand(-0.3, 0.3);
+      shard.position.set(Math.cos(ang) * 0.09, curY + rand(-0.02, 0.08), Math.sin(ang) * 0.09);
+      shard.scale.set(1, rand(0.8, 1.5), 1);
+      shard.castShadow = true;
+      g.add(shard);
+    }
   }
+
   slabGroup.add(g);
-  return g;
+  return { group: g, topY: groundY - 0.04 + curY + (broken ? 0 : 0.49) };
 }
-makeColumn(-1.7, -1.5, 2.5, 0, false);
-makeColumn(-0.6, -1.7, 1.9, 0.06, true);
-makeColumn(0.5, -1.6, 2.5, 0, false);
-makeColumn(1.6, -1.4, 1.2, -0.12, true);
-// architrave spanning the two tall columns
+
+const col1 = makeHeroColumn(-1.85, -1.45, 2.55, 0.01, -0.015, false, true);
+const col2 = makeHeroColumn(-0.55, -1.65, 2.05, 0.04, 0.055, true, false);
+const col3 = makeHeroColumn(0.68, -1.52, 2.55, -0.015, 0.01, false, true);
+const col4 = makeHeroColumn(1.75, -1.30, 1.35, -0.05, -0.11, true, false);
+
+// Cracked segmented architrave lintel spanning col1 to col3
 {
-  const beam = new THREE.Mesh(new THREE.BoxGeometry(2.6, 0.2, 0.36), stoneDark);
-  beam.position.set(-0.6, 2.92, -1.55); beam.castShadow = true; slabGroup.add(beam);
-}
-// fallen column (drum segments)
-{
-  for (let i = 0; i < 3; i++) {
-    const drum = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.16, 0.42, 10), stoneMat);
-    drum.rotation.z = Math.PI / 2; drum.rotation.y = rand(-0.4, 0.4);
-    drum.position.set(1.2 + i * 0.45, 0.16, 0.6 + rand(-0.15, 0.15));
-    drum.castShadow = true; slabGroup.add(drum);
+  const yLintel = Math.min(col1.topY, col3.topY) + 0.11;
+  // Left lintel block
+  const beamL = new THREE.Mesh(new THREE.BoxGeometry(1.42, 0.32, 0.56), stoneWeatheredMat);
+  beamL.position.set(-1.25, yLintel, -1.53);
+  beamL.rotation.z = -0.025;
+  beamL.rotation.y = 0.04;
+  beamL.castShadow = true;
+  beamL.receiveShadow = true;
+  slabGroup.add(beamL);
+
+  // Right lintel block with fracture gap
+  const beamR = new THREE.Mesh(new THREE.BoxGeometry(1.36, 0.32, 0.56), stoneDarkMat);
+  beamR.position.set(0.18, yLintel - 0.02, -1.56);
+  beamR.rotation.z = 0.03;
+  beamR.rotation.y = -0.03;
+  beamR.castShadow = true;
+  beamR.receiveShadow = true;
+  slabGroup.add(beamR);
+
+  // Cornice molding strip on top
+  const cornice = new THREE.Mesh(new THREE.BoxGeometry(2.75, 0.12, 0.66), stoneMidMat);
+  cornice.position.set(-0.54, yLintel + 0.21, -1.55);
+  cornice.rotation.z = 0.008;
+  cornice.castShadow = true;
+  slabGroup.add(cornice);
+
+  // Turquoise & terracotta frieze inlays on architrave
+  for (let i = -3; i <= 3; i++) {
+    if (i === 0) continue;
+    const plaque = new THREE.Mesh(
+      new THREE.BoxGeometry(0.18, 0.14, 0.59),
+      i % 2 === 0 ? faienceMat : terracottaMat
+    );
+    plaque.position.set(-0.55 + i * 0.34, yLintel, -1.55);
+    slabGroup.add(plaque);
   }
 }
-// broken wall with arched window
+
+// Fallen fluted column drums cascaded across midground
 {
-  const wall = new THREE.Mesh(new THREE.BoxGeometry(1.7, 1.5, 0.28), stoneMat);
-  wall.position.set(-2.2, 0.75, 0.8); wall.rotation.y = 0.5; wall.castShadow = true; slabGroup.add(wall);
-  const arch = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.3, 0.34, 16, 1, false, 0, Math.PI), stoneDark);
-  arch.rotation.z = Math.PI / 2; arch.rotation.y = Math.PI / 2;
-  arch.position.set(-2.2, 1.1, 0.8); arch.rotation.x = 0; arch.rotation.y = 0.5 + Math.PI / 2;
-  slabGroup.add(arch);
+  const drumSpots = [
+    { x: 0.95, z: 0.55, ry: 0.35, rz: Math.PI / 2 - 0.12 },
+    { x: 1.42, z: 0.72, ry: 0.15, rz: Math.PI / 2 + 0.08 },
+    { x: 1.88, z: 0.58, ry: -0.25, rz: Math.PI / 2 - 0.18 },
+    { x: -0.45, z: -0.65, ry: 0.85, rz: Math.PI / 2 + 0.15 }
+  ];
+  for (const d of drumSpots) {
+    const dGeo = makeFlutedCylinder(0.20, 0.21, 0.48, 24, 5, 16, 0.015);
+    const drum = new THREE.Mesh(dGeo, stoneDarkMat);
+    const sy = getSandHeight(d.x, d.z);
+    drum.position.set(d.x, sy + 0.13, d.z);
+    drum.rotation.set(rand(-0.2, 0.2), d.ry, d.rz);
+    drum.castShadow = true;
+    drum.receiveShadow = true;
+    slabGroup.add(drum);
+  }
 }
-// half-buried head statue
+
+// ---------- Broken Temple Wall with True Voussoir Stone Arch ----------
 {
-  const hg = new THREE.Group(); hg.position.set(2.15, 0.16, 1.75); hg.rotation.z = 0.42; hg.rotation.y = 0.55;
-  const head = new THREE.Mesh(new THREE.SphereGeometry(0.5, 14, 12), stoneDark);
-  head.scale.set(0.9, 1.05, 0.95); head.castShadow = true; hg.add(head);
-  // headdress band + side flaps
-  const band = new THREE.Mesh(new THREE.CylinderGeometry(0.47, 0.49, 0.18, 12), stoneMat);
-  band.position.y = 0.3; hg.add(band);
-  for (const side of [1, -1]) {
-    const flap = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.5, 0.3), stoneMat);
-    flap.position.set(0, -0.1, side * 0.42); hg.add(flap);
+  const wallGroup = new THREE.Group();
+  const wx = -2.15, wz = 0.75;
+  wallGroup.position.set(wx, getSandHeight(wx, wz) - 0.05, wz);
+  wallGroup.rotation.y = 0.52;
+
+  // Left and right masonry piers built of coursed stone blocks
+  for (const side of [-1, 1]) {
+    const pierH = side === -1 ? 5 : 4;
+    for (let row = 0; row < pierH; row++) {
+      const bw = 0.62 + rand(-0.04, 0.04);
+      const bh = 0.28;
+      const bd = 0.38 + rand(-0.03, 0.03);
+      const block = new THREE.Mesh(
+        new THREE.BoxGeometry(bw, bh, bd),
+        (row + (side > 0 ? 1 : 0)) % 2 === 0 ? stoneDarkMat : stoneMidMat
+      );
+      block.position.set(side * 0.62 + rand(-0.02, 0.02), row * 0.29 + 0.14, rand(-0.015, 0.015));
+      block.rotation.y = rand(-0.03, 0.03);
+      block.castShadow = true;
+      block.receiveShadow = true;
+      wallGroup.add(block);
+    }
   }
-  // brow + eye sockets + nose
-  const brow = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.07, 0.1), stoneMat);
-  brow.position.set(0.38, 0.12, 0); hg.add(brow);
-  const socketMat = new THREE.MeshStandardMaterial({ color: 0x4a3a28, roughness: 1 });
-  for (const side of [1, -1]) {
-    const eye = new THREE.Mesh(new THREE.SphereGeometry(0.07, 8, 6), socketMat);
-    eye.position.set(0.42, 0.02, side * 0.17); eye.scale.set(0.5, 1, 1); hg.add(eye);
+
+  // Low sill wall under arch window
+  for (let row = 0; row < 2; row++) {
+    const sill = new THREE.Mesh(new THREE.BoxGeometry(0.68, 0.26, 0.36), stoneWeatheredMat);
+    sill.position.set(0, row * 0.27 + 0.13, 0);
+    sill.castShadow = true;
+    sill.receiveShadow = true;
+    wallGroup.add(sill);
   }
-  const nose = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.2, 0.12), stoneMat);
-  nose.position.set(0.46, -0.14, 0); hg.add(nose);
+
+  // Voussoir wedge stones forming the broken arch ring
+  const archR = 0.44;
+  const archCenterY = 1.05;
+  const numVoussoirs = 9;
+  for (let i = 0; i < numVoussoirs; i++) {
+    if (i === 6 || i === 7) continue; // dramatic collapsed gap in upper right arch
+    const ang = (i / (numVoussoirs - 1)) * Math.PI;
+    const vx = -Math.cos(ang) * archR;
+    const vy = archCenterY + Math.sin(ang) * archR;
+    const isKeystone = i === 4;
+    const vw = isKeystone ? 0.20 : 0.16;
+    const vh = isKeystone ? 0.28 : 0.22;
+    const wedge = new THREE.Mesh(
+      new THREE.BoxGeometry(vw, vh, 0.42),
+      isKeystone ? terracottaMat : stoneDarkMat
+    );
+    wedge.position.set(vx, vy, 0);
+    wedge.rotation.z = ang - Math.PI / 2;
+    wedge.castShadow = true;
+    wedge.receiveShadow = true;
+    wallGroup.add(wedge);
+  }
+
+  slabGroup.add(wallGroup);
+}
+
+// ---------- Half-Buried Colossal Pharaoh/Guardian Statue Head ----------
+{
+  const hg = new THREE.Group();
+  const hx = 1.95, hz = 1.55;
+  hg.position.set(hx, getSandHeight(hx, hz) + 0.12, hz);
+  hg.rotation.set(-0.18, -0.62, 0.38);
+
+  // Sculpted cranium/jaw
+  const skullGeo = new THREE.SphereGeometry(0.54, 24, 20);
+  const sPos = skullGeo.attributes.position;
+  for (let i = 0; i < sPos.count; i++) {
+    let x = sPos.getX(i), y = sPos.getY(i), z = sPos.getZ(i);
+    // Flatten cheeks & chin slightly, elongate face
+    if (y < 0) {
+      x *= 0.85 + 0.15 * (1 + y);
+      z *= 0.92;
+    }
+    if (z > 0.2) y *= 1.06;
+    const pit = (noise2(x * 6, y * 6) - 0.5) * 0.025;
+    sPos.setXYZ(i, x + pit, y * 1.12, z + pit);
+  }
+  skullGeo.computeVertexNormals();
+  const headMesh = new THREE.Mesh(skullGeo, stoneWeatheredMat);
+  headMesh.castShadow = true;
+  headMesh.receiveShadow = true;
+  hg.add(headMesh);
+
+  // Striped Nemes royal headdress crown & flared lappets
+  const nemesTop = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.58, 0.52, 0.42, 18),
+    stoneDarkMat
+  );
+  nemesTop.position.set(0, 0.28, -0.06);
+  nemesTop.rotation.x = -0.15;
+  nemesTop.castShadow = true;
+  hg.add(nemesTop);
+
+  // Gold & turquoise diadem headband
+  const diadem = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.535, 0.535, 0.11, 20),
+    goldLeafMat
+  );
+  diadem.position.set(0, 0.18, 0.02);
+  diadem.castShadow = true;
+  hg.add(diadem);
+
+  // Royal Uraeus cobra crest on brow
+  const cobra = new THREE.Mesh(new THREE.TorusGeometry(0.08, 0.032, 10, 16, Math.PI * 1.3), goldLeafMat);
+  cobra.position.set(0, 0.26, 0.53);
+  cobra.rotation.y = Math.PI / 2;
+  cobra.castShadow = true;
+  hg.add(cobra);
+
+  // Side Nemes lappets with alternating carved stripes
+  for (const side of [-1, 1]) {
+    const lappetGroup = new THREE.Group();
+    lappetGroup.position.set(side * 0.48, -0.05, -0.02);
+    lappetGroup.rotation.z = side * -0.18;
+    for (let s = 0; s < 6; s++) {
+      const stripe = new THREE.Mesh(
+        new THREE.BoxGeometry(0.18, 0.09, 0.42),
+        s % 2 === 0 ? stoneDarkMat : goldLeafMat
+      );
+      stripe.position.y = 0.22 - s * 0.095;
+      stripe.castShadow = true;
+      lappetGroup.add(stripe);
+    }
+    hg.add(lappetGroup);
+  }
+
+  // Prominent brow ridge, deep eye sockets, broad carved nose, full lips, ceremonial beard stub
+  const brow = new THREE.Mesh(new THREE.BoxGeometry(0.52, 0.08, 0.18), stoneDarkMat);
+  brow.position.set(0, 0.10, 0.46);
+  hg.add(brow);
+
+  const socketMat = new THREE.MeshStandardMaterial({ color: 0x1c130c, roughness: 0.98 });
+  for (const side of [-1, 1]) {
+    const eye = new THREE.Mesh(new THREE.SphereGeometry(0.085, 12, 10), socketMat);
+    eye.scale.set(1.3, 0.65, 0.6);
+    eye.position.set(side * 0.17, 0.02, 0.48);
+    hg.add(eye);
+  }
+
+  // Chipped bridge of nose
+  const nose = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.09, 0.24, 6), stoneMidMat);
+  nose.position.set(0, -0.08, 0.52);
+  nose.rotation.x = -0.15;
+  nose.castShadow = true;
+  hg.add(nose);
+
+  // Carved lips
+  const lips = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.07, 0.14), stoneDarkMat);
+  lips.position.set(0, -0.25, 0.46);
+  hg.add(lips);
+
+  // Braided royal beard fragment
+  const beard = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.05, 0.32, 8), stoneWeatheredMat);
+  beard.position.set(0, -0.46, 0.42);
+  beard.rotation.x = 0.2;
+  hg.add(beard);
+
   slabGroup.add(hg);
 }
 
-// obelisk
+// ---------- Tall Carved Obelisk + Fallen Obelisk Tip ----------
 {
-  const ob = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.3, 3.1, 4), stoneMat);
-  ob.position.set(2.3, 1.55, -0.3); ob.rotation.y = Math.PI / 4; ob.castShadow = true; slabGroup.add(ob);
-  const cap = new THREE.Mesh(new THREE.ConeGeometry(0.22, 0.35, 4),
-    new THREE.MeshStandardMaterial({ color: 0xd8b25e, roughness: 0.5, metalness: 0.3 }));
-  cap.position.set(2.3, 3.27, -0.3); cap.rotation.y = Math.PI / 4; cap.castShadow = true; slabGroup.add(cap);
-  const band = new THREE.Mesh(new THREE.CylinderGeometry(0.24, 0.26, 0.14, 4),
-    new THREE.MeshStandardMaterial({ color: 0xa85a38, roughness: 0.8 }));
-  band.position.set(2.3, 2.1, -0.3); band.rotation.y = Math.PI / 4; slabGroup.add(band);
+  const ox = 2.25, oz = -0.55;
+  const oy = getSandHeight(ox, oz);
+  const obGroup = new THREE.Group();
+  obGroup.position.set(ox, oy - 0.05, oz);
+  obGroup.rotation.y = Math.PI / 4 + 0.12;
+  obGroup.rotation.z = 0.035;
+
+  // Stepped pedestal
+  const ped = new THREE.Mesh(new THREE.BoxGeometry(0.76, 0.32, 0.76), stoneWeatheredMat);
+  ped.position.y = 0.16;
+  ped.castShadow = true;
+  ped.receiveShadow = true;
+  obGroup.add(ped);
+
+  // Tapered 4-sided monolith shaft
+  const shaftH = 2.85;
+  const shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.34, shaftH, 4, 8), stoneDarkMat);
+  shaft.position.y = 0.32 + shaftH / 2;
+  shaft.castShadow = true;
+  shaft.receiveShadow = true;
+  obGroup.add(shaft);
+
+  // Electrum/gold pyramidion capstone
+  const pyr = new THREE.Mesh(new THREE.ConeGeometry(0.18, 0.42, 4), goldLeafMat);
+  pyr.position.y = 0.32 + shaftH + 0.21;
+  pyr.castShadow = true;
+  obGroup.add(pyr);
+
+  // Carved cartouche & faience decorative bands along shaft
+  for (const by of [1.1, 1.85, 2.55]) {
+    const sRatio = 1 - (by - 0.32) / shaftH;
+    const r = THREE.MathUtils.lerp(0.185, 0.345, sRatio);
+    const band = new THREE.Mesh(
+      new THREE.CylinderGeometry(r, r + 0.01, 0.13, 4),
+      by === 1.85 ? faienceMat : terracottaMat
+    );
+    band.position.y = by;
+    obGroup.add(band);
+  }
+  slabGroup.add(obGroup);
+
+  // Second shattered obelisk tip half-buried in foreground left
+  const fx = -1.35, fz = 1.85;
+  const fGroup = new THREE.Group();
+  fGroup.position.set(fx, getSandHeight(fx, fz) + 0.04, fz);
+  fGroup.rotation.set(0.25, 0.85, -1.22);
+  const fShaft = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.23, 0.95, 4), stoneWeatheredMat);
+  fShaft.castShadow = true;
+  fShaft.receiveShadow = true;
+  fGroup.add(fShaft);
+  const fPyr = new THREE.Mesh(new THREE.ConeGeometry(0.15, 0.34, 4), goldLeafMat);
+  fPyr.position.y = 0.475 + 0.17;
+  fPyr.castShadow = true;
+  fGroup.add(fPyr);
+  slabGroup.add(fGroup);
 }
-// terracotta bands on the two tall columns + turquoise fragments
+
+// ---------- Dense Foreground Details: Amphorae, Pottery Shards, Carved Relief Stones & Desert Scrub ----------
 {
-  const terra = new THREE.MeshStandardMaterial({ color: 0xa85a38, roughness: 0.8 });
-  for (const [bx, bz] of [[-1.7, -1.5], [0.5, -1.6]]) {
-    for (const by of [1.2, 2.0]) {
-      const ring = new THREE.Mesh(new THREE.CylinderGeometry(0.17, 0.18, 0.12, 10), terra);
-      ring.position.set(bx, by, bz); slabGroup.add(ring);
+  // Intact & broken terracotta amphorae Profile
+  const jarProfile = [
+    new THREE.Vector2(0.0, 0.0),
+    new THREE.Vector2(0.06, 0.02),
+    new THREE.Vector2(0.14, 0.14),
+    new THREE.Vector2(0.16, 0.26),
+    new THREE.Vector2(0.08, 0.36),
+    new THREE.Vector2(0.10, 0.42),
+    new THREE.Vector2(0.07, 0.42)
+  ];
+  const jarGeo = new THREE.LatheGeometry(jarProfile, 16);
+
+  const jarCoords = [
+    [-1.45, -1.15, 0.1, 0.2],
+    [-1.62, -0.95, 1.3, 0.9],
+    [0.35, -1.25, 0.4, -1.1],
+    [-1.75, 1.15, -0.8, 0.3],
+    [1.25, 1.85, 1.1, 0.5]
+  ];
+  for (const [jx, jz, rx, rz] of jarCoords) {
+    const jar = new THREE.Mesh(jarGeo, terracottaMat);
+    const jy = getSandHeight(jx, jz);
+    jar.position.set(jx, jy + 0.03, jz);
+    jar.rotation.set(rx, rand(0, 6.28), rz);
+    jar.scale.setScalar(rand(0.85, 1.25));
+    jar.castShadow = true;
+    jar.receiveShadow = true;
+    slabGroup.add(jar);
+  }
+
+  // Curved terracotta & turquoise faience pottery shards scattered across ground
+  const shardGeo = new THREE.CylinderGeometry(0.13, 0.11, 0.16, 8, 1, true, 0, Math.PI * 0.65);
+  for (let i = 0; i < 24; i++) {
+    const sx = rand(-2.85, 2.85);
+    const sz = rand(-2.75, 2.85);
+    const sy = getSandHeight(sx, sz);
+    const isTurquoise = i % 4 === 0;
+    const shard = new THREE.Mesh(shardGeo, isTurquoise ? faienceMat : terracottaMat);
+    shard.position.set(sx, sy + 0.02, sz);
+    shard.rotation.set(rand(0.5, 2.2), rand(0, 6.28), rand(0.4, 2.0));
+    shard.scale.setScalar(rand(0.65, 1.35));
+    shard.castShadow = true;
+    shard.receiveShadow = true;
+    slabGroup.add(shard);
+  }
+
+  // Weathered rocks, rubble stones & carved relief blocks (InstancedMesh for crisp density)
+  const rockGeo = new THREE.DodecahedronGeometry(0.16, 1);
+  const rPos = rockGeo.attributes.position;
+  for (let i = 0; i < rPos.count; i++) {
+    rPos.setY(i, rPos.getY(i) * 0.68);
+  }
+  rockGeo.computeVertexNormals();
+
+  const rockCount = 68;
+  const rockInst = new THREE.InstancedMesh(rockGeo, stoneDarkMat, rockCount);
+  rockInst.castShadow = true;
+  rockInst.receiveShadow = true;
+  const dummy = new THREE.Object3D();
+  const rColor = new THREE.Color();
+  for (let i = 0; i < rockCount; i++) {
+    const rx = rand(-3.0, 3.0);
+    const rz = rand(-2.95, 3.0);
+    const ry = getSandHeight(rx, rz);
+    dummy.position.set(rx, ry + rand(-0.02, 0.03), rz);
+    dummy.rotation.set(rand(0, 3.14), rand(0, 6.28), rand(0, 3.14));
+    const sc = rand(0.35, 1.65);
+    dummy.scale.set(sc * rand(0.8, 1.4), sc * rand(0.5, 1.1), sc * rand(0.8, 1.3));
+    dummy.updateMatrix();
+    rockInst.setMatrixAt(i, dummy.matrix);
+    rColor.setHSL(0.07 + rand(-0.015, 0.015), 0.28 + rand(-0.08, 0.08), rand(0.18, 0.34));
+    rockInst.setColorAt(i, rColor);
+  }
+  rockInst.instanceMatrix.needsUpdate = true;
+  if (rockInst.instanceColor) rockInst.instanceColor.needsUpdate = true;
+  slabGroup.add(rockInst);
+
+  // Dry desert scrub tufts tucked against ruins & rocks
+  const scrubMat = new THREE.MeshStandardMaterial({ color: 0x59482e, roughness: 0.95 });
+  const stalkGeo = new THREE.ConeGeometry(0.018, 0.28, 5);
+  stalkGeo.translate(0, 0.14, 0);
+  const scrubSpots = [
+    [-1.95, -1.1], [-2.35, 1.15], [0.85, -1.25], [2.45, -0.25],
+    [1.65, 1.95], [-1.15, 2.05], [2.1, 0.95], [-2.55, -0.45]
+  ];
+  for (const [bx, bz] of scrubSpots) {
+    const tuft = new THREE.Group();
+    tuft.position.set(bx, getSandHeight(bx, bz) - 0.01, bz);
+    for (let k = 0; k < 9; k++) {
+      const blade = new THREE.Mesh(stalkGeo, scrubMat);
+      blade.rotation.set(rand(0.15, 0.65), (k / 9) * Math.PI * 2 + rand(-0.2, 0.2), rand(-0.2, 0.2));
+      blade.scale.setScalar(rand(0.65, 1.35));
+      blade.castShadow = true;
+      tuft.add(blade);
     }
+    slabGroup.add(tuft);
   }
-  const faience = new THREE.MeshStandardMaterial({ color: 0x3e8a8a, roughness: 0.4, emissive: 0x0e3a3a, emissiveIntensity: 0.4 });
-  for (const [fx, fz, fr] of [[-0.9, 0.9, 0.4], [1.5, 1.3, 1.1], [-2.5, -0.5, 2.2]]) {
-    const frag = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.08, 0.16), faience);
-    frag.position.set(fx, 0.1, fz); frag.rotation.y = fr; frag.castShadow = true; slabGroup.add(frag);
-  }
-}
-// scattered blocks
-for (let i = 0; i < 8; i++) {
-  const b = new THREE.Mesh(new THREE.BoxGeometry(rand(0.2, 0.45), rand(0.15, 0.3), rand(0.2, 0.4)), i % 2 ? stoneMat : stoneDark);
-  b.position.set(rand(-2.8, 2.8), 0.1, rand(-2.8, 2.8));
-  b.rotation.y = rand(0, 3); b.castShadow = true; slabGroup.add(b);
 }
 
-// ---------- sand particles (ambient drift) ----------
+// ---------- CAMEL CARAVAN (Procedural articulated camels marching across dunes) ----------
+const caravan = {
+  active: false,
+  t0: 0,
+  dur: 10.5,
+  camels: []
+};
+
+const camelMat = new THREE.MeshStandardMaterial({ color: 0x4a321e, roughness: 0.88 });
+const packMatA = new THREE.MeshStandardMaterial({ color: 0x9c3d24, roughness: 0.75 });
+const packMatB = new THREE.MeshStandardMaterial({ color: 0x22787a, roughness: 0.65 });
+
+function createCamelMesh(idx) {
+  const root = new THREE.Group();
+
+  // Torso & hump
+  const torso = new THREE.Mesh(new THREE.CapsuleGeometry(0.11, 0.22, 6, 12), camelMat);
+  torso.rotation.z = Math.PI / 2;
+  torso.position.y = 0.36;
+  torso.castShadow = true;
+  root.add(torso);
+
+  const hump = new THREE.Mesh(new THREE.SphereGeometry(0.115, 10, 8), camelMat);
+  hump.scale.set(1.1, 1.25, 0.88);
+  hump.position.set(-0.02, 0.48, 0);
+  hump.castShadow = true;
+  root.add(hump);
+
+  // Saddle blanket & merchant packs
+  const pack = new THREE.Mesh(
+    new THREE.BoxGeometry(0.22, 0.14, 0.28),
+    idx % 2 === 0 ? packMatA : packMatB
+  );
+  pack.position.set(-0.02, 0.45, 0);
+  pack.castShadow = true;
+  root.add(pack);
+
+  const goldTrim = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.04, 0.30), goldLeafMat);
+  goldTrim.position.set(-0.02, 0.41, 0);
+  root.add(goldTrim);
+
+  // Curved S-neck & head
+  const neckGroup = new THREE.Group();
+  neckGroup.position.set(0.15, 0.36, 0);
+  const neck = new THREE.Mesh(new THREE.CapsuleGeometry(0.042, 0.18, 5, 8), camelMat);
+  neck.position.set(0.05, 0.10, 0);
+  neck.rotation.z = -0.42;
+  neck.castShadow = true;
+  neckGroup.add(neck);
+
+  const head = new THREE.Mesh(new THREE.BoxGeometry(0.13, 0.065, 0.065), camelMat);
+  head.position.set(0.12, 0.22, 0);
+  head.castShadow = true;
+  neckGroup.add(head);
+  root.add(neckGroup);
+
+  // 4 articulated legs
+  const legs = [];
+  const legOffsets = [
+    [0.11, 0.065], [0.11, -0.065],
+    [-0.12, 0.065], [-0.12, -0.065]
+  ];
+  const legGeo = new THREE.CylinderGeometry(0.024, 0.016, 0.32, 6);
+  legGeo.translate(0, -0.16, 0);
+  for (const [lx, lz] of legOffsets) {
+    const leg = new THREE.Mesh(legGeo, camelMat);
+    leg.position.set(lx, 0.32, lz);
+    leg.castShadow = true;
+    root.add(leg);
+    legs.push(leg);
+  }
+
+  root.visible = false;
+  slabGroup.add(root);
+  return { root, legs, neckGroup };
+}
+
+for (let i = 0; i < 3; i++) {
+  caravan.camels.push(createCamelMesh(i));
+}
+
+// ---------- ATMOSPHERE: Sun Halo, High Dust Clouds, Circling 3D Birds, Ground Streamers ----------
+let sunSpr, sunHaloSpr;
+const birds = [];
+const highWisps = [];
+const groundStreamers = [];
 const grains = [];
-{
-  const tex = makeSoftTexture('rgba(186,138,88,0.9)', 'rgba(186,138,88,0)');
-  for (let i = 0; i < 90; i++) {
-    const mat = new THREE.SpriteMaterial({ map: tex, transparent: true, opacity: rand(0.25, 0.6), depthWrite: false });
-    const s = new THREE.Sprite(mat);
-    const sc = rand(0.05, 0.14); s.scale.set(sc, sc, 1);
-    s.position.set(rand(-4, 4), rand(0.2, 5.6), rand(-3.5, 3.5));
-    scene.add(s);
-    grains.push({ s, spd: rand(0.8, 1.8), wob: rand(0.5, 2), ph: rand(0, 6.3), baseOp: mat.opacity });
-  }
-}
-// ---------- sandstorm gust wall (interaction) ----------
 const gusts = [];
-const gustTex = makeSoftTexture('rgba(172,124,76,0.95)', 'rgba(172,124,76,0)');
-// sun disc + circling vultures
-let sunSpr;
-const vultures = [];
+
+const gustTex = makeSoftTexture('rgba(176, 126, 74, 0.92)', 'rgba(176, 126, 74, 0)');
+const wispTex = makeWispTexture();
+
 {
-  const sunTex = makeSoftTexture('rgba(255,244,214,1)', 'rgba(255,244,214,0)');
-  sunSpr = new THREE.Sprite(new THREE.SpriteMaterial({ map: sunTex, transparent: true, opacity: 0.95, depthWrite: false }));
-  sunSpr.scale.set(3.4, 3.4, 1); sunSpr.position.set(-4.6, 5.6, -4);
+  // Layered glowing sun high in upper sky
+  const sunTex = makeSoftTexture('rgba(255, 250, 228, 1)', 'rgba(255, 226, 168, 0)');
+  sunSpr = new THREE.Sprite(new THREE.SpriteMaterial({ map: sunTex, transparent: true, opacity: 0.96, depthWrite: false }));
+  sunSpr.scale.set(3.2, 3.2, 1);
+  sunSpr.position.set(-3.6, 5.2, -4.2);
   scene.add(sunSpr);
-  const vTex = makeSoftTexture('rgba(60,44,30,0.95)', 'rgba(60,44,30,0)');
-  for (let i = 0; i < 4; i++) {
-    const mat = new THREE.SpriteMaterial({ map: vTex, transparent: true, opacity: 0.8, depthWrite: false });
+
+  const haloTex = makeSoftTexture('rgba(255, 215, 148, 0.55)', 'rgba(255, 190, 110, 0)');
+  sunHaloSpr = new THREE.Sprite(new THREE.SpriteMaterial({ map: haloTex, transparent: true, opacity: 0.75, depthWrite: false, blending: THREE.AdditiveBlending }));
+  sunHaloSpr.scale.set(7.5, 7.5, 1);
+  sunHaloSpr.position.copy(sunSpr.position);
+  scene.add(sunHaloSpr);
+
+  // High altitude drifting dust wisps & sand clouds (fills upper half of portrait phones)
+  for (let i = 0; i < 14; i++) {
+    const mat = new THREE.SpriteMaterial({
+      map: wispTex,
+      transparent: true,
+      opacity: rand(0.18, 0.38),
+      depthWrite: false
+    });
     const sp = new THREE.Sprite(mat);
-    const sc = rand(0.1, 0.16); sp.scale.set(sc * 2.4, sc, 1);
+    const w = rand(2.8, 5.5);
+    const h = w * rand(0.22, 0.36);
+    sp.scale.set(w, h, 1);
+    sp.position.set(rand(-6, 6), rand(3.6, 7.2), rand(-5.5, 1.5));
     scene.add(sp);
-    vultures.push({ s: sp, ax: rand(-1, 2), ay: rand(4.2, 5.4), az: rand(-2, 0), r: rand(1.2, 2.4), spd: rand(0.2, 0.4), ph: rand(0, 6.3) });
+    highWisps.push({
+      s: sp,
+      spd: rand(0.18, 0.42),
+      baseOp: mat.opacity,
+      y0: sp.position.y,
+      ph: rand(0, 6.28)
+    });
+  }
+
+  // Circling desert vultures / falcons with articulated flapping wings
+  const birdMat = new THREE.MeshBasicMaterial({ color: 0x2c1b0e, side: THREE.DoubleSide });
+  const wingGeo = new THREE.BufferGeometry();
+  wingGeo.setAttribute('position', new THREE.BufferAttribute(new Float32Array([
+    0, 0, 0.06,
+    0.22, 0.03, 0.0,
+    0, 0, -0.06,
+    0.22, 0.03, 0.0,
+    0.36, -0.02, -0.04,
+    0.16, 0, -0.05
+  ]), 3));
+
+  for (let i = 0; i < 7; i++) {
+    const bGroup = new THREE.Group();
+    const leftWing = new THREE.Mesh(wingGeo, birdMat);
+    const rightWing = new THREE.Mesh(wingGeo, birdMat);
+    rightWing.scale.x = -1;
+    bGroup.add(leftWing, rightWing);
+    const sc = rand(0.65, 1.15);
+    bGroup.scale.setScalar(sc);
+    scene.add(bGroup);
+    birds.push({
+      g: bGroup,
+      lw: leftWing,
+      rw: rightWing,
+      ax: rand(-1.8, 1.8),
+      ay: rand(4.1, 6.6),
+      az: rand(-2.8, 0.4),
+      r: rand(1.4, 3.2),
+      spd: rand(0.28, 0.52),
+      ph: rand(0, 6.28),
+      flapSpd: rand(3.5, 5.5)
+    });
+  }
+
+  // Ground-hugging wind-blown sand streamers skimming over dunes
+  for (let i = 0; i < 24; i++) {
+    const mat = new THREE.SpriteMaterial({
+      map: wispTex,
+      transparent: true,
+      opacity: rand(0.22, 0.45),
+      depthWrite: false
+    });
+    const sp = new THREE.Sprite(mat);
+    sp.scale.set(rand(1.1, 2.2), rand(0.18, 0.32), 1);
+    const sx = rand(-3.2, 3.2);
+    const sz = rand(-3.0, 3.0);
+    sp.position.set(sx, getSandHeight(sx, sz) + 0.12, sz);
+    scene.add(sp);
+    groundStreamers.push({
+      s: sp,
+      spd: rand(1.1, 2.1),
+      ph: rand(0, 6.28),
+      baseOp: mat.opacity
+    });
+  }
+
+  // Ambient floating sand grains across full vertical volume
+  const grainTex = makeSoftTexture('rgba(218, 172, 118, 0.92)', 'rgba(218, 172, 118, 0)');
+  for (let i = 0; i < 120; i++) {
+    const mat = new THREE.SpriteMaterial({
+      map: grainTex,
+      transparent: true,
+      opacity: rand(0.25, 0.62),
+      depthWrite: false
+    });
+    const s = new THREE.Sprite(mat);
+    const sc = rand(0.045, 0.14);
+    s.scale.set(sc, sc, 1);
+    s.position.set(rand(-4.5, 4.5), rand(0.15, 6.8), rand(-3.8, 3.8));
+    scene.add(s);
+    grains.push({
+      s,
+      spd: rand(0.75, 1.85),
+      wob: rand(0.6, 2.2),
+      ph: rand(0, 6.28),
+      baseOp: mat.opacity
+    });
   }
 }
 
+// ---------- UI Hints & Dual Interactive Mechanics (Sandstorm + Camel Caravan) ----------
 const hintIdle = 'Summon the sandstorm';
 const hintStorm = 'It howls';
+const hintCaravan = 'A caravan crosses the dunes';
 let hintOwner = 'idle';
-function setHint(text, owner) { hintEl.textContent = text; hintEl.classList.remove('faded'); hintOwner = owner; }
-function resetHintIf(owner) { if (hintOwner === owner) setHint(hintIdle, 'idle'); }
+let tapCount = 0;
+
+function setHint(text, owner) {
+  hintEl.textContent = text;
+  hintEl.classList.remove('faded');
+  hintOwner = owner;
+}
+function resetHintIf(owner) {
+  if (hintOwner === owner) setHint(hintIdle, 'idle');
+}
 setHint(hintIdle, 'idle');
 
 let storm = { active: false, t0: 0 };
-let lastTap = 0;
+let lastTap = -10;
+
 function summonStorm(now) {
   lastTap = now;
-  storm.active = true; storm.t0 = now;
+  storm.active = true;
+  storm.t0 = now;
   setHint(hintStorm, 'user');
-  for (let i = 0; i < 26; i++) {
+  for (let i = 0; i < 34; i++) {
     const mat = new THREE.SpriteMaterial({ map: gustTex, transparent: true, opacity: 0, depthWrite: false });
     const s = new THREE.Sprite(mat);
-    const sc = rand(1.2, 2.6); s.scale.set(sc * 1.8, sc, 1);
-    s.position.set(-7 + rand(-1, 1), rand(0.3, 4.2), rand(-3.5, 3.5));
+    const sc = rand(1.3, 2.9);
+    s.scale.set(sc * 1.9, sc, 1);
+    s.position.set(-7.2 + rand(-1.2, 1.2), rand(0.25, 5.2), rand(-3.6, 3.6));
     scene.add(s);
-    gusts.push({ s, t0: now + rand(0, 0.9), dur: rand(2.2, 3.4), x0: s.position.x, y0: s.position.y });
+    gusts.push({
+      s,
+      t0: now + rand(0, 1.05),
+      dur: rand(2.3, 3.6),
+      x0: s.position.x,
+      y0: s.position.y
+    });
   }
   setTimeout(() => resetHintIf('user'), 5200);
 }
 
-// ---------- interaction ----------
+function summonCaravan(now) {
+  caravan.active = true;
+  caravan.t0 = now;
+  for (const c of caravan.camels) c.root.visible = true;
+}
+
+// ---------- Raycaster & Pointer Interaction ----------
 const ray = new THREE.Raycaster();
 const ptr = new THREE.Vector2();
-const stormProxy = new THREE.Mesh(new THREE.BoxGeometry(6.5, 5, 6.5),
-  new THREE.MeshBasicMaterial({ visible: false }));
-stormProxy.position.y = 1.2; scene.add(stormProxy);
+const stormProxy = new THREE.Mesh(
+  new THREE.BoxGeometry(7.2, 6.5, 7.2),
+  new THREE.MeshBasicMaterial({ visible: false })
+);
+stormProxy.position.y = 1.4;
+scene.add(stormProxy);
+
 let downX = 0, downY = 0;
-renderer.domElement.addEventListener('pointerdown', e => { downX = e.clientX; downY = e.clientY; });
+renderer.domElement.addEventListener('pointerdown', e => {
+  downX = e.clientX;
+  downY = e.clientY;
+});
 renderer.domElement.addEventListener('pointerup', e => {
   if (Math.hypot(e.clientX - downX, e.clientY - downY) > 8) return;
   ptr.x = (e.clientX / innerWidth) * 2 - 1;
@@ -306,26 +1205,44 @@ renderer.domElement.addEventListener('pointerup', e => {
   ray.setFromCamera(ptr, camera);
   if (ray.intersectObject(stormProxy, false).length) {
     const now = performance.now() / 1000;
-    if (now - lastTap > 1.5) summonStorm(now);
+    if (now - lastTap > 1.2) {
+      tapCount++;
+      summonStorm(now);
+      if (!caravan.active || (now - caravan.t0 > caravan.dur * 0.85)) {
+        summonCaravan(now);
+        if (tapCount % 2 === 0) {
+          setHint(hintCaravan, 'user');
+        }
+      }
+    }
   }
 });
 
-// ---------- camera containment ----------
+// Start an initial gentle caravan appearance shortly after load so the world feels alive
+summonCaravan(performance.now() / 1000 + 0.5);
+
+// ---------- Responsive Camera Containment ----------
 const fitBox = new THREE.Box3(
-  new THREE.Vector3(-3.3, -2.35, -3.3),
-  new THREE.Vector3(3.3, 3.8, 3.3));
+  new THREE.Vector3(-3.55, -2.35, -3.55),
+  new THREE.Vector3(3.55, 3.85, 3.55)
+);
+
 function fitCamera() {
   const center = fitBox.getCenter(new THREE.Vector3());
   controls.target.copy(center);
-  const dir = new THREE.Vector3(0.16, 0.52, 1).normalize();
+  const dir = new THREE.Vector3(0.18, 0.50, 1).normalize();
   const corners = [];
   for (const x of [fitBox.min.x, fitBox.max.x])
     for (const y of [fitBox.min.y, fitBox.max.y])
       for (const z of [fitBox.min.z, fitBox.max.z])
         corners.push(new THREE.Vector3(x, y, z));
+
   const probe = new THREE.PerspectiveCamera(camera.fov, camera.aspect, 0.1, 240);
-  probe.position.copy(center).addScaledVector(dir, 0.001); probe.lookAt(center); probe.updateMatrixWorld();
+  probe.position.copy(center).addScaledVector(dir, 0.001);
+  probe.lookAt(center);
+  probe.updateMatrixWorld();
   const inv = probe.matrixWorldInverse;
+
   let need = 0;
   const vFov = THREE.MathUtils.degToRad(camera.fov) / 2;
   const hFov = Math.atan(Math.tan(vFov) * camera.aspect);
@@ -334,58 +1251,164 @@ function fitCamera() {
     const d = -p.z;
     need = Math.max(need, d + Math.abs(p.y) / Math.tan(vFov), d + Math.abs(p.x) / Math.tan(hFov));
   }
-  const dist = need * 1.1 + 0.2;
-  const footerBias = -0.35; // aim lower so the slab clears the footer band
+
+  // Extra margin on tall portrait viewports so slab clears both header & footer cleanly
+  const aspectMargin = camera.aspect < 0.65 ? 1.16 : 1.11;
+  const dist = need * aspectMargin + 0.25;
+  const footerBias = camera.aspect < 0.65 ? -0.18 : -0.32;
   controls.target.y += footerBias;
   camera.position.copy(center).addScaledVector(dir, dist);
   camera.position.y += footerBias;
-  camera.lookAt(controls.target); controls.update();
+  camera.lookAt(controls.target);
+  controls.update();
 }
 fitCamera();
+
 addEventListener('resize', () => {
-  camera.aspect = innerWidth / innerHeight; pickFov();
-  renderer.setSize(innerWidth, innerHeight); fitCamera();
+  camera.aspect = innerWidth / innerHeight;
+  pickFov();
+  renderer.setSize(innerWidth, innerHeight);
+  fitCamera();
 });
 
-// ---------- animate ----------
-const clock = new THREE.Clock();
+// ---------- Wall-Clock Driven Animation Loop ----------
+let prevNow = performance.now() / 1000;
 const ndcV = new THREE.Vector3();
-const bgBase = new THREE.Color(0xe8c9a0);
-const bgStorm = new THREE.Color(0xbd8a54);
+
 function animate() {
   requestAnimationFrame(animate);
-  const dt = Math.min(clock.getDelta(), 0.3);
   const now = performance.now() / 1000;
-  const stormBoost = storm.active ? Math.max(0, 1 - (now - storm.t0) / 5.2) : 0;
-  scene.background.copy(bgBase).lerp(bgStorm, stormBoost * 0.85);
-  scene.fog.color.copy(scene.background);
-  sunSpr.material.opacity = 0.95 * (1 - stormBoost * 0.65);
-  if (storm.active && now - storm.t0 > 5.4) storm.active = false;
-  // ambient grains, sped up during storm
-  for (const g of grains) {
-    g.s.position.x += g.spd * (1 + stormBoost * 4) * dt;
-    g.s.position.y += Math.sin(now * g.wob + g.ph) * dt * 0.3;
-    if (g.s.position.x > 4.5) { g.s.position.x = -4.5; g.s.position.y = rand(0.2, 5.6); }
-    ndcV.copy(g.s.position).project(camera);
-    const inBand = ndcV.y > 0.45 && Math.abs(ndcV.x) < 0.62;
-    g.s.material.opacity = inBand ? 0.08 : g.baseOp * (1 + stormBoost * 0.6);
+  const dt = Math.min(Math.max(now - prevNow, 0.001), 0.1);
+  prevNow = now;
+
+  // Storm intensity curve driven strictly by wall-clock
+  let stormBoost = 0;
+  if (storm.active) {
+    const elapsed = now - storm.t0;
+    if (elapsed > 5.4) {
+      storm.active = false;
+    } else {
+      const rampIn = THREE.MathUtils.smoothstep(elapsed, 0, 0.65);
+      const rampOut = 1 - THREE.MathUtils.smoothstep(elapsed, 3.2, 5.4);
+      stormBoost = rampIn * rampOut;
+    }
   }
-  // gust wall sweeps across
-  for (const gu of gusts) {
+
+  scene.background.copy(bgBase).lerp(bgStorm, stormBoost * 0.88);
+  scene.fog.color.copy(scene.background);
+  scene.fog.density = 0.022 + stormBoost * 0.045;
+  sunSpr.material.opacity = 0.96 * (1 - stormBoost * 0.68);
+  sunHaloSpr.material.opacity = 0.75 * (1 - stormBoost * 0.78) + Math.sin(now * 1.7) * 0.04;
+  sun.intensity = 3.1 * (1 - stormBoost * 0.45);
+
+  // Ambient sand grains
+  for (const g of grains) {
+    g.s.position.x += g.spd * (1 + stormBoost * 4.5) * dt;
+    g.s.position.y += Math.sin(now * g.wob + g.ph) * dt * 0.32;
+    if (g.s.position.x > 4.8) {
+      g.s.position.x = -4.8;
+      g.s.position.y = rand(0.15, 6.8);
+    }
+    ndcV.copy(g.s.position).project(camera);
+    const inBand = ndcV.y > 0.52 && Math.abs(ndcV.x) < 0.65;
+    g.s.material.opacity = inBand ? 0.08 : g.baseOp * (1 + stormBoost * 0.65);
+  }
+
+  // Ground-skimming wind streamers
+  for (const st of groundStreamers) {
+    st.s.position.x += st.spd * (1 + stormBoost * 3.8) * dt;
+    if (st.s.position.x > 3.1) {
+      st.s.position.x = -3.1;
+      st.s.position.z = rand(-2.9, 2.9);
+    }
+    const sy = getSandHeight(st.s.position.x, st.s.position.z);
+    st.s.position.y = sy + 0.11 + Math.sin(now * 3.2 + st.ph) * 0.03;
+    const edgeFade = 1 - THREE.MathUtils.smoothstep(Math.abs(st.s.position.x), 2.2, 3.1);
+    st.s.material.opacity = st.baseOp * edgeFade * (1 + stormBoost * 0.9);
+  }
+
+  // High altitude dust wisps (keeps tall portrait phone sky rich)
+  for (const w of highWisps) {
+    w.s.position.x += w.spd * (1 + stormBoost * 2.5) * dt;
+    w.s.position.y = w.y0 + Math.sin(now * 0.6 + w.ph) * 0.12;
+    if (w.s.position.x > 6.5) w.s.position.x = -6.5;
+    ndcV.copy(w.s.position).project(camera);
+    const inHeader = ndcV.y > 0.62 && Math.abs(ndcV.x) < 0.62;
+    w.s.material.opacity = (inHeader ? 0.1 : w.baseOp) * (1 + stormBoost * 0.5);
+  }
+
+  // Gust wall sprites (wall-clock lifetime + cleanup)
+  for (let i = gusts.length - 1; i >= 0; i--) {
+    const gu = gusts[i];
     const t = (now - gu.t0) / gu.dur;
     if (t < 0) continue;
-    if (t >= 1) { gu.s.material.opacity = 0; continue; }
-    gu.s.position.x = gu.x0 + t * 11;
-    gu.s.position.y = gu.y0 + Math.sin(t * 9) * 0.2;
-    gu.s.material.opacity = Math.sin(Math.min(t * 1.2, 1) * Math.PI) * 0.75;
+    if (t >= 1) {
+      scene.remove(gu.s);
+      gu.s.material.dispose();
+      gusts.splice(i, 1);
+      continue;
+    }
+    gu.s.position.x = gu.x0 + t * 13.5;
+    gu.s.position.y = gu.y0 + Math.sin(t * 9) * 0.24;
+    gu.s.material.opacity = Math.sin(Math.min(t * 1.15, 1) * Math.PI) * 0.78;
   }
-  // vultures circle high, faded in title band
-  for (const v of vultures) {
-    const a = now * v.spd + v.ph;
-    v.s.position.set(v.ax + Math.cos(a) * v.r, v.ay + Math.sin(now * 0.8 + v.ph) * 0.2, v.az + Math.sin(a) * v.r);
-    ndcV.copy(v.s.position).project(camera);
-    v.s.material.opacity = (ndcV.y > 0.45 && Math.abs(ndcV.x) < 0.62) ? 0.1 : 0.8;
+
+  // Circling 3D desert birds with banking & wingbeats
+  for (const b of birds) {
+    const a = now * b.spd + b.ph;
+    const nx = b.ax + Math.cos(a) * b.r;
+    const nz = b.az + Math.sin(a) * b.r;
+    const ny = b.ay + Math.sin(now * 0.75 + b.ph) * 0.22;
+    b.g.position.set(nx, ny, nz);
+    b.g.rotation.y = -a;
+    b.g.rotation.z = 0.22;
+    const flap = Math.sin(now * b.flapSpd + b.ph) * 0.42;
+    b.lw.rotation.z = flap;
+    b.rw.rotation.z = -flap;
   }
+
+  // Camel Caravan marching along the sweeping background dune ridge (wall-clock driven)
+  if (caravan.active) {
+    const cElapsed = now - caravan.t0;
+    if (cElapsed > caravan.dur + 2.5) {
+      caravan.active = false;
+      for (const c of caravan.camels) c.root.visible = false;
+    } else {
+      for (let i = 0; i < caravan.camels.length; i++) {
+        const c = caravan.camels[i];
+        const u = (cElapsed - i * 1.05) / caravan.dur;
+        if (u < 0 || u > 1) {
+          c.root.visible = false;
+          continue;
+        }
+        c.root.visible = true;
+        const cx = THREE.MathUtils.lerp(-2.95, 2.95, u);
+        const cz = -2.05 + Math.sin(cx * 0.75) * 0.38;
+        const cy = getSandHeight(cx, cz);
+        const nextX = cx + 0.1;
+        const nextZ = -2.05 + Math.sin(nextX * 0.75) * 0.38;
+
+        // Smooth scale fade at slab boundaries so camels emerge & vanish gracefully
+        const edgeScale = Math.min(
+          THREE.MathUtils.smoothstep(u, 0.0, 0.08),
+          1 - THREE.MathUtils.smoothstep(u, 0.92, 1.0)
+        ) * 0.68;
+
+        c.root.position.set(cx, cy + Math.abs(Math.sin(now * 5.5 + i)) * 0.018, cz);
+        c.root.scale.setScalar(Math.max(0.001, edgeScale));
+        c.root.rotation.y = -Math.atan2(nextZ - cz, nextX - cx);
+
+        // Articulated stride cycle
+        const stride = now * 5.8 + i * 1.7;
+        c.legs[0].rotation.z = Math.sin(stride) * 0.42;
+        c.legs[1].rotation.z = -Math.sin(stride) * 0.42;
+        c.legs[2].rotation.z = -Math.sin(stride) * 0.38;
+        c.legs[3].rotation.z = Math.sin(stride) * 0.38;
+        c.neckGroup.rotation.z = Math.sin(stride * 2) * 0.06;
+      }
+    }
+  }
+
   controls.update();
   renderer.render(scene, camera);
 }
