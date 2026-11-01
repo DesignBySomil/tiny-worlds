@@ -140,15 +140,15 @@ const slabGroup = new THREE.Group(); scene.add(slabGroup);
 // ---------- wheat tufts (instanced, wind-swayed) ----------
 let wheatMesh; const wheatData = [];
 {
-  const tg = new THREE.ConeGeometry(0.075, 0.42, 4);
-  tg.translate(0, 0.21, 0);
+  const tg = new THREE.ConeGeometry(0.09, 0.52, 4);
+  tg.translate(0, 0.26, 0);
   wheatMesh = new THREE.InstancedMesh(tg,
-    new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.9, flatShading: true }), 260);
+    new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.9, flatShading: true }), 720);
   const dummy = new THREE.Object3D(); const col = new THREE.Color();
-  for (let i = 0; i < 260; i++) {
-    const a = rng() * Math.PI * 2, d = Math.sqrt(rng()) * 6.9;
+  for (let i = 0; i < 720; i++) {
+    const a = rng() * Math.PI * 2, d = Math.sqrt(rng()) * 7.1;
     const x = Math.cos(a) * d, z = Math.sin(a) * d;
-    const s = rand(0.7, 1.5);
+    const s = rand(0.8, 1.7);
     dummy.position.set(x, 0.1, z);
     dummy.scale.setScalar(s);
     dummy.rotation.set(0, rng() * 3, 0);
@@ -262,9 +262,14 @@ let funnelMesh, funnelState = 'aloft', funnelT = 0, bottomY = 4.6;
 {
   // rotating cloud deck
   const deck = new THREE.Group(); deck.position.set(0, 9.6, -1); storm.add(deck);
-  for (let i = 0; i < 15; i++) {
-    const a = rng() * Math.PI * 2, d = rand(0, 6.4);
-    const r = rand(1.6, 3.1);
+  {
+    const core = new THREE.Mesh(new THREE.IcosahedronGeometry(4.2, 1),
+      new THREE.MeshStandardMaterial({ color: PAL.cloud, roughness: 1, flatShading: true }));
+    core.scale.y = 0.5; core.position.y = 0.1; deck.add(core);
+  }
+  for (let i = 0; i < 24; i++) {
+    const a = rng() * Math.PI * 2, d = rand(1.8, 7.2);
+    const r = rand(1.7, 3.2);
     const blob = new THREE.Mesh(new THREE.IcosahedronGeometry(r, 1),
       new THREE.MeshStandardMaterial({ color: rng() < 0.6 ? PAL.cloud : PAL.cloudLight,
         roughness: 1, flatShading: true }));
@@ -278,16 +283,21 @@ let funnelMesh, funnelState = 'aloft', funnelT = 0, bottomY = 4.6;
   storm.userData.deck = deck;
   // funnel: lathe with noise, hangs from deck
   const prof = [];
-  for (let i = 0; i <= 14; i++) {
-    const k = i / 14;                       // 0 top .. 1 bottom
-    prof.push(new THREE.Vector2(0.28 + (1 - k) * (1 - k) * 2.0 + 0.05, k));
+  for (let i = 0; i <= 16; i++) {
+    const k = i / 16;                       // 0 top .. 1 bottom
+    let r = 0.34 + 0.28 * Math.pow(1 - k, 1.4);
+    if (k < 0.18) r += (0.18 - k) / 0.18 * 1.1;   // flare into the deck
+    prof.push(new THREE.Vector2(r, k));
   }
   const fg = new THREE.LatheGeometry(prof, 18);
   const fp = fg.attributes.position;
   for (let i = 0; i < fp.count; i++) {
     const x = fp.getX(i), y = fp.getY(i), z = fp.getZ(i);
-    const n = 0.16 * n2(x * 2.4 + y * 5, z * 2.4, 9.7);
-    fp.setX(i, x * (1 + n)); fp.setZ(i, z * (1 + n));
+    const n = 0.22 * n2(x * 2.8 + y * 6, z * 2.8, 9.7);
+    const tw = y * 0.9;                      // spiral twist
+    const c = Math.cos(tw), sn = Math.sin(tw);
+    const nx = (x * c - z * sn) * (1 + n), nz = (x * sn + z * c) * (1 + n);
+    fp.setX(i, nx); fp.setZ(i, nz);
   }
   fg.computeVertexNormals();
   funnelMesh = new THREE.Mesh(fg, new THREE.MeshStandardMaterial({
@@ -492,6 +502,7 @@ function animate() {
   renderer.render(scene, camera);
 }
 animate();
+// pass 2: ropey twisted funnel, solid cloud deck, 720 wheat tufts
 // pass 1: tornado-prairie initial build - wheat field + 260 swaying tufts, farm
 // cluster (house/barn/silo/windmill/fence/bales), rotating cloud deck, noise lathe
 // funnel (tap to touch down: dust skirt + debris + wind surge + darkening sky),
