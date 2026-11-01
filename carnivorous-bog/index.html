@@ -47,7 +47,7 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 
-// pass 2
+// pass 3
 const container = document.getElementById('app');
 const hintEl = document.getElementById('hint');
 const scene = new THREE.Scene();
@@ -106,21 +106,21 @@ function makeSoftTexture(inner, outer) {
 const SLAB_H = 1.4;
 const slabGroup = new THREE.Group(); scene.add(slabGroup);
 {
-  const top = new THREE.Mesh(new THREE.BoxGeometry(11, 0.22, 11), new THREE.MeshStandardMaterial({ color: 0x51663f, roughness: 0.95 }));
+  const top = new THREE.Mesh(new THREE.BoxGeometry(8.5, 0.22, 8.5), new THREE.MeshStandardMaterial({ color: 0x51663f, roughness: 0.95 }));
   top.position.y = -0.11; top.receiveShadow = true; slabGroup.add(top);
-  const mid = new THREE.Mesh(new THREE.BoxGeometry(11, SLAB_H, 11),
+  const mid = new THREE.Mesh(new THREE.BoxGeometry(8.5, SLAB_H, 8.5),
     new THREE.MeshStandardMaterial({ color: 0x2c3822, roughness: 1 }));
   mid.position.y = -SLAB_H/2 - 0.2; slabGroup.add(mid);
-  const base = new THREE.Mesh(new THREE.BoxGeometry(11.4, 0.5, 11.4),
+  const base = new THREE.Mesh(new THREE.BoxGeometry(8.9, 0.5, 8.9),
     new THREE.MeshStandardMaterial({ color: 0x1a2417, roughness: 1 }));
   base.position.y = -SLAB_H - 0.45; slabGroup.add(base);
 }
 
 // ---------- pools ----------
 const pools = [
-  { x: -2.6, z: 1.8, r: 1.5 },
-  { x: 2.8, z: -0.6, r: 1.2 },
-  { x: 0.4, z: 3.7, r: 0.95 },
+  { x: -2.0, z: 1.5, r: 1.25 },
+  { x: 2.1, z: -0.5, r: 1.0 },
+  { x: 0.3, z: 2.9, r: 0.8 },
 ];
 const poolMat = new THREE.MeshStandardMaterial({ color: 0x14423c, roughness: 0.12, metalness: 0.55 });
 const rimMat = new THREE.MeshStandardMaterial({ color: 0x22321c, roughness: 1 });
@@ -139,7 +139,7 @@ for (const p of pools) {
   const mats = [mossA, mossB, mossC];
   let placed = 0, guard = 0;
   while (placed < 16 && guard++ < 200) {
-    const x = rand(-5, 5), z = rand(-5, 5);
+    const x = rand(-3.9, 3.9), z = rand(-3.9, 3.9);
     let ok = true;
     for (const p of pools) if (Math.hypot(x - p.x, z - p.z) < p.r + 0.5) ok = false;
     if (!ok) continue;
@@ -154,7 +154,7 @@ for (const p of pools) {
     const near = pools[i % pools.length];
     const a = rand(0, Math.PI * 2), d = near.r + rand(0.25, 1.4);
     let x = near.x + Math.cos(a) * d, z = near.z + Math.sin(a) * d;
-    if (Math.abs(x) > 5.2 || Math.abs(z) > 5.2) { x = rand(-5, 5); z = rand(-5, 5); }
+    if (Math.abs(x) > 4.0 || Math.abs(z) > 4.0) { x = rand(-3.9, 3.9); z = rand(-3.9, 3.9); }
     g.position.set(x, rand(0.15, 0.3), z); g.rotation.z = rand(-0.15, 0.15);
     slabGroup.add(g);
   }
@@ -164,7 +164,7 @@ for (const p of pools) {
     const near = pools[i % pools.length];
     const a = rand(0, Math.PI * 2), d = near.r + rand(0.12, 0.5);
     const x = near.x + Math.cos(a) * d, z = near.z + Math.sin(a) * d;
-    if (Math.abs(x) > 5.2 || Math.abs(z) > 5.2) continue;
+    if (Math.abs(x) > 4.0 || Math.abs(z) > 4.0) continue;
     const h = rand(0.9, 1.5);
     const reed = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.035, h, 5), reedMat);
     reed.position.set(x, h/2, z); reed.rotation.z = rand(-0.08, 0.08); reed.castShadow = true;
@@ -201,7 +201,7 @@ function makeFlytrap(x, z, R, yaw) {
   stem.castShadow = true; root.add(stem);
   // head
   const head = new THREE.Group(); head.position.copy(top);
-  head.rotation.x = -0.38; head.rotation.y = -yaw + rand(-0.22, 0.22);
+  head.rotation.x = -0.85; head.rotation.y = -yaw + rand(-0.22, 0.22);
   root.add(head);
   const green = new THREE.MeshStandardMaterial({ color: 0x5d8a42, roughness: 0.55, side: THREE.DoubleSide });
   const pink = new THREE.MeshStandardMaterial({ color: 0xe8608a, roughness: 0.4, emissive: 0x8a2040, emissiveIntensity: 0.7 });
@@ -216,7 +216,7 @@ function makeFlytrap(x, z, R, yaw) {
     const lobe = new THREE.Mesh(lobeGeo, green);
     lobe.scale.setScalar(R); lobe.castShadow = true; ls.add(lobe);
     const inner = new THREE.Mesh(lobeGeo, pink);
-    inner.scale.setScalar(R * 0.9); inner.position.x = R * 0.06; ls.add(inner);
+    inner.scale.setScalar(R * 0.97); inner.position.x = R * 0.06; ls.add(inner);
     const nC = 10;
     for (let i = 0; i < nC; i++) {
       const a = (i / nC) * Math.PI * 2;
@@ -238,10 +238,10 @@ function makeFlytrap(x, z, R, yaw) {
   traps.push(trap);
   return trap;
 }
-makeFlytrap(-3.6, -2.2, 0.72, 0.5);
-makeFlytrap(-0.8, -3.3, 0.64, -0.3);
-makeFlytrap(2.2, -2.7, 0.7, 0.2);
-makeFlytrap(4.0, 1.7, 0.6, -0.6);
+makeFlytrap(-2.8, -1.8, 0.72, 0.5);
+makeFlytrap(-0.6, -2.6, 0.64, -0.3);
+makeFlytrap(1.7, -2.1, 0.7, 0.2);
+makeFlytrap(3.1, 1.4, 0.6, -0.6);
 function setTrapAngles(trap, k) {
   const a = OPEN_A + (CLOSE_A - OPEN_A) * k;
   trap.pivots[0].rotation.z = a;
@@ -270,9 +270,9 @@ function makePitcher(x, z, s, yaw) {
   stalk.position.set(0, 2.35, 0.12); stalk.rotation.x = 0.55; g.add(stalk);
   slabGroup.add(g);
 }
-makePitcher(-4.4, 2.9, 1.1, 0.4);
-makePitcher(1.3, -1.4, 0.85, -0.5);
-makePitcher(4.4, -1.3, 0.95, 0.9);
+makePitcher(-3.4, 2.3, 1.1, 0.4);
+makePitcher(1.0, -1.1, 0.85, -0.5);
+makePitcher(3.4, -1.0, 0.95, 0.9);
 
 // ---------- sundews ----------
 function makeSundew(x, z, s) {
@@ -299,9 +299,9 @@ function makeSundew(x, z, s) {
   }
   slabGroup.add(g);
 }
-makeSundew(1.3, 2.7, 2.0);
-makeSundew(-4.4, 0.4, 1.7);
-makeSundew(-1.7, 0.4, 1.6);
+makeSundew(1.0, 2.1, 2.0);
+makeSundew(-3.4, 0.3, 1.7);
+makeSundew(-1.3, 0.3, 1.6);
 
 // ---------- the fly ----------
 const fly = { state: 'orbit', t0: 0, from: new THREE.Vector3(), to: new THREE.Vector3(),
@@ -404,12 +404,12 @@ const bubbles = [];
 
 // ---------- camera containment ----------
 const fitBox = new THREE.Box3(
-  new THREE.Vector3(-5.1, -1.6, -5.1),
-  new THREE.Vector3(5.1, 2.9, 5.1));
+  new THREE.Vector3(-4.2, -1.6, -4.2),
+  new THREE.Vector3(4.2, 2.9, 4.2));
 function fitCamera() {
   const center = fitBox.getCenter(new THREE.Vector3());
   controls.target.copy(center);
-  const dir = new THREE.Vector3(0.14, 0.5, 1).normalize();
+  const dir = new THREE.Vector3(0.14, 0.62, 1).normalize();
   const corners = [];
   for (const x of [fitBox.min.x, fitBox.max.x])
     for (const y of [fitBox.min.y, fitBox.max.y])
