@@ -152,7 +152,7 @@ function cherryTree(x, z, s, lean) {
   const segs = 4;
   let trunkTop = new THREE.Vector3();
   for (let i = 0; i < segs; i++) {
-    const len = (0.85 - i * 0.12) * s, rad = (0.22 - i * 0.045) * s;
+    const len = (0.72 - i * 0.1) * s, rad = (0.22 - i * 0.045) * s;
     const m = new THREE.Mesh(new THREE.CylinderGeometry(rad * 0.8, rad, len, 6), trunkMat);
     m.position.set(px + dir.x * len/2, py + dir.y * len/2, pz + dir.z * len/2);
     m.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0), dir.clone().normalize());
@@ -174,13 +174,14 @@ function cherryTree(x, z, s, lean) {
   // dense multi-blob canopy
   const tones = [PAL.blossomA, PAL.blossomB, PAL.blossomC, PAL.blossomDeep];
   const canopy = new THREE.Group();
-  const nBlobs = 10 + Math.floor(rand(0, 3));
+  const nBlobs = 17 + Math.floor(rand(0, 4));
   for (let i = 0; i < nBlobs; i++) {
-    const a = rand(0, Math.PI * 2), rr = rand(0.3, 1.35) * s, yy = rand(-0.35, 0.6) * s;
-    const r = rand(0.55, 0.95) * s;
+    const a = rand(0, Math.PI * 2), rr = rand(0.15, 1.1) * s, yy = rand(-0.5, 0.42) * s;
+    const r = rand(0.7, 1.15) * s;
     canopyBlob(canopy, Math.cos(a) * rr, yy, Math.sin(a) * rr, r, tones[i % 4]);
   }
-  canopyBlob(canopy, 0, 0.55 * s, 0, 1.0 * s, tones[Math.floor(rand(0, 2))]);  // crown
+  canopyBlob(canopy, 0, 0.4 * s, 0, 1.25 * s, tones[Math.floor(rand(0, 2))]);  // crown
+  canopyBlob(canopy, 0, -0.35 * s, 0, 1.05 * s, tones[2]);                       // underlayer fills the trunk gap
   canopy.position.copy(trunkTop);
   g.add(canopy);
   canopies.push({ grp: canopy, ph: rand(0, 6.28), center: trunkTop.clone(), s });
@@ -202,14 +203,14 @@ cherryTree(-3.4, 4.2, 1.0, -0.14);
   const g = new THREE.Group();
   const st = new THREE.MeshStandardMaterial({ color: PAL.stone, roughness: 0.9, flatShading: true });
   const stD = new THREE.MeshStandardMaterial({ color: PAL.stoneDark, roughness: 0.9, flatShading: true });
-  const base = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.22, 0.7), stD); base.position.y = 0.11; g.add(base);
-  const post = new THREE.Mesh(new THREE.CylinderGeometry(0.11, 0.14, 0.75, 6), st); post.position.y = 0.6; g.add(post);
-  const box = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.38, 0.5), st); box.position.y = 1.16; g.add(box);
-  const win = new THREE.Mesh(new THREE.BoxGeometry(0.54, 0.16, 0.3),
+  const base = new THREE.Mesh(new THREE.BoxGeometry(0.95, 0.26, 0.95), stD); base.position.y = 0.13; g.add(base);
+  const post = new THREE.Mesh(new THREE.CylinderGeometry(0.13, 0.17, 1.0, 6), st); post.position.y = 0.75; g.add(post);
+  const box = new THREE.Mesh(new THREE.BoxGeometry(0.62, 0.46, 0.62), st); box.position.y = 1.5; g.add(box);
+  const win = new THREE.Mesh(new THREE.BoxGeometry(0.66, 0.2, 0.36),
     new THREE.MeshStandardMaterial({ color: 0xffe8b0, emissive: 0xffd98a, emissiveIntensity: 0.9 }));
-  win.position.y = 1.16; g.add(win);
-  const roof = new THREE.Mesh(new THREE.ConeGeometry(0.48, 0.32, 4), stD); roof.position.y = 1.52; roof.rotation.y = Math.PI/4; g.add(roof);
-  const knob = new THREE.Mesh(new THREE.SphereGeometry(0.09, 6, 5), st); knob.position.y = 1.74; g.add(knob);
+  win.position.y = 1.5; g.add(win);
+  const roof = new THREE.Mesh(new THREE.ConeGeometry(0.6, 0.4, 4), stD); roof.position.y = 1.94; roof.rotation.y = Math.PI/4; g.add(roof);
+  const knob = new THREE.Mesh(new THREE.SphereGeometry(0.11, 6, 5), st); knob.position.y = 2.2; g.add(knob);
   g.position.set(0.8, GRASS_Y, 1.2);
   g.traverse(o => { if (o.isMesh) { o.castShadow = true; } });
   scene.add(g);
@@ -438,6 +439,8 @@ function animate() {
   renderer.render(scene, camera);
 }
 animate();
+// pass 2: canopy mass - 17-20 overlapping blobs + underlayer (were separate balls on sticks),
+//         shorter trunks, bigger lantern
 // pass 1: first cherry-blossom-garden build - dense from the start (main: sparse schematics get
 //         rejected): 4 bent-trunk cherry trees with 10-13 blob faceted canopies, 150 pooled falling
 //         petals + ~275 ground drift petals, tap tree = 60-petal shower, breeze auto flurries,
