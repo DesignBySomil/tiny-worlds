@@ -1,0 +1,1484 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Lava Cave - a tiny world</title>
+<style>
+  html, body {
+    margin: 0; padding: 0; height: 100%;
+    background: #1d1730; overflow: hidden;
+    font-family: Georgia, 'Times New Roman', serif;
+    user-select: none; -webkit-user-select: none;
+  }
+  #app {
+    position: fixed; inset: 0;
+    background: radial-gradient(circle at 50% 52%, #392d59 0%, #241c3b 58%, #151024 100%);
+  }
+  header {
+    position: fixed; top: 0; left: 0; right: 0; text-align: center; pointer-events: none;
+    padding: max(14px, env(safe-area-inset-top)) 14px 16px; z-index: 5;
+    background: linear-gradient(rgba(12, 9, 22, 0.82), rgba(12, 9, 22, 0.38) 60%, rgba(12, 9, 22, 0));
+  }
+  header h1 {
+    margin: 0; font-size: 15px; letter-spacing: .42em; font-weight: 400;
+    color: #fbf6ee; text-transform: uppercase;
+    text-shadow: 0 1px 10px rgba(0, 0, 0, .92), 0 0 22px rgba(255, 120, 50, .3);
+  }
+  header .rule {
+    width: 48px; height: 1px;
+    background: linear-gradient(90deg, rgba(248,243,234,0), rgba(248,243,234,.72), rgba(248,243,234,0));
+    margin: 8px auto;
+  }
+  #hint {
+    display: inline-block; font-size: 11px; letter-spacing: .22em; text-transform: uppercase;
+    color: #ffffff; transition: opacity 1.0s ease, transform 0.35s ease, border-color 0.35s ease;
+    padding: 5px 13px; border-radius: 3px;
+    background: rgba(16, 12, 28, .64);
+    border: 1px solid rgba(255, 235, 215, .22);
+    text-shadow: 0 1px 3px rgba(0,0,0,.98), 0 0 8px rgba(0,0,0,.95), 0 0 18px rgba(0,0,0,.85);
+  }
+  #hint.faded { opacity: .48; }
+  footer {
+    position: fixed; bottom: 0; left: 0; right: 0; text-align: center; pointer-events: none;
+    padding: 10px 16px max(12px, env(safe-area-inset-bottom)); z-index: 5;
+    font-size: 10px; letter-spacing: .34em; text-transform: uppercase;
+    color: rgba(250, 245, 238, .68);
+    background: linear-gradient(0deg, rgba(12, 9, 22, 0.72) 0%, rgba(12, 9, 22, 0) 100%);
+  }
+  canvas { display: block; touch-action: none; }
+</style>
+</head>
+<body>
+<div id="app"></div>
+<header>
+  <h1>Lava Cave</h1>
+  <div class="rule"></div>
+  <span id="hint"></span>
+</header>
+<footer>A tiny world</footer>
+<script type="importmap">
+{ "imports": {
+  "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+  "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+} }
+</script>
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+// ---------- Deterministic PRNG ----------
+function mulberry32(a) {
+  return function() {
+    a |= 0; a = a + 0x6D2B79F5 | 0;
+    let t = Math.imul(a ^ a >>> 15, 1 | a);
+    t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+    return ((t ^ t >>> 14) >>> 0) / 4294967296;
+  };
+}
+const rng = mulberry32(20261101);
+function rand(a, b) { return a + rng() * (b - a); }
+function randInt(a, b) { return Math.floor(rand(a, b + 1)); }
+
+// ---------- Scene, Camera, Renderer ----------
+const container = document.getElementById('app');
+const hintEl = document.getElementById('hint');
+const scene = new THREE.Scene();
+scene.fog = new THREE.FogExp2(0x231b38, 0.0115);
+
+const camera = new THREE.PerspectiveCamera(38, innerWidth / innerHeight, 0.1, 240);
+function pickFov() {
+  const a = innerWidth / innerHeight;
+  camera.fov = a >= 0.9 ? 35 : (a >= 0.62 ? 41 : 46);
+  camera.updateProjectionMatrix();
+}
+pickFov();
+
+const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: 'high-performance' });
+renderer.setSize(innerWidth, innerHeight);
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.28;
+container.appendChild(renderer.domElement);
+
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+controls.dampingFactor = 0.06;
+controls.enablePan = false;
+controls.minPolarAngle = Math.PI * 0.12;
+controls.maxPolarAngle = Math.PI * 0.49;
+
+// ---------- Procedural Canvas Textures ----------
+function makeLavaTexture() {
+  const cv = document.createElement('canvas');
+  cv.width = cv.height = 256;
+  const cx = cv.getContext('2d');
+  cx.fillStyle = '#e83d00';
+  cx.fillRect(0, 0, 256, 256);
+
+  for (let i = 0; i < 190; i++) {
+    const x = rand(0, 256), y = rand(0, 256), r = rand(8, 38);
+    const g = cx.createRadialGradient(x, y, 1, x, y, r);
+    const hot = rng() > 0.34;
+    g.addColorStop(0, hot ? 'rgba(255, 250, 175, 0.65)' : 'rgba(70, 16, 6, 0.52)');
+    g.addColorStop(0.55, hot ? 'rgba(255, 145, 25, 0.35)' : 'rgba(155, 32, 8, 0.25)');
+    g.addColorStop(1, 'rgba(255, 70, 0, 0)');
+    cx.fillStyle = g;
+    cx.beginPath(); cx.arc(x, y, r, 0, Math.PI * 2); cx.fill();
+  }
+
+  cx.strokeStyle = 'rgba(255, 246, 165, 0.65)';
+  cx.lineWidth = 2.4;
+  for (let i = 0; i < 32; i++) {
+    cx.beginPath();
+    let px = rand(0, 256), py = rand(0, 256);
+    cx.moveTo(px, py);
+    for (let s = 0; s < 5; s++) {
+      px += rand(-28, 28); py += rand(-28, 28);
+      cx.lineTo(px, py);
+    }
+    cx.stroke();
+  }
+  const tex = new THREE.CanvasTexture(cv);
+  tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+  tex.repeat.set(2, 2);
+  return tex;
+}
+
+function makeRockBumpTexture() {
+  const cv = document.createElement('canvas');
+  cv.width = cv.height = 128;
+  const cx = cv.getContext('2d');
+  cx.fillStyle = '#808080';
+  cx.fillRect(0, 0, 128, 128);
+  for (let i = 0; i < 420; i++) {
+    const v = randInt(60, 210);
+    cx.fillStyle = `rgb(${v},${v},${v})`;
+    cx.fillRect(rand(0, 128), rand(0, 128), rand(2, 10), rand(2, 10));
+  }
+  const tex = new THREE.CanvasTexture(cv);
+  tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+  return tex;
+}
+
+function makeParticleSprite(innerCol, midCol, outerCol) {
+  const cv = document.createElement('canvas');
+  cv.width = cv.height = 64;
+  const cx = cv.getContext('2d');
+  const g = cx.createRadialGradient(32, 32, 1.5, 32, 32, 30);
+  g.addColorStop(0, innerCol);
+  g.addColorStop(0.42, midCol);
+  g.addColorStop(1, outerCol);
+  cx.fillStyle = g;
+  cx.fillRect(0, 0, 64, 64);
+  return new THREE.CanvasTexture(cv);
+}
+
+const lavaTex = makeLavaTexture();
+const rockBump = makeRockBumpTexture();
+const haloSpriteTex = makeParticleSprite(
+  'rgba(235, 255, 255, 1.0)',
+  'rgba(70, 210, 255, 0.58)',
+  'rgba(95, 70, 255, 0.0)'
+);
+const sparkSpriteTex = makeParticleSprite(
+  'rgba(255, 255, 255, 1.0)',
+  'rgba(110, 240, 255, 0.9)',
+  'rgba(120, 80, 255, 0.0)'
+);
+
+// ---------- Lighting (Clear Upper Facets, Atmospheric Purple-Blue vs Warm Up-Light) ----------
+// Strong cool sky/vault fill + warm magma bounce so upper rocks & stalactites never crush to black
+scene.add(new THREE.HemisphereLight(0xaec4ff, 0x6b3528, 1.45));
+
+// Cool moonlight key from upper front-right to sculpt every upper arch & stalactite facet
+const moon = new THREE.DirectionalLight(0xbfd4ff, 1.75);
+moon.position.set(8.5, 16, 11);
+moon.castShadow = true;
+moon.shadow.mapSize.set(2048, 2048);
+moon.shadow.camera.left = -9.5;
+moon.shadow.camera.right = 9.5;
+moon.shadow.camera.top = 12.5;
+moon.shadow.camera.bottom = -9.5;
+moon.shadow.camera.near = 2;
+moon.shadow.camera.far = 40;
+moon.shadow.bias = -0.0005;
+scene.add(moon);
+
+// Vivid violet-indigo side/top rim light for rich purple contrast on upper cliffs & stalactites
+const violetRim = new THREE.DirectionalLight(0x9f7aff, 1.35);
+violetRim.position.set(-11, 13, 5);
+scene.add(violetRim);
+
+// Warm orange-amber under-fill directional light simulating magma reflection onto upper ceiling
+const warmUpFill = new THREE.DirectionalLight(0xff7b3a, 1.05);
+warmUpFill.position.set(0, -10, 4);
+scene.add(warmUpFill);
+
+// Dedicated upper vault & stalactite fill light so the arch crown & stalactites have crisp facet separation
+const vaultCrownLight = new THREE.PointLight(0x8fa8ff, 18, 15, 1.35);
+vaultCrownLight.position.set(0, 7.6, -0.5);
+scene.add(vaultCrownLight);
+
+// Warm bounce light directly beneath the upper arch & stalactites
+const archUnderWarm = new THREE.PointLight(0xff6d2e, 22, 13, 1.45);
+archUnderWarm.position.set(0, 4.8, -1.8);
+scene.add(archUnderWarm);
+
+// Primary lava pool light
+const lavaLight = new THREE.PointLight(0xff621a, 36, 17, 1.5);
+lavaLight.position.set(0.1, 1.4, 1.85);
+lavaLight.castShadow = true;
+lavaLight.shadow.bias = -0.001;
+scene.add(lavaLight);
+
+// Cavern throat magma glow
+const throatLight = new THREE.PointLight(0xff4c12, 26, 13, 1.5);
+throatLight.position.set(-0.2, 2.1, -2.5);
+scene.add(throatLight);
+
+// Cool crystal ambient point lights
+const gemLightL = new THREE.PointLight(0x4deeea, 15, 10, 1.5);
+gemLightL.position.set(-3.2, 1.8, -1.2);
+scene.add(gemLightL);
+
+const gemLightR = new THREE.PointLight(0x9b72ff, 14, 10, 1.5);
+gemLightR.position.set(3.2, 1.9, -1.3);
+scene.add(gemLightR);
+
+// ---------- Shared Materials (Lifted Stone Values + Subtle Emissive Tint, Never Black) ----------
+const basaltDarkMat = new THREE.MeshStandardMaterial({
+  color: 0x3f4359,
+  emissive: 0x161329,
+  emissiveIntensity: 0.42,
+  roughness: 0.82,
+  metalness: 0.12,
+  bumpMap: rockBump,
+  bumpScale: 0.035,
+  flatShading: true
+});
+const basaltMidMat = new THREE.MeshStandardMaterial({
+  color: 0x545a75,
+  emissive: 0x1d1836,
+  emissiveIntensity: 0.45,
+  roughness: 0.76,
+  metalness: 0.12,
+  bumpMap: rockBump,
+  bumpScale: 0.04,
+  flatShading: true
+});
+const basaltLightMat = new THREE.MeshStandardMaterial({
+  color: 0x6c7496,
+  emissive: 0x241e42,
+  emissiveIntensity: 0.48,
+  roughness: 0.70,
+  metalness: 0.10,
+  bumpMap: rockBump,
+  bumpScale: 0.04,
+  flatShading: true
+});
+const purpleCliffMat = new THREE.MeshStandardMaterial({
+  color: 0x635685,
+  emissive: 0x281c47,
+  emissiveIntensity: 0.52,
+  roughness: 0.74,
+  metalness: 0.11,
+  bumpMap: rockBump,
+  bumpScale: 0.04,
+  flatShading: true
+});
+const warmStoneMat = new THREE.MeshStandardMaterial({
+  color: 0x6b5258,
+  emissive: 0x2e1618,
+  emissiveIntensity: 0.46,
+  roughness: 0.78,
+  metalness: 0.08,
+  flatShading: true
+});
+const stalactiteMat = new THREE.MeshStandardMaterial({
+  color: 0x756c96,
+  emissive: 0x33203d,
+  emissiveIntensity: 0.55,
+  roughness: 0.66,
+  metalness: 0.14,
+  flatShading: true
+});
+const stalactiteWarmMat = new THREE.MeshStandardMaterial({
+  color: 0x82626c,
+  emissive: 0x451d18,
+  emissiveIntensity: 0.58,
+  roughness: 0.68,
+  metalness: 0.12,
+  flatShading: true
+});
+const crustMat = new THREE.MeshStandardMaterial({
+  color: 0x322424,
+  emissive: 0x4d1707,
+  emissiveIntensity: 0.45,
+  roughness: 0.88,
+  flatShading: true
+});
+const sulfurMat = new THREE.MeshStandardMaterial({
+  color: 0xefd046,
+  emissive: 0x805606,
+  emissiveIntensity: 0.48,
+  roughness: 0.68,
+  flatShading: true
+});
+const obsidianMat = new THREE.MeshStandardMaterial({
+  color: 0x242c44,
+  emissive: 0x1e294a,
+  emissiveIntensity: 0.42,
+  roughness: 0.16,
+  metalness: 0.65,
+  flatShading: true
+});
+
+// Brightest feature in scene: layered incandescent lava
+const lavaMat = new THREE.MeshStandardMaterial({
+  color: 0xff6218,
+  emissive: 0xff5a0e,
+  emissiveIntensity: 2.15,
+  roughness: 0.26,
+  metalness: 0.04,
+  map: lavaTex,
+  emissiveMap: lavaTex
+});
+const hotEdgeOuterMat = new THREE.MeshBasicMaterial({
+  color: 0xff9424, transparent: true, opacity: 0.92
+});
+const hotEdgeCoreMat = new THREE.MeshBasicMaterial({
+  color: 0xfff099, transparent: true, opacity: 0.95
+});
+
+// ---------- Geometry Helpers ----------
+function jitterGeometry(geo, amount, yScale = 1) {
+  const pos = geo.attributes.position;
+  const v = new THREE.Vector3();
+  const map = new Map();
+  for (let i = 0; i < pos.count; i++) {
+    v.fromBufferAttribute(pos, i);
+    const key = `${v.x.toFixed(3)}_${v.y.toFixed(3)}_${v.z.toFixed(3)}`;
+    let offset = map.get(key);
+    if (!offset) {
+      offset = new THREE.Vector3(
+        rand(-amount, amount),
+        rand(-amount, amount) * yScale,
+        rand(-amount, amount)
+      );
+      map.set(key, offset);
+    }
+    v.add(offset);
+    pos.setXYZ(i, v.x, v.y, v.z);
+  }
+  geo.computeVertexNormals();
+  return geo;
+}
+
+function makeHexColumn(radius, height, mat, bevel = 0.08) {
+  const g = new THREE.CylinderGeometry(radius * (1 - bevel), radius, height, 6, 2);
+  const pos = g.attributes.position;
+  for (let i = 0; i < pos.count; i++) {
+    const py = pos.getY(i);
+    if (py > height * 0.38) {
+      pos.setY(i, py + rand(-0.06, 0.06));
+    }
+  }
+  g.computeVertexNormals();
+  const m = new THREE.Mesh(g, mat);
+  m.castShadow = true;
+  m.receiveShadow = true;
+  return m;
+}
+
+// ---------- Root Diorama Group ----------
+// Compact horizontal footprint (radius ~4.95) + tall vertical cliff architecture (up to Y=8.55)
+// so portrait viewports fill 90-95% width while making the cave tall and monumental.
+const SLAB_H = 1.65;
+const BASE_R = 4.85;
+const slabGroup = new THREE.Group();
+scene.add(slabGroup);
+
+// ---------- 1. Compact Stratified Cutaway Base Slab ----------
+{
+  // Bottom pedestal plinth
+  const plinthGeo = new THREE.CylinderGeometry(BASE_R - 0.15, BASE_R - 0.48, 0.55, 8);
+  plinthGeo.rotateY(Math.PI / 8);
+  jitterGeometry(plinthGeo, 0.07, 0.22);
+  const plinth = new THREE.Mesh(plinthGeo, basaltDarkMat);
+  plinth.position.y = -SLAB_H - 0.22;
+  plinth.receiveShadow = true;
+  slabGroup.add(plinth);
+
+  // Incandescent magma seam inside cutaway slab
+  const veinGeo = new THREE.CylinderGeometry(BASE_R - 0.18, BASE_R - 0.22, 0.16, 16);
+  const veinMat = new THREE.MeshBasicMaterial({ color: 0xff7824 });
+  const vein = new THREE.Mesh(veinGeo, veinMat);
+  vein.position.y = -0.94;
+  slabGroup.add(vein);
+
+  // Main middle basalt stratum
+  const midSlabGeo = new THREE.CylinderGeometry(BASE_R, BASE_R - 0.22, SLAB_H, 12, 2);
+  midSlabGeo.rotateY(Math.PI / 12);
+  jitterGeometry(midSlabGeo, 0.12, 0.2);
+  const midSlab = new THREE.Mesh(midSlabGeo, basaltMidMat);
+  midSlab.position.y = -SLAB_H * 0.5 - 0.08;
+  midSlab.castShadow = true;
+  midSlab.receiveShadow = true;
+  slabGroup.add(midSlab);
+
+  // Upper cavern floor table
+  const topSlabGeo = new THREE.CylinderGeometry(BASE_R - 0.05, BASE_R + 0.08, 0.36, 12, 1);
+  topSlabGeo.rotateY(Math.PI / 12);
+  jitterGeometry(topSlabGeo, 0.09, 0.18);
+  const topSlab = new THREE.Mesh(topSlabGeo, basaltLightMat);
+  topSlab.position.y = -0.14;
+  topSlab.receiveShadow = true;
+  topSlab.castShadow = true;
+  slabGroup.add(topSlab);
+
+  // Perimeter columnar basalt skirting around the slab edges
+  const skirtCount = 32;
+  for (let i = 0; i < skirtCount; i++) {
+    const a = (i / skirtCount) * Math.PI * 2 + rand(-0.04, 0.04);
+    const isFront = Math.sin(a) > 0.80 && Math.abs(Math.cos(a)) < 0.42;
+    const rDist = rand(BASE_R - 0.35, BASE_R - 0.02);
+    const h = isFront ? rand(0.95, 1.35) : rand(1.3, 2.1);
+    const rad = rand(0.32, 0.50);
+    const colMat = i % 3 === 0 ? basaltLightMat : (i % 2 === 0 ? purpleCliffMat : basaltMidMat);
+    const col = makeHexColumn(rad, h, colMat);
+    col.position.set(
+      Math.cos(a) * rDist,
+      -SLAB_H + h * 0.5 - rand(0.05, 0.22),
+      Math.sin(a) * rDist
+    );
+    col.rotation.y = rand(0, Math.PI);
+    slabGroup.add(col);
+  }
+}
+
+// ---------- 2. Tall Portrait Cavern Architecture: Stacked Rear Cliffs, Middle Ledges & Readable Stalactites ----------
+{
+  // Recessed cavern throat backdrop (dark warm-violet depth, not pitch black)
+  const throatGeo = new THREE.SphereGeometry(2.35, 16, 12, 0, Math.PI * 2, 0, Math.PI * 0.65);
+  const throatMat = new THREE.MeshBasicMaterial({ color: 0x160a1c, side: THREE.DoubleSide });
+  const throat = new THREE.Mesh(throatGeo, throatMat);
+  throat.position.set(0, 0.45, -2.55);
+  throat.scale.set(1.08, 1.42, 0.82);
+  slabGroup.add(throat);
+
+  // Warm inner magma glow inside the cavern mouth
+  const mouthGlow = new THREE.Mesh(
+    new THREE.CircleGeometry(2.05, 24),
+    new THREE.MeshBasicMaterial({ color: 0xff5a18, transparent: true, opacity: 0.52 })
+  );
+  mouthGlow.position.set(0, 1.45, -3.12);
+  slabGroup.add(mouthGlow);
+
+  const mouthCoreGlow = new THREE.Mesh(
+    new THREE.CircleGeometry(1.25, 20),
+    new THREE.MeshBasicMaterial({ color: 0xffb84d, transparent: true, opacity: 0.45 })
+  );
+  mouthCoreGlow.position.set(0, 1.15, -3.08);
+  slabGroup.add(mouthCoreGlow);
+
+  // Varied Middle Ledges & Stepped Terraces (bridging cavern floor to tall cliffs)
+  const middleLedges = [
+    // Left stepped ledges
+    [-3.1, 0.45, -1.6, 1.05, 0.9], [-2.5, 1.05, -2.2, 0.95, 1.3],
+    [-3.5, 0.75, -0.3, 0.92, 1.1], [-2.8, 1.65, -2.6, 0.88, 1.6],
+    // Right stepped ledges
+    [3.1, 0.45, -1.6, 1.05, 0.9],  [2.5, 1.10, -2.2, 0.95, 1.35],
+    [3.5, 0.75, -0.3, 0.92, 1.1],  [2.8, 1.70, -2.6, 0.88, 1.65],
+    // Foreground-mid flanking rock shelves
+    [-3.6, 0.32, 1.05, 0.95, 0.65], [3.6, 0.32, 1.05, 0.95, 0.65]
+  ];
+  for (const [lx, ly, lz, lrad, lh] of middleLedges) {
+    const ledgeMat = rng() > 0.5 ? basaltLightMat : (rng() > 0.4 ? purpleCliffMat : warmStoneMat);
+    const ledge = makeHexColumn(lrad, lh, ledgeMat, 0.05);
+    ledge.position.set(lx, ly, lz);
+    ledge.rotation.y = rand(0, Math.PI);
+    slabGroup.add(ledge);
+  }
+
+  // Tall Stacked Rear & Flanking Basalt Organ-Pipe Cliffs (creating strong verticality up to Y=8.4)
+  const tallPillarClusters = [
+    // Left tiered cliff wall
+    [-4.15, -0.4, 2.6, 0.50], [-4.05, -1.4, 3.8, 0.56], [-3.75, -2.3, 5.0, 0.62],
+    [-3.25, -3.0, 6.1, 0.66], [-2.55, -3.5, 7.0, 0.70],
+    // Right tiered cliff wall
+    [4.15, -0.4, 2.6, 0.50],  [4.05, -1.4, 3.8, 0.56],  [3.75, -2.3, 5.0, 0.62],
+    [3.25, -3.0, 6.1, 0.66],  [2.55, -3.5, 7.0, 0.70],
+    // High rear cathedral spire columns framing the upper arch
+    [-1.75, -3.85, 7.6, 0.74], [-0.85, -4.05, 8.15, 0.78],
+    [0.0,   -4.15, 8.45, 0.82],
+    [0.85,  -4.05, 8.10, 0.78], [1.75, -3.85, 7.55, 0.74],
+    // Mid-height inner buttress columns
+    [-2.95, -2.1, 4.4, 0.52], [2.95, -2.1, 4.4, 0.52],
+    [-2.15, -2.8, 5.5, 0.56], [2.15, -2.8, 5.5, 0.56]
+  ];
+
+  for (const [x, z, h, r] of tallPillarClusters) {
+    const matChoice = rng();
+    const mat = matChoice > 0.55 ? basaltLightMat : (matChoice > 0.25 ? purpleCliffMat : warmStoneMat);
+    const col = makeHexColumn(r, h, mat);
+    col.position.set(x + rand(-0.06, 0.06), h * 0.5 - 0.08, z + rand(-0.06, 0.06));
+    col.rotation.set(rand(-0.03, 0.03), rand(0, Math.PI), rand(-0.03, 0.03));
+    slabGroup.add(col);
+
+    // Stepped companion column in front of each main cliff pillar for rich layered facets
+    const h2 = h * rand(0.54, 0.78);
+    const mat2 = rng() > 0.45 ? basaltLightMat : purpleCliffMat;
+    const col2 = makeHexColumn(r * rand(0.68, 0.84), h2, mat2);
+    const ang = Math.atan2(-z, -x) + rand(-0.28, 0.28);
+    col2.position.set(
+      x + Math.cos(ang) * r * 0.72,
+      h2 * 0.5 - 0.08,
+      z + Math.sin(ang) * r * 0.72
+    );
+    col2.rotation.y = rand(0, Math.PI);
+    slabGroup.add(col2);
+  }
+
+  // Sculpted Vaulted Arch & High Crag Crown (Faceted, well-lit, rising to Y=8.55)
+  const archBlocks = [
+    // Lower arch shoulders
+    [-2.85, 4.8, -2.4, 1.18], [2.85, 4.8, -2.4, 1.18],
+    [-2.20, 5.7, -2.5, 1.24], [2.20, 5.7, -2.5, 1.24],
+    // Upper vaulted arch span
+    [-1.40, 6.45, -2.55, 1.28], [1.40, 6.45, -2.55, 1.28],
+    [-0.50, 6.95, -2.60, 1.32], [0.50, 6.95, -2.60, 1.32],
+    // High cathedral peak crags above the arch
+    [-1.55, 7.35, -3.35, 1.26], [0.0, 7.75, -3.40, 1.38], [1.55, 7.30, -3.35, 1.26],
+    // Forward-angled brow facets that catch moonlight & warm lava bounce
+    [-2.05, 4.95, -1.75, 0.96], [-1.05, 5.75, -1.80, 1.02],
+    [0.0,   6.05, -1.78, 1.08],
+    [1.05,  5.75, -1.80, 1.02], [2.05, 4.95, -1.75, 0.96]
+  ];
+
+  for (const [x, y, z, rad] of archBlocks) {
+    const geo = new THREE.DodecahedronGeometry(rad, 1);
+    jitterGeometry(geo, rad * 0.15, 0.85);
+    const mat = y > 6.2 ? basaltLightMat : (rng() > 0.45 ? purpleCliffMat : warmStoneMat);
+    const rock = new THREE.Mesh(geo, mat);
+    rock.position.set(x, y, z);
+    rock.scale.set(1.12, 0.92, 0.92);
+    rock.rotation.set(rand(0, 3), rand(0, 3), rand(0, 3));
+    rock.castShadow = true;
+    rock.receiveShadow = true;
+    slabGroup.add(rock);
+  }
+
+  // Prominent, Clearly Readable Stalactites Hanging from the Vaulted Arch & Brow
+  const heroStalactites = [
+    [-2.35, 5.05, -1.65, 0.30, 1.85],
+    [-1.65, 5.85, -1.60, 0.34, 2.25],
+    [-0.95, 6.25, -1.55, 0.32, 2.05],
+    [-0.32, 6.45, -1.50, 0.36, 2.40],
+    [ 0.35, 6.42, -1.50, 0.34, 2.15],
+    [ 0.98, 6.22, -1.55, 0.35, 2.30],
+    [ 1.68, 5.82, -1.60, 0.32, 2.00],
+    [ 2.35, 5.02, -1.65, 0.29, 1.75],
+    // Second inner curtain of stalactites
+    [-1.95, 5.45, -2.35, 0.28, 1.75],
+    [-1.25, 6.10, -2.30, 0.30, 1.95],
+    [-0.55, 6.50, -2.25, 0.32, 2.10],
+    [ 0.05, 6.60, -2.25, 0.34, 2.25],
+    [ 0.65, 6.48, -2.25, 0.30, 1.95],
+    [ 1.30, 6.08, -2.30, 0.31, 2.00],
+    [ 1.95, 5.42, -2.35, 0.28, 1.70]
+  ];
+
+  for (const [sx, sy, sz, sRad, sLen] of heroStalactites) {
+    const stGeo = new THREE.ConeGeometry(sRad, sLen, 6, 3);
+    jitterGeometry(stGeo, 0.032, 0.18);
+    const mat = rng() > 0.45 ? stalactiteMat : stalactiteWarmMat;
+    const st = new THREE.Mesh(stGeo, mat);
+    st.position.set(sx, sy - sLen * 0.46, sz);
+    st.rotation.x = Math.PI + rand(-0.06, 0.06);
+    st.rotation.y = rand(0, Math.PI);
+    st.rotation.z = rand(-0.06, 0.06);
+    st.castShadow = true;
+    st.receiveShadow = true;
+    slabGroup.add(st);
+  }
+
+  // Stalagmites rising from the middle ledges & cavern flanks
+  for (let i = 0; i < 14; i++) {
+    const side = i % 2 === 0 ? -1 : 1;
+    const sx = side * rand(1.65, 3.55);
+    const sz = rand(-2.5, 0.6);
+    const len = rand(0.65, 1.55);
+    const smGeo = new THREE.ConeGeometry(rand(0.16, 0.32), len, 6, 2);
+    jitterGeometry(smGeo, 0.028, 0.18);
+    const sm = new THREE.Mesh(smGeo, rng() > 0.5 ? basaltLightMat : purpleCliffMat);
+    sm.position.set(sx, len * 0.46 + 0.1, sz);
+    sm.rotation.y = rand(0, Math.PI);
+    sm.castShadow = true;
+    sm.receiveShadow = true;
+    slabGroup.add(sm);
+  }
+}
+
+// ---------- 3. Winding Incandescent Lava River, Cascade & Pool (Brightest Feature + Layered Hot Edges) ----------
+const LAVA = { x: 0.08, z: 1.75, r: 1.78 };
+const lavaGroup = new THREE.Group();
+slabGroup.add(lavaGroup);
+
+const crustBlobs = [];
+
+{
+  // Stepped lava cascade pouring from the elevated cave throat (Z = -3.1) into the foreground pool
+  const cascadeCurve = new THREE.CatmullRomCurve3([
+    new THREE.Vector3(-0.12, 0.88, -3.15),
+    new THREE.Vector3(-0.28, 0.62, -2.35),
+    new THREE.Vector3( 0.18, 0.34, -1.45),
+    new THREE.Vector3(-0.14, 0.14, -0.45),
+    new THREE.Vector3( 0.08, 0.08,  0.65),
+    new THREE.Vector3(LAVA.x, 0.068, LAVA.z)
+  ]);
+
+  // Outer orange-gold glowing thermal bed
+  const bedOuterGeo = new THREE.TubeGeometry(cascadeCurve, 36, 0.76, 8, false);
+  const bedOuterMesh = new THREE.Mesh(bedOuterGeo, hotEdgeOuterMat);
+  bedOuterMesh.scale.set(1.22, 0.12, 1.0);
+  bedOuterMesh.position.y = 0.018;
+  lavaGroup.add(bedOuterMesh);
+
+  // Inner yellow-white incandescent edge rim
+  const bedCoreGeo = new THREE.TubeGeometry(cascadeCurve, 36, 0.68, 8, false);
+  const bedCoreMesh = new THREE.Mesh(bedCoreGeo, hotEdgeCoreMat);
+  bedCoreMesh.scale.set(1.15, 0.15, 1.0);
+  bedCoreMesh.position.y = 0.026;
+  lavaGroup.add(bedCoreMesh);
+
+  // Main textured molten river body
+  const streamGeo = new THREE.TubeGeometry(cascadeCurve, 40, 0.60, 10, false);
+  const streamMesh = new THREE.Mesh(streamGeo, lavaMat);
+  streamMesh.scale.set(1.08, 0.18, 1.0);
+  streamMesh.position.y = 0.038;
+  lavaGroup.add(streamMesh);
+
+  // Foreground primary lava pool with dual layered hot edges
+  const poolOuterRim = new THREE.Mesh(new THREE.CircleGeometry(LAVA.r + 0.16, 36), hotEdgeOuterMat);
+  poolOuterRim.rotation.x = -Math.PI / 2;
+  poolOuterRim.position.set(LAVA.x, 0.052, LAVA.z);
+  lavaGroup.add(poolOuterRim);
+
+  const poolInnerRim = new THREE.Mesh(new THREE.CircleGeometry(LAVA.r + 0.07, 36), hotEdgeCoreMat);
+  poolInnerRim.rotation.x = -Math.PI / 2;
+  poolInnerRim.position.set(LAVA.x, 0.060, LAVA.z);
+  lavaGroup.add(poolInnerRim);
+
+  const poolMesh = new THREE.Mesh(new THREE.CircleGeometry(LAVA.r, 36), lavaMat);
+  poolMesh.rotation.x = -Math.PI / 2;
+  poolMesh.position.set(LAVA.x, 0.068, LAVA.z);
+  lavaGroup.add(poolMesh);
+
+  // Secondary side cove lobe of the lava pool
+  const lobeOuter = new THREE.Mesh(new THREE.CircleGeometry(1.12, 28), hotEdgeOuterMat);
+  lobeOuter.rotation.x = -Math.PI / 2;
+  lobeOuter.position.set(-1.15, 0.051, 0.95);
+  lavaGroup.add(lobeOuter);
+
+  const lobeInner = new THREE.Mesh(new THREE.CircleGeometry(1.04, 28), hotEdgeCoreMat);
+  lobeInner.rotation.x = -Math.PI / 2;
+  lobeInner.position.set(-1.15, 0.059, 0.95);
+  lavaGroup.add(lobeInner);
+
+  const lobeMesh = new THREE.Mesh(new THREE.CircleGeometry(0.98, 28), lavaMat);
+  lobeMesh.rotation.x = -Math.PI / 2;
+  lobeMesh.position.set(-1.15, 0.066, 0.95);
+  lavaGroup.add(lobeMesh);
+
+  // Front spillway tongue at the cutaway edge
+  const spillCurve = new THREE.CatmullRomCurve3([
+    new THREE.Vector3(0.20, 0.065, 3.15),
+    new THREE.Vector3(0.26, 0.02,  4.15),
+    new THREE.Vector3(0.30, -0.38, 4.72),
+    new THREE.Vector3(0.32, -0.92, 4.82)
+  ]);
+  const spillEdgeGeo = new THREE.TubeGeometry(spillCurve, 20, 0.42, 8, false);
+  const spillEdgeMesh = new THREE.Mesh(spillEdgeGeo, hotEdgeOuterMat);
+  spillEdgeMesh.scale.set(1.22, 0.30, 1.0);
+  lavaGroup.add(spillEdgeMesh);
+
+  const spillGeo = new THREE.TubeGeometry(spillCurve, 20, 0.36, 8, false);
+  const spillMesh = new THREE.Mesh(spillGeo, lavaMat);
+  spillMesh.scale.set(1.12, 0.35, 1.0);
+  lavaGroup.add(spillMesh);
+
+  // Glowing floor fissures radiating from the river & pool
+  const fissureCoords = [
+    [-1.9, 2.1, 1.1, 0.5], [2.0, 1.9, 1.15, -0.6], [-2.2, 0.2, 1.0, 0.3],
+    [1.9, 0.3, 1.2, -0.4], [-1.2, 3.4, 0.95, 0.9], [1.5, 3.3, 1.0, -0.8]
+  ];
+  for (const [fx, fz, flen, fang] of fissureCoords) {
+    const fGroup = new THREE.Group();
+    fGroup.position.set(fx, 0.032, fz);
+    fGroup.rotation.y = fang;
+    const fGlow = new THREE.Mesh(new THREE.PlaneGeometry(flen, 0.09), hotEdgeCoreMat);
+    fGlow.rotation.x = -Math.PI / 2;
+    fGroup.add(fGlow);
+    slabGroup.add(fGroup);
+  }
+
+  // Cooled dark magma crust islands drifting on the main lava pool
+  for (let i = 0; i < 9; i++) {
+    const cRad = rand(0.16, 0.38);
+    const cGeo = new THREE.CylinderGeometry(cRad * 0.85, cRad, 0.07, 7);
+    jitterGeometry(cGeo, 0.025, 0.2);
+    const c = new THREE.Mesh(cGeo, crustMat);
+    const a = rand(0, Math.PI * 2);
+    const rr = rand(0.22, LAVA.r * 0.68);
+    c.position.set(LAVA.x + Math.cos(a) * rr, 0.076, LAVA.z + Math.sin(a) * rr);
+    c.rotation.y = rand(0, Math.PI * 2);
+    c.castShadow = true;
+    c.receiveShadow = true;
+    c.userData = { a, rr, sp: rand(0.06, 0.16) * (i % 2 === 0 ? 1 : -1), rotSp: rand(-0.2, 0.2) };
+    lavaGroup.add(c);
+    crustBlobs.push(c);
+  }
+
+  // Sculpted shoreline rocks & cooled levee banks bordering the river and pool
+  const bankSpots = [
+    [-1.2, -2.2, 0.42], [1.1, -2.1, 0.45], [-1.3, -1.2, 0.40], [1.2, -1.0, 0.42],
+    [-1.4, -0.3, 0.38], [1.1, -0.1, 0.44], [-2.2, 0.7, 0.46],  [-2.2, 1.5, 0.42],
+    [-1.8, 2.5, 0.44],  [-1.1, 3.2, 0.40], [0.9, 3.4, 0.40],   [1.7, 2.9, 0.46],
+    [2.0, 1.9, 0.48],   [1.9, 0.9, 0.42],  [1.4, 0.2, 0.38]
+  ];
+  for (const [bx, bz, br] of bankSpots) {
+    const bGeo = new THREE.DodecahedronGeometry(br, 1);
+    jitterGeometry(bGeo, br * 0.16, 0.5);
+    const rk = new THREE.Mesh(bGeo, rng() > 0.38 ? crustMat : basaltMidMat);
+    rk.position.set(bx + rand(-0.06, 0.06), br * 0.28, bz + rand(-0.06, 0.06));
+    rk.scale.set(1.15, 0.58, 1.05);
+    rk.rotation.set(rand(0, 3), rand(0, 3), rand(0, 3));
+    rk.castShadow = true;
+    rk.receiveShadow = true;
+    lavaGroup.add(rk);
+  }
+
+  // Invisible raycast proxy covering the lava river + pool
+  const proxy = new THREE.Mesh(
+    new THREE.BoxGeometry(4.2, 1.8, 7.8),
+    new THREE.MeshBasicMaterial({ visible: false })
+  );
+  proxy.position.set(0, 0.45, 0.5);
+  lavaGroup.add(proxy);
+  lavaGroup.userData.proxy = proxy;
+}
+
+// ---------- 4. Lava Bubbles & Eruption Splashes (Wall-Clock Driven) ----------
+const bubbles = [];
+const bubbleMat = new THREE.MeshStandardMaterial({
+  color: 0xffbe4f, emissive: 0xff6a14, emissiveIntensity: 2.5, roughness: 0.22
+});
+const ringMat = new THREE.MeshBasicMaterial({
+  color: 0xffdf78, transparent: true, opacity: 0.82, side: THREE.DoubleSide
+});
+
+function spawnBubble(delay, big) {
+  const bRad = big ? rand(0.16, 0.28) : rand(0.08, 0.15);
+  const b = new THREE.Mesh(new THREE.SphereGeometry(bRad, 12, 10), bubbleMat);
+
+  let bx, bz;
+  if (rng() < 0.72) {
+    const a = rand(0, Math.PI * 2);
+    const rr = rand(0, LAVA.r * 0.72);
+    bx = LAVA.x + Math.cos(a) * rr;
+    bz = LAVA.z + Math.sin(a) * rr;
+  } else {
+    bx = rand(-0.38, 0.38);
+    bz = rand(-2.1, 0.6);
+  }
+  b.position.set(bx, 0.07, bz);
+
+  const ring = new THREE.Mesh(new THREE.RingGeometry(bRad * 0.7, bRad * 1.18, 18), ringMat.clone());
+  ring.rotation.x = -Math.PI / 2;
+  ring.position.set(bx, 0.076, bz);
+
+  slabGroup.add(b);
+  slabGroup.add(ring);
+  bubbles.push({
+    m: b,
+    ring,
+    baseY: 0.07,
+    big,
+    t0: performance.now() + delay,
+    life: big ? rand(1350, 2100) : rand(1400, 2200)
+  });
+}
+
+// ---------- 5. Prominent Blue/Purple Crystals + Unmistakable 4-Second Tap Flare ----------
+const CRYSTAL_FLARE_MS = 4000;
+const crystals = [];
+{
+  const gemConfigs = [
+    { pos: [-2.85, -1.45, 0.42], col: 0x3ef7ec, em: 0x18c4dc, haloCol: 0x5ffbff, scale: 1.28 },
+    { pos: [-3.45,  0.15, 0.32], col: 0x70b5ff, em: 0x3b7ef8, haloCol: 0x78c8ff, scale: 1.22 },
+    { pos: [-2.25, -2.55, 0.95], col: 0xa67dff, em: 0x7642f0, haloCol: 0xb794ff, scale: 1.32 },
+    { pos: [ 2.85, -1.55, 0.42], col: 0x48f5e4, em: 0x1ac8b2, haloCol: 0x62fff0, scale: 1.28 },
+    { pos: [ 3.45,  0.10, 0.32], col: 0xa078ff, em: 0x6c3ef0, haloCol: 0xb48eff, scale: 1.24 },
+    { pos: [ 2.25, -2.65, 0.98], col: 0x6cc2ff, em: 0x3288ec, haloCol: 0x80d4ff, scale: 1.28 },
+    { pos: [-3.05,  2.15, 0.08], col: 0x58fae8, em: 0x22ccb8, haloCol: 0x72fff0, scale: 1.18 },
+    { pos: [ 2.95,  2.05, 0.08], col: 0x9475ff, em: 0x603ce0, haloCol: 0xaa90ff, scale: 1.20 }
+  ];
+
+  gemConfigs.forEach((cfg) => {
+    const baseColor = new THREE.Color(cfg.col);
+    const baseEmissive = new THREE.Color(cfg.em);
+    const flareColor = new THREE.Color(0xf2ffff);
+    const flareEmissive = new THREE.Color(0x99ffff);
+
+    const mat = new THREE.MeshStandardMaterial({
+      color: baseColor.clone(),
+      emissive: baseEmissive.clone(),
+      emissiveIntensity: 1.05,
+      roughness: 0.12,
+      metalness: 0.15,
+      transparent: true,
+      opacity: 0.96,
+      flatShading: true
+    });
+
+    const cluster = new THREE.Group();
+    cluster.position.set(cfg.pos[0], cfg.pos[2], cfg.pos[1]);
+    slabGroup.add(cluster);
+
+    const hitMeshes = [];
+    const shardCount = 6;
+    for (let s = 0; s < shardCount; s++) {
+      const isMain = s === 0;
+      const h = (isMain ? rand(1.18, 1.52) : rand(0.55, 1.08)) * cfg.scale;
+      const r = (isMain ? 0.27 : rand(0.14, 0.21)) * cfg.scale;
+
+      const cGeo = new THREE.CylinderGeometry(0.012, r, h, 6, 1);
+      cGeo.translate(0, h * 0.5, 0);
+      const shard = new THREE.Mesh(cGeo, mat);
+
+      if (!isMain) {
+        const ang = (s / (shardCount - 1)) * Math.PI * 2 + rand(-0.25, 0.25);
+        const dist = rand(0.15, 0.28) * cfg.scale;
+        shard.position.set(Math.cos(ang) * dist, 0, Math.sin(ang) * dist);
+        shard.rotation.z = Math.cos(ang) * rand(0.22, 0.46);
+        shard.rotation.x = -Math.sin(ang) * rand(0.22, 0.46);
+      } else {
+        shard.rotation.z = rand(-0.08, 0.08);
+        shard.rotation.x = rand(-0.08, 0.08);
+      }
+      shard.rotation.y = rand(0, Math.PI);
+      shard.castShadow = true;
+      cluster.add(shard);
+      hitMeshes.push(shard);
+    }
+
+    // Inner bright cyan-white core mesh that blazes during a tap flare
+    const coreMat = new THREE.MeshBasicMaterial({
+      color: 0xffffff,
+      transparent: true,
+      opacity: 0.0,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false
+    });
+    const coreMesh = new THREE.Mesh(
+      new THREE.OctahedronGeometry(0.42 * cfg.scale, 1),
+      coreMat
+    );
+    coreMesh.position.y = 0.65 * cfg.scale;
+    coreMesh.scale.set(0.75, 1.45, 0.75);
+    cluster.add(coreMesh);
+
+    // Large additive blue-cyan halo billboard sprite around the crystal
+    const haloMat = new THREE.SpriteMaterial({
+      map: haloSpriteTex,
+      color: cfg.haloCol,
+      transparent: true,
+      opacity: 0.28,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false
+    });
+    const haloSprite = new THREE.Sprite(haloMat);
+    haloSprite.position.y = 0.72 * cfg.scale;
+    const baseHaloScale = 1.65 * cfg.scale;
+    haloSprite.scale.set(baseHaloScale, baseHaloScale, 1);
+    cluster.add(haloSprite);
+
+    // Expanding ground shockwave ring on tap
+    const shockMat = new THREE.MeshBasicMaterial({
+      color: 0xa8ffff,
+      transparent: true,
+      opacity: 0.0,
+      side: THREE.DoubleSide,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false
+    });
+    const shockRing = new THREE.Mesh(new THREE.RingGeometry(0.18, 0.34, 24), shockMat);
+    shockRing.rotation.x = -Math.PI / 2;
+    shockRing.position.y = 0.05;
+    cluster.add(shockRing);
+
+    // Rising jewel sparks dedicated to this crystal cluster (22 sparks per cluster)
+    const SPARK_COUNT = 22;
+    const sparkGeo = new THREE.BufferGeometry();
+    const sparkPos = new Float32Array(SPARK_COUNT * 3);
+    const sparkSeeds = [];
+    for (let k = 0; k < SPARK_COUNT; k++) {
+      const sa = rand(0, Math.PI * 2);
+      const sr = rand(0.08, 0.52) * cfg.scale;
+      const sy = rand(0.1, 1.8);
+      sparkPos[k * 3]     = Math.cos(sa) * sr;
+      sparkPos[k * 3 + 1] = sy;
+      sparkPos[k * 3 + 2] = Math.sin(sa) * sr;
+      sparkSeeds.push({
+        ang: sa,
+        rad: sr,
+        spd: rand(0.65, 1.35),
+        phase: rand(0, Math.PI * 2),
+        maxH: rand(1.9, 2.85)
+      });
+    }
+    sparkGeo.setAttribute('position', new THREE.BufferAttribute(sparkPos, 3));
+    const sparkMat = new THREE.PointsMaterial({
+      map: sparkSpriteTex,
+      size: 0.32,
+      color: 0xb8ffff,
+      transparent: true,
+      opacity: 0.0,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false
+    });
+    const sparks = new THREE.Points(sparkGeo, sparkMat);
+    sparks.visible = false;
+    cluster.add(sparks);
+
+    // Small dark rock collar around crystal base
+    for (let b = 0; b < 4; b++) {
+      const ba = (b / 4) * Math.PI * 2 + rand(-0.3, 0.3);
+      const brk = new THREE.Mesh(new THREE.DodecahedronGeometry(0.18, 0), basaltDarkMat);
+      brk.position.set(Math.cos(ba) * 0.28, 0.08, Math.sin(ba) * 0.28);
+      brk.scale.y = 0.65;
+      cluster.add(brk);
+    }
+
+    // Generous invisible hit sphere (radius 1.15 * scale) so taps never miss even on 320px phones
+    const hitProxy = new THREE.Mesh(
+      new THREE.SphereGeometry(1.15 * cfg.scale, 10, 10),
+      new THREE.MeshBasicMaterial({ visible: false })
+    );
+    hitProxy.position.y = 0.72 * cfg.scale;
+    cluster.add(hitProxy);
+
+    const record = {
+      m: hitProxy,
+      cluster,
+      mat,
+      baseColor,
+      baseEmissive,
+      flareColor,
+      flareEmissive,
+      coreMesh,
+      coreMat,
+      haloSprite,
+      haloMat,
+      baseHaloScale,
+      shockRing,
+      shockMat,
+      sparks,
+      sparkGeo,
+      sparkMat,
+      sparkSeeds,
+      scale: cfg.scale,
+      ph: rand(0, Math.PI * 2),
+      flareT0: -1
+    };
+    hitMeshes.forEach(hm => { hm.userData.crystalRef = record; });
+    hitProxy.userData.crystalRef = record;
+    crystals.push(record);
+  });
+}
+
+// ---------- 6. Foreground Obsidian Fragments & Sulfur Fumarole Deposits ----------
+{
+  const obsidianSpots = [
+    [-2.1, 2.9], [-2.9, 2.2], [2.2, 2.9], [2.9, 2.1],
+    [-3.6, 0.9], [3.6, 0.9], [-1.4, 3.6], [1.4, 3.6],
+    [-2.4, -0.5], [2.4, -0.6]
+  ];
+  for (const [ox, oz] of obsidianSpots) {
+    const h = rand(0.38, 0.82);
+    const oGeo = new THREE.ConeGeometry(rand(0.12, 0.23), h, 4);
+    jitterGeometry(oGeo, 0.022, 0.15);
+    const ob = new THREE.Mesh(oGeo, obsidianMat);
+    ob.position.set(ox + rand(-0.1, 0.1), h * 0.42, oz + rand(-0.1, 0.1));
+    ob.rotation.set(rand(-0.3, 0.3), rand(0, Math.PI), rand(-0.3, 0.3));
+    ob.castShadow = true;
+    ob.receiveShadow = true;
+    slabGroup.add(ob);
+  }
+
+  const sulfurSpots = [
+    [-1.45, -1.5], [1.45, -1.4], [-1.85, 1.1], [1.95, 1.3],
+    [-1.15, 2.9],  [1.25, 3.1],  [-2.2, -2.0], [2.2, -2.0]
+  ];
+  for (const [sx, sz] of sulfurSpots) {
+    const sCluster = new THREE.Group();
+    sCluster.position.set(sx, 0.04, sz);
+    for (let k = 0; k < 4; k++) {
+      const r = rand(0.10, 0.22);
+      const sg = new THREE.DodecahedronGeometry(r, 0);
+      const sm = new THREE.Mesh(sg, sulfurMat);
+      sm.position.set(rand(-0.15, 0.15), r * 0.32, rand(-0.15, 0.15));
+      sm.scale.set(1.3, 0.45, 1.2);
+      sm.rotation.y = rand(0, Math.PI);
+      sm.receiveShadow = true;
+      sCluster.add(sm);
+    }
+    slabGroup.add(sCluster);
+  }
+
+  for (let i = 0; i < 20; i++) {
+    const a = rand(0, Math.PI * 2);
+    const d = rand(2.0, 4.3);
+    const px = Math.cos(a) * d, pz = Math.sin(a) * d;
+    if (Math.abs(px) < 1.55 && pz > -2.6 && pz < 3.5) continue;
+    const r = rand(0.08, 0.20);
+    const rk = new THREE.Mesh(
+      new THREE.DodecahedronGeometry(r, 0),
+      i % 2 === 0 ? basaltLightMat : purpleCliffMat
+    );
+    rk.position.set(px, r * 0.4, pz);
+    rk.scale.set(1.2, 0.65, 1.0);
+    rk.rotation.set(rand(0, 3), rand(0, 3), rand(0, 3));
+    rk.castShadow = true;
+    rk.receiveShadow = true;
+    slabGroup.add(rk);
+  }
+}
+
+// ---------- 7. Rising Embers & Heat Shimmer Particles (Strictly Capped Below Vault Crown & Header) ----------
+const EMBER_CEIL = 6.85;
+const EMBERS = 90;
+const emberGeo = new THREE.BufferGeometry();
+const emberPhase = new Float32Array(EMBERS);
+{
+  const arr = new Float32Array(EMBERS * 3);
+  for (let i = 0; i < EMBERS; i++) {
+    arr[i * 3]     = rand(-3.3, 3.3);
+    arr[i * 3 + 1] = rand(0.15, EMBER_CEIL);
+    arr[i * 3 + 2] = rand(-2.8, 3.3);
+    emberPhase[i] = rand(0, Math.PI * 2);
+  }
+  emberGeo.setAttribute('position', new THREE.BufferAttribute(arr, 3));
+}
+const emberMat = new THREE.PointsMaterial({
+  map: makeParticleSprite('rgba(255,248,190,1)', 'rgba(255,140,35,0.88)', 'rgba(255,60,0,0)'),
+  size: 0.20,
+  transparent: true,
+  depthWrite: false,
+  color: 0xffbe72,
+  opacity: 0.9,
+  blending: THREE.AdditiveBlending
+});
+const embers = new THREE.Points(emberGeo, emberMat);
+embers.frustumCulled = false;
+scene.add(embers);
+
+const SHIMMERS = 32;
+const shimmerGeo = new THREE.BufferGeometry();
+const shimmerPhase = new Float32Array(SHIMMERS);
+{
+  const sArr = new Float32Array(SHIMMERS * 3);
+  for (let i = 0; i < SHIMMERS; i++) {
+    sArr[i * 3]     = rand(-1.7, 1.7);
+    sArr[i * 3 + 1] = rand(0.2, 4.6);
+    sArr[i * 3 + 2] = rand(-2.2, 3.0);
+    shimmerPhase[i] = rand(0, Math.PI * 2);
+  }
+  shimmerGeo.setAttribute('position', new THREE.BufferAttribute(sArr, 3));
+}
+const shimmerMat = new THREE.PointsMaterial({
+  map: makeParticleSprite('rgba(255,155,75,0.30)', 'rgba(255,95,35,0.14)', 'rgba(255,50,10,0)'),
+  size: 0.78,
+  transparent: true,
+  depthWrite: false,
+  color: 0xff823e,
+  opacity: 0.44,
+  blending: THREE.AdditiveBlending
+});
+const shimmers = new THREE.Points(shimmerGeo, shimmerMat);
+shimmers.frustumCulled = false;
+scene.add(shimmers);
+
+const emberBoost = { t0: -1 };
+const EMBER_BOOST_MS = 2600;
+
+// ---------- Hints (Supports Idle, Lava Bubble, and 4s Crystal Flare with Clean Reset) ----------
+const HINTS = {
+  idle: 'Tap lava or crystals',
+  bubble: 'Watch it bubble',
+  crystal: 'Crystal resonance',
+};
+let hintResetTimer = null;
+function setHint(s, durationMs = 0) {
+  hintEl.textContent = HINTS[s] || HINTS.idle;
+  hintEl.dataset.s = s;
+  hintEl.classList.remove('faded');
+  clearTimeout(setHint._fadeT);
+  setHint._fadeT = setTimeout(() => hintEl.classList.add('faded'), 6000);
+
+  if (hintResetTimer) {
+    clearTimeout(hintResetTimer);
+    hintResetTimer = null;
+  }
+  if (durationMs > 0) {
+    hintResetTimer = setTimeout(() => {
+      if (hintEl.dataset.s === s) setHint('idle');
+    }, durationMs);
+  }
+}
+setHint('idle');
+
+// ---------- Responsive Camera Fit (Verified across 616x562, 390x844, 320x700) ----------
+const FIT_CENTER = new THREE.Vector3(0, 2.35, 0);
+
+// Exact bounding points of physical geometry + high cathedral cliffs + bottom plinth
+const SCENE_PTS = [
+  // Full base slab & bottom plinth edges (never cropped)
+  new THREE.Vector3(-5.05, -SLAB_H - 0.58, -5.05),
+  new THREE.Vector3( 5.05, -SLAB_H - 0.58, -5.05),
+  new THREE.Vector3(-5.05, -SLAB_H - 0.58,  5.05),
+  new THREE.Vector3( 5.05, -SLAB_H - 0.58,  5.05),
+  new THREE.Vector3(-5.12,  0.35,  0.0),
+  new THREE.Vector3( 5.12,  0.35,  0.0),
+  new THREE.Vector3( 0.0,  -SLAB_H - 0.58,  5.15),
+  // Tall rear basalt cliffs, arch crown & particle ceiling
+  new THREE.Vector3(-3.35,  7.4, -3.5),
+  new THREE.Vector3( 3.35,  7.4, -3.5),
+  new THREE.Vector3( 0.0,   8.65, -4.15),
+  new THREE.Vector3( 0.0,   EMBER_CEIL + 0.35, 0.0)
+];
+
+function fitDir() {
+  const a = innerWidth / innerHeight;
+  if (a < 0.62) return new THREE.Vector3(0.12, 0.44, 1.0).normalize();
+  if (a < 0.9)  return new THREE.Vector3(0.28, 0.42, 1.0).normalize();
+  return new THREE.Vector3(0.44, 0.40, 1.0).normalize();
+}
+
+const _rel = new THREE.Vector3();
+function frameInitialCamera() {
+  camera.aspect = innerWidth / innerHeight;
+  pickFov();
+
+  const a = camera.aspect;
+  const fd = fitDir();
+  const fwd = fd.clone().negate();
+  const worldUp = new THREE.Vector3(0, 1, 0);
+  const right = new THREE.Vector3().crossVectors(fwd, worldUp).normalize();
+  const up = new THREE.Vector3().crossVectors(right, fwd).normalize();
+
+  const fovV = THREE.MathUtils.degToRad(camera.fov);
+  const tanV = Math.tan(fovV / 2);
+  const tanH = tanV * a;
+
+  const headerEl = document.querySelector('header');
+  const footerEl = document.querySelector('footer');
+  const headerPx = headerEl ? headerEl.getBoundingClientRect().height : 88;
+  const footerPx = footerEl ? footerEl.getBoundingClientRect().height : 36;
+
+  // On portrait phones (390x844, 320x700), fill 92-94% of viewport width while keeping
+  // all upper cliffs & embers below the header and the entire base above the footer.
+  const horizFill = a < 0.62 ? 0.93 : (a < 0.9 ? 0.88 : 0.84);
+  const topSafeFrac = Math.max(0.54, 1.0 - ((headerPx + 24) / innerHeight) * 2.0);
+  const botSafeFrac = Math.max(0.68, 1.0 - ((footerPx + 18) / innerHeight) * 2.0);
+
+  const targetY = a < 0.62 ? 2.55 : 2.35;
+  FIT_CENTER.set(0, targetY, 0);
+
+  let dist = 5.0;
+  for (const pt of SCENE_PTS) {
+    _rel.copy(pt).sub(FIT_CENTER);
+    const cf = _rel.dot(fwd);
+    const cx = Math.abs(_rel.dot(right));
+    const cy = _rel.dot(up);
+
+    const dHoriz = cx / (tanH * horizFill) - cf;
+    const dVert = cy >= 0
+      ? cy / (tanV * topSafeFrac) - cf
+      : (-cy) / (tanV * botSafeFrac) - cf;
+
+    dist = Math.max(dist, dHoriz, dVert);
+  }
+
+  camera.position.copy(FIT_CENTER).addScaledVector(fd, dist);
+  controls.target.copy(FIT_CENTER);
+  controls.minDistance = dist * 0.58;
+  controls.maxDistance = dist * 1.45;
+  camera.updateProjectionMatrix();
+  controls.update();
+}
+frameInitialCamera();
+
+// ---------- Tap Interactions (Crystal 4s Resonance Flare & Lava Eruption) ----------
+const ray = new THREE.Raycaster();
+const ndc = new THREE.Vector2();
+let downX = 0, downY = 0, downT = 0;
+
+function triggerCrystalFlare(cry, now) {
+  cry.flareT0 = now;
+  // Reset rising jewel sparks to base of cluster so retrigger always starts cleanly
+  const posAttr = cry.sparkGeo.attributes.position;
+  for (let k = 0; k < cry.sparkSeeds.length; k++) {
+    const sd = cry.sparkSeeds[k];
+    const r = sd.rad * 0.65;
+    posAttr.setXYZ(k, Math.cos(sd.ang) * r, rand(0.08, 0.45), Math.sin(sd.ang) * r);
+  }
+  posAttr.needsUpdate = true;
+  cry.sparks.visible = true;
+  setHint('crystal', CRYSTAL_FLARE_MS);
+}
+
+renderer.domElement.addEventListener('pointerdown', e => {
+  downX = e.clientX;
+  downY = e.clientY;
+  downT = performance.now();
+});
+
+renderer.domElement.addEventListener('pointerup', e => {
+  if (Math.hypot(e.clientX - downX, e.clientY - downY) > 10 || performance.now() - downT > 500) return;
+  ndc.set((e.clientX / innerWidth) * 2 - 1, -(e.clientY / innerHeight) * 2 + 1);
+  ray.setFromCamera(ndc, camera);
+
+  const crystalTargets = [];
+  crystals.forEach(c => {
+    crystalTargets.push(c.m);
+    c.cluster.children.forEach(ch => {
+      if (ch.userData && ch.userData.crystalRef) crystalTargets.push(ch);
+    });
+  });
+
+  const cryHits = ray.intersectObjects(crystalTargets, false);
+  if (cryHits.length) {
+    const ref = cryHits[0].object.userData.crystalRef;
+    if (ref) {
+      triggerCrystalFlare(ref, performance.now());
+      return;
+    }
+  }
+
+  const lavaHits = ray.intersectObject(lavaGroup.userData.proxy, false);
+  if (lavaHits.length) {
+    for (let k = 0; k < 8; k++) spawnBubble(k * 135, true);
+    emberBoost.t0 = performance.now();
+    setHint('bubble', 3500);
+  }
+});
+
+addEventListener('resize', () => {
+  camera.aspect = innerWidth / innerHeight;
+  renderer.setSize(innerWidth, innerHeight);
+  renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+  frameInitialCamera();
+});
+
+// ---------- Animation Loop ----------
+const clock = new THREE.Clock();
+let nextAmbientBubble = performance.now() + 650;
+
+function animate() {
+  requestAnimationFrame(animate);
+  const dt = Math.min(clock.getDelta(), 0.1);
+  const t = clock.elapsedTime;
+  const now = performance.now();
+
+  // Narrow-viewport scale factor so particle & crystal effects remain bold at 320px width
+  const narrowBoost = innerWidth <= 380 ? 1.28 : 1.0;
+
+  // Scroll procedural lava river texture
+  lavaTex.offset.y = -t * 0.095;
+  lavaTex.offset.x = Math.sin(t * 0.45) * 0.04;
+
+  // Lava glow pulse + wall-clock eruption boost after tap
+  let glow = 2.15 + Math.sin(t * 2.2) * 0.25;
+  let lightI = 36 + Math.sin(t * 2.2) * 6;
+  let throatI = 26 + Math.cos(t * 1.9) * 4;
+
+  if (emberBoost.t0 > 0) {
+    const e = (now - emberBoost.t0) / EMBER_BOOST_MS;
+    if (e >= 1) {
+      emberBoost.t0 = -1;
+    } else {
+      const k = Math.sin(e * Math.PI);
+      glow += k * 1.45;
+      lightI += k * 34;
+      throatI += k * 20;
+    }
+  }
+  lavaMat.emissiveIntensity = glow;
+  lavaLight.intensity = lightI;
+  throatLight.intensity = throatI;
+  hotEdgeOuterMat.opacity = Math.min(1, 0.86 + (glow - 2.15) * 0.2);
+
+  // Ambient + tap-burst lava bubbles (wall-clock lifetimes)
+  if (now > nextAmbientBubble) {
+    spawnBubble(0, false);
+    nextAmbientBubble = now + rand(800, 1850);
+  }
+  for (let i = bubbles.length - 1; i >= 0; i--) {
+    const b = bubbles[i];
+    const e = (now - b.t0) / b.life;
+    if (e < 0) {
+      b.m.visible = false;
+      b.ring.visible = false;
+      continue;
+    }
+    if (e >= 1) {
+      slabGroup.remove(b.m);
+      slabGroup.remove(b.ring);
+      bubbles.splice(i, 1);
+      continue;
+    }
+    b.m.visible = true;
+    b.ring.visible = true;
+    const k = e < 0.72 ? e / 0.72 : (1 - e) / 0.28;
+    const scale = Math.max(0.001, k * (b.big ? 1.35 : 1.15));
+    b.m.scale.set(scale, scale * (0.85 + e * 0.35), scale);
+    b.m.position.y = b.baseY + e * (b.big ? 0.38 : 0.25);
+
+    const rScale = 0.6 + e * (b.big ? 2.45 : 1.65);
+    b.ring.scale.setScalar(rScale);
+    b.ring.material.opacity = (1 - e) * 0.8;
+  }
+
+  // Cooled crust islands drifting on the pool
+  for (const c of crustBlobs) {
+    c.userData.a += c.userData.sp * dt;
+    c.position.x = LAVA.x + Math.cos(c.userData.a) * c.userData.rr;
+    c.position.z = LAVA.z + Math.sin(c.userData.a) * c.userData.rr;
+    c.position.y = 0.074 + Math.sin(t * 2.4 + c.userData.a) * 0.008;
+    c.rotation.y += c.userData.rotSp * dt;
+  }
+
+  // Crystal shimmer + 4-second unmistakable tap flare (wall-clock driven, zero permanent buildup)
+  let maxFlareL = 0;
+  let maxFlareR = 0;
+  for (const c of crystals) {
+    const idlePulse = 0.98 + Math.sin(t * 1.8 + c.ph) * 0.20;
+
+    if (c.flareT0 > 0) {
+      const elapsed = now - c.flareT0;
+      const e = elapsed / CRYSTAL_FLARE_MS;
+      if (e >= 1) {
+        // Cleanly settle back to idle state with no buildup
+        c.flareT0 = -1;
+        c.mat.color.copy(c.baseColor);
+        c.mat.emissive.copy(c.baseEmissive);
+        c.mat.emissiveIntensity = idlePulse;
+        c.coreMat.opacity = 0.0;
+        c.haloMat.opacity = 0.28;
+        c.haloSprite.scale.set(c.baseHaloScale, c.baseHaloScale, 1);
+        c.shockMat.opacity = 0.0;
+        c.sparks.visible = false;
+        c.sparkMat.opacity = 0.0;
+        c.cluster.scale.setScalar(1.0);
+      } else {
+        // Fast attack (first 12%), sustained bright resonance with shimmer, smooth settle (last 28%)
+        const env = e < 0.12
+          ? (e / 0.12)
+          : (e < 0.72 ? 1.0 - 0.12 * Math.sin((e - 0.12) * Math.PI * 5) : (1.0 - e) / 0.28);
+        const f = Math.max(0, Math.min(1, env));
+
+        // Shift crystal shards toward brilliant cyan-white core
+        c.mat.color.copy(c.baseColor).lerp(c.flareColor, f * 0.85);
+        c.mat.emissive.copy(c.baseEmissive).lerp(c.flareEmissive, f * 0.9);
+        c.mat.emissiveIntensity = idlePulse + f * 3.8;
+
+        // Inner cyan-white core blaze
+        c.coreMat.opacity = f * 0.95;
+        c.coreMesh.rotation.y = t * 3.2;
+        const coreS = (0.85 + f * 0.55) * narrowBoost;
+        c.coreMesh.scale.set(coreS * 0.75, coreS * 1.45, coreS * 0.75);
+
+        // Large blue-cyan halo expansion
+        c.haloMat.opacity = 0.28 + f * 0.72;
+        const hScale = c.baseHaloScale * (1.0 + f * 1.65 * narrowBoost);
+        c.haloSprite.scale.set(hScale, hScale, 1);
+
+        // Subtle cluster scale pulse
+        c.cluster.scale.setScalar(1.0 + f * 0.12);
+
+        // Expanding ground ring pulse (two waves across 4 seconds)
+        const wave = (e * 2.0) % 1.0;
+        c.shockRing.scale.setScalar(0.6 + wave * 4.2 * c.scale);
+        c.shockMat.opacity = (1.0 - wave) * f * 0.85;
+
+        // Rising jewel sparks
+        c.sparks.visible = true;
+        c.sparkMat.opacity = f * 0.98;
+        c.sparkMat.size = (0.28 + f * 0.14) * narrowBoost;
+        const posAttr = c.sparkGeo.attributes.position;
+        for (let k = 0; k < c.sparkSeeds.length; k++) {
+          const sd = c.sparkSeeds[k];
+          let py = posAttr.getY(k) + dt * sd.spd * (1.2 + f * 0.9);
+          const swirl = sd.ang + t * 2.4 + sd.phase;
+          const rad = sd.rad * (0.65 + (py / sd.maxH) * 0.85);
+          if (py > sd.maxH) py = 0.12;
+          posAttr.setXYZ(k, Math.cos(swirl) * rad, py, Math.sin(swirl) * rad);
+        }
+        posAttr.needsUpdate = true;
+
+        if (c.cluster.position.x < 0) maxFlareL = Math.max(maxFlareL, f);
+        else maxFlareR = Math.max(maxFlareR, f);
+      }
+    } else {
+      c.mat.emissiveIntensity = idlePulse;
+      const idleHalo = c.baseHaloScale * (0.95 + Math.sin(t * 2.0 + c.ph) * 0.06);
+      c.haloSprite.scale.set(idleHalo, idleHalo, 1);
+    }
+  }
+  gemLightL.intensity = 15 + Math.sin(t * 1.7) * 3 + maxFlareL * 32;
+  gemLightR.intensity = 14 + Math.cos(t * 1.6) * 2.5 + maxFlareR * 32;
+
+  // Rising embers & swirling heat shimmer (strictly bounded under EMBER_CEIL)
+  const boost = emberBoost.t0 > 0 ? 2.35 : 1.0;
+  const ep = emberGeo.attributes.position;
+  for (let i = 0; i < EMBERS; i++) {
+    let y = ep.getY(i) + dt * (0.48 + (i % 5) * 0.14) * boost;
+    const ph = emberPhase[i] + t * 1.4;
+    let x = ep.getX(i) + Math.sin(ph) * dt * 0.20;
+    let z = ep.getZ(i) + Math.cos(ph * 0.8) * dt * 0.20;
+    if (y > EMBER_CEIL) {
+      y = rand(0.1, 0.45);
+      x = rand(-3.1, 3.1);
+      z = rand(-2.5, 3.1);
+    }
+    ep.setXYZ(i, x, y, z);
+  }
+  ep.needsUpdate = true;
+  emberMat.opacity = emberBoost.t0 > 0 ? 1.0 : 0.80 + Math.sin(t * 1.5) * 0.12;
+  emberMat.size = (emberBoost.t0 > 0 ? 0.25 : 0.19) * narrowBoost;
+
+  const sp = shimmerGeo.attributes.position;
+  for (let i = 0; i < SHIMMERS; i++) {
+    let sy = sp.getY(i) + dt * 0.38 * boost;
+    const sph = shimmerPhase[i] + t * 1.1;
+    let sx = sp.getX(i) + Math.sin(sph) * dt * 0.14;
+    if (sy > 4.6) {
+      sy = 0.2;
+      sx = rand(-1.6, 1.6);
+    }
+    sp.setX(i, sx);
+    sp.setY(i, sy);
+  }
+  sp.needsUpdate = true;
+
+  controls.update();
+  renderer.render(scene, camera);
+}
+animate();
+</script>
+</body>
+</html>
