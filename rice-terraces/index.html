@@ -1,0 +1,438 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Rice terraces - a tiny world</title>
+<style>
+  html, body { margin:0; padding:0; height:100%; background:#e2ead6; overflow:hidden;
+    font-family: Georgia, 'Times New Roman', serif; }
+  #app { position:fixed; inset:0; }
+  header { position:fixed; top:0; left:0; right:0; text-align:center; pointer-events:none;
+    padding: max(18px, env(safe-area-inset-top)) 16px 18px; z-index:5;
+    background: linear-gradient(rgba(52,78,54,.40), rgba(52,78,54,0)); }
+  header h1 { margin:0; font-size:15px; letter-spacing:.42em; font-weight:400;
+    color:#fbf7e8; text-transform:uppercase; text-shadow:0 1px 8px rgba(40,60,40,.7); }
+  header .rule { width:44px; height:1px; background:rgba(251,247,232,.55); margin:9px auto; }
+  #hint { display:inline-block; font-size:11.5px; letter-spacing:.24em; text-transform:uppercase;
+    color:#fffdf2; transition:opacity 1.2s ease; text-shadow:0 1px 3px rgba(30,48,30,.95), 0 0 6px rgba(30,48,30,.9), 0 0 16px rgba(30,48,30,.75); }
+  #hint.faded { opacity:.45; }
+  footer { position:fixed; bottom:0; left:0; right:0; text-align:center; pointer-events:none;
+    padding:0 16px max(14px, env(safe-area-inset-bottom)); z-index:5;
+    font-size:10px; letter-spacing:.34em; text-transform:uppercase; color:rgba(251,247,232,.55); }
+  canvas { display:block; touch-action:none; }
+</style>
+</head>
+<body>
+<div id="app"></div>
+<header>
+  <h1>Rice Terraces</h1>
+  <div class="rule"></div>
+  <span id="hint"></span>
+</header>
+<footer>A tiny world</footer>
+<script type="importmap">
+{ "imports": {
+  "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+  "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+} }
+</script>
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+const container = document.getElementById('app');
+const hintEl = document.getElementById('hint');
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0xe2ead6);
+scene.fog = new THREE.Fog(0xe2ead6, 60, 140);
+
+const camera = new THREE.PerspectiveCamera(38, innerWidth/innerHeight, 0.1, 260);
+function pickFov() {
+  const a = innerWidth / innerHeight;
+  camera.fov = a >= 0.9 ? 38 : (a >= 0.62 ? 46 : 58);
+  camera.updateProjectionMatrix();
+}
+pickFov();
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setSize(innerWidth, innerHeight);
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.12;
+container.appendChild(renderer.domElement);
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true; controls.dampingFactor = 0.08;
+controls.minDistance = 6; controls.maxDistance = 240;
+controls.maxPolarAngle = Math.PI * 0.52; controls.enablePan = false;
+
+// ---------- lights (misty morning sun) ----------
+const sun = new THREE.DirectionalLight(0xfff2d8, 2.2);
+sun.position.set(11, 15, 7); sun.castShadow = true;
+sun.shadow.mapSize.set(2048, 2048);
+sun.shadow.camera.left = -14; sun.shadow.camera.right = 14;
+sun.shadow.camera.top = 14; sun.shadow.camera.bottom = -14;
+sun.shadow.camera.near = 2; sun.shadow.camera.far = 70;
+sun.shadow.bias = -0.0012;
+scene.add(sun);
+scene.add(new THREE.HemisphereLight(0xdfeada, 0x5a6a4a, 1.05));
+
+// ---------- seeded rng ----------
+function mulberry32(a) {
+  return function() {
+    a |= 0; a = a + 0x6D2B79F5 | 0;
+    let t = Math.imul(a ^ a >>> 15, 1 | a);
+    t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+    return ((t ^ t >>> 14) >>> 0) / 4294967296;
+  };
+}
+const rng = mulberry32(20261101);
+const rand = (a, b) => a + rng() * (b - a);
+
+// ---------- palette ----------
+const PAL = {
+  earth1: 0x7a6244, earth2: 0x5d4932, earth3: 0x42321f,
+  hill: 0x5c7a3e, bank: 0x4f7034, bankDark: 0x425e2c,
+  water: 0x69b3a4, waterDeep: 0x4e938a, waterHi: 0xb9e6da,
+  rice: 0x9ed45e, riceDark: 0x86bb48, riceLight: 0xb8e47a,
+  hut: 0xc9a86a, thatch: 0x8a6a3c, stilt: 0x6a4f30,
+  palm: 0x3f6a30, palmLight: 0x548040, trunk: 0x6b5238,
+  farmer: 0x2e3a5e, hat: 0xd8c078, egret: 0xf4f2ea, beak: 0xe8a03a
+};
+
+const SLAB_HALF = 7.5;
+const slabGroup = new THREE.Group(); scene.add(slabGroup);
+
+// ---------- strata ----------
+{
+  const layers = [[PAL.earth1, 0.42, -0.21], [PAL.earth2, 0.52, -0.68], [PAL.earth3, 0.56, -1.22]];
+  for (const [color, h, cy] of layers) {
+    const m = new THREE.Mesh(new THREE.BoxGeometry(SLAB_HALF*2, h, SLAB_HALF*2),
+      new THREE.MeshStandardMaterial({ color, roughness: 0.95, flatShading: true }));
+    m.position.y = cy; m.receiveShadow = true; slabGroup.add(m);
+  }
+}
+// hill base over the slab top
+{
+  const base = new THREE.Mesh(new THREE.BoxGeometry(SLAB_HALF*2 - 0.2, 0.3, SLAB_HALF*2 - 0.2),
+    new THREE.MeshStandardMaterial({ color: PAL.hill, roughness: 0.92, flatShading: true }));
+  base.position.y = 0.15; base.receiveShadow = true; slabGroup.add(base);
+}
+
+// ---------- terraces ----------
+const N_LEVELS = 8, STEP = 0.55, LEVEL_D = 1.4, GAP = 0.07;
+const LEVEL_W = SLAB_HALF * 2 - 0.6;
+const Z_BACK = -7.0, Z_FRONT_BANK = 4.2;      // terraces span back->front
+const terraceTopY = i => 0.34 + i * STEP;     // top surface of level i (0 = lowest/front)
+const terraceZ = i => Z_BACK + (i + 0.5) * LEVEL_D;
+const waters = [], ripples = [], streaks = [];
+{
+  const bankMat = new THREE.MeshStandardMaterial({ color: PAL.bank, roughness: 0.92, flatShading: true });
+  const bankMatD = new THREE.MeshStandardMaterial({ color: PAL.bankDark, roughness: 0.94, flatShading: true });
+  const waterMat = new THREE.MeshStandardMaterial({ color: PAL.water, roughness: 0.25, metalness: 0.35, flatShading: true });
+  const waterMatDeep = new THREE.MeshStandardMaterial({ color: PAL.waterDeep, roughness: 0.3, metalness: 0.3, flatShading: true });
+  const riceMat = new THREE.MeshStandardMaterial({ color: PAL.rice, roughness: 0.85, flatShading: true });
+  const riceMatD = new THREE.MeshStandardMaterial({ color: PAL.riceDark, roughness: 0.85, flatShading: true });
+  const riceMatL = new THREE.MeshStandardMaterial({ color: PAL.riceLight, roughness: 0.85, flatShading: true });
+  const riceMats = [riceMat, riceMatD, riceMatL];
+  for (let i = 0; i < N_LEVELS; i++) {
+    const topY = terraceTopY(i);
+    const h = topY - 0.28;                     // box down onto the hill base
+    const box = new THREE.Mesh(new THREE.BoxGeometry(LEVEL_W, h, LEVEL_D - GAP),
+      i % 2 ? bankMat : bankMatD);
+    box.position.set(0, 0.28 + h / 2, terraceZ(i));
+    box.castShadow = true; box.receiveShadow = true; slabGroup.add(box);
+    // raised bund lip at the front edge (5 jittered segments)
+    for (let s = 0; s < 5; s++) {
+      const lip = new THREE.Mesh(new THREE.BoxGeometry(LEVEL_W / 5 - 0.12, 0.1, 0.16), bankMatD);
+      lip.position.set(-LEVEL_W / 2 + (s + 0.5) * (LEVEL_W / 5), topY + 0.05,
+        terraceZ(i) + (LEVEL_D - GAP) / 2 - 0.09 + rand(-0.05, 0.05));
+      lip.castShadow = true; slabGroup.add(lip);
+    }
+    // paddy water inset (all levels carry water)
+    const planted = i % 2 === 0;
+    const wm = (planted ? waterMatDeep : waterMat).clone();
+    const water = new THREE.Mesh(new THREE.PlaneGeometry(LEVEL_W - 0.3, LEVEL_D - GAP - 0.26), wm);
+    water.rotation.x = -Math.PI / 2;
+    water.position.set(0, topY + 0.035, terraceZ(i));
+    water.receiveShadow = true; slabGroup.add(water);
+    waters.push(water);
+    // ripple ring per level (hidden until cascade passes)
+    const ring = new THREE.Mesh(new THREE.RingGeometry(0.8, 0.95, 28),
+      new THREE.MeshBasicMaterial({ color: PAL.waterHi, transparent: true, opacity: 0, side: THREE.DoubleSide, depthWrite: false }));
+    ring.rotation.x = -Math.PI / 2;
+    ring.position.set(rand(-2, 2), topY + 0.05, terraceZ(i));
+    slabGroup.add(ring); ripples.push(ring);
+    // pouring streak on the step wall below this level (front face)
+    if (i > 0) {
+      const streak = new THREE.Mesh(new THREE.PlaneGeometry(rand(0.5, 0.8), STEP + 0.06),
+        new THREE.MeshBasicMaterial({ color: PAL.waterHi, transparent: true, opacity: 0, depthWrite: false }));
+      streak.position.set(rand(-3, 3), topY - STEP / 2 + 0.02, terraceZ(i) + (LEVEL_D - GAP) / 2 + 0.012);
+      slabGroup.add(streak); streaks.push(streak);
+    } else streaks.push(null);
+    // planted rice rows on even levels
+    if (planted) {
+      for (let r = 0; r < 3; r++) {
+        for (let c = 0; c < 34; c++) {
+          if (rng() < 0.08) continue;
+          const p = new THREE.Mesh(new THREE.ConeGeometry(0.05, 0.2, 4), riceMats[(r + c) % 3]);
+          p.position.set(-LEVEL_W / 2 + 0.5 + c * (LEVEL_W - 1) / 33, topY + 0.14,
+            terraceZ(i) - (LEVEL_D - GAP) / 2 + 0.28 + r * 0.42 + rand(-0.05, 0.05));
+          p.rotation.y = rng() * 6.28;
+          slabGroup.add(p);
+        }
+      }
+    }
+  }
+}
+
+// ---------- front reservoir pond ----------
+const RES_Y = 0.34, RES_Z = 5.85;
+{
+  const mud = new THREE.Mesh(new THREE.BoxGeometry(LEVEL_W, 0.34, 3.1),
+    new THREE.MeshStandardMaterial({ color: PAL.bankDark, roughness: 0.95, flatShading: true }));
+  mud.position.set(0, 0.17, RES_Z); mud.receiveShadow = true; slabGroup.add(mud);
+  const res = new THREE.Mesh(new THREE.PlaneGeometry(LEVEL_W - 0.4, 2.7),
+    new THREE.MeshStandardMaterial({ color: PAL.water, roughness: 0.22, metalness: 0.4, flatShading: true }));
+  res.rotation.x = -Math.PI / 2; res.position.set(0, RES_Y + 0.03, RES_Z);
+  res.receiveShadow = true; slabGroup.add(res);
+  const ring = new THREE.Mesh(new THREE.RingGeometry(0.8, 0.95, 28),
+    new THREE.MeshBasicMaterial({ color: PAL.waterHi, transparent: true, opacity: 0, side: THREE.DoubleSide, depthWrite: false }));
+  ring.rotation.x = -Math.PI / 2; ring.position.set(0, RES_Y + 0.045, RES_Z);
+  slabGroup.add(ring); ripples.push(ring); // index N_LEVELS = reservoir
+}
+
+// ---------- hut on the top terrace ----------
+{
+  const hut = new THREE.Group();
+  const topY = terraceTopY(N_LEVELS - 1);
+  const stiltM = new THREE.MeshStandardMaterial({ color: PAL.stilt, roughness: 0.95, flatShading: true });
+  for (const [dx, dz] of [[-0.5, -0.4], [0.5, -0.4], [-0.5, 0.4], [0.5, 0.4]]) {
+    const s = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.5, 5), stiltM);
+    s.position.set(dx, 0.25, dz); hut.add(s);
+  }
+  const body = new THREE.Mesh(new THREE.BoxGeometry(1.4, 0.85, 1.1),
+    new THREE.MeshStandardMaterial({ color: PAL.hut, roughness: 0.9, flatShading: true }));
+  body.position.y = 0.93; body.castShadow = true; hut.add(body);
+  const roof = new THREE.Mesh(new THREE.ConeGeometry(1.25, 0.8, 4),
+    new THREE.MeshStandardMaterial({ color: PAL.thatch, roughness: 0.95, flatShading: true }));
+  roof.position.y = 1.75; roof.rotation.y = Math.PI / 4; roof.castShadow = true; hut.add(roof);
+  hut.position.set(-4.9, topY, terraceZ(N_LEVELS - 1));
+  hut.rotation.y = 0.25;
+  slabGroup.add(hut);
+}
+
+// ---------- farmer with conical hat (mid terrace) ----------
+const FARMER_POS = new THREE.Vector3(2.1, terraceTopY(3) + 0.02, terraceZ(3) + 0.2);
+{
+  const f = new THREE.Group();
+  const body = new THREE.Mesh(new THREE.ConeGeometry(0.22, 0.62, 7),
+    new THREE.MeshStandardMaterial({ color: PAL.farmer, roughness: 0.9, flatShading: true }));
+  body.position.y = 0.31; body.castShadow = true; f.add(body);
+  const head = new THREE.Mesh(new THREE.SphereGeometry(0.11, 7, 6),
+    new THREE.MeshStandardMaterial({ color: 0xc9986a, roughness: 0.85, flatShading: true }));
+  head.position.y = 0.68; f.add(head);
+  const hat = new THREE.Mesh(new THREE.ConeGeometry(0.3, 0.18, 8),
+    new THREE.MeshStandardMaterial({ color: PAL.hat, roughness: 0.9, flatShading: true }));
+  hat.position.y = 0.82; hat.castShadow = true; f.add(hat);
+  f.position.copy(FARMER_POS);
+  slabGroup.add(f);
+}
+
+// ---------- egrets standing in the water ----------
+const egrets = [];
+{
+  const bodyM = new THREE.MeshStandardMaterial({ color: PAL.egret, roughness: 0.8, flatShading: true });
+  const beakM = new THREE.MeshStandardMaterial({ color: PAL.beak, roughness: 0.8, flatShading: true });
+  const spots = [[1, -3.4, 0.2], [5, 1.8, -0.25], [7, -1.2, 0.3]];
+  for (const [lv, x, zoff] of spots) {
+    const e = new THREE.Group();
+    const legM = new THREE.MeshStandardMaterial({ color: 0x4a4a44, roughness: 0.9 });
+    for (const dx of [-0.05, 0.05]) {
+      const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.015, 0.015, 0.34, 4), legM);
+      leg.position.set(dx, 0.17, 0); e.add(leg);
+    }
+    const body = new THREE.Mesh(new THREE.SphereGeometry(0.16, 8, 6), bodyM);
+    body.scale.set(1.35, 0.9, 0.9); body.position.y = 0.42; body.castShadow = true; e.add(body);
+    const neck = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.05, 0.34, 5), bodyM);
+    neck.position.set(0.16, 0.62, 0); neck.rotation.z = -0.25; e.add(neck);
+    const head = new THREE.Mesh(new THREE.SphereGeometry(0.07, 6, 5), bodyM);
+    head.position.set(0.24, 0.8, 0); e.add(head);
+    const beak = new THREE.Mesh(new THREE.ConeGeometry(0.03, 0.16, 5), beakM);
+    beak.position.set(0.36, 0.79, 0); beak.rotation.z = -Math.PI / 2.2; e.add(beak);
+    e.position.set(x, terraceTopY(lv) + 0.03, terraceZ(lv) + zoff);
+    e.rotation.y = rand(0, 6.28);
+    e.userData = { homeY: e.position.y, lv };
+    slabGroup.add(e); egrets.push(e);
+  }
+}
+
+// ---------- palms at the front corners ----------
+{
+  const trunkM = new THREE.MeshStandardMaterial({ color: PAL.trunk, roughness: 0.95, flatShading: true });
+  const frondM = new THREE.MeshStandardMaterial({ color: PAL.palm, roughness: 0.9, flatShading: true, side: THREE.DoubleSide });
+  const frondM2 = new THREE.MeshStandardMaterial({ color: PAL.palmLight, roughness: 0.9, flatShading: true, side: THREE.DoubleSide });
+  const spots = [[-6.3, RES_Z + 0.9, 1.5], [6.2, RES_Z + 0.7, 1.3], [-6.5, 2.6, 1.15]];
+  for (const [x, z, h] of spots) {
+    const p = new THREE.Group();
+    const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.11, h, 6), trunkM);
+    trunk.position.y = h / 2; trunk.rotation.z = rand(-0.12, 0.12); trunk.castShadow = true; p.add(trunk);
+    for (let k = 0; k < 6; k++) {
+      const fr = new THREE.Mesh(new THREE.ConeGeometry(0.16, 1.1, 4), k % 2 ? frondM : frondM2);
+      const a = k / 6 * Math.PI * 2;
+      fr.position.set(Math.cos(a) * 0.42, h + 0.12, Math.sin(a) * 0.42);
+      fr.rotation.set(Math.sin(a) * 1.15, 0, Math.cos(a) * -1.15);
+      fr.castShadow = true; p.add(fr);
+    }
+    p.position.set(x, 0.3, z);
+    slabGroup.add(p);
+  }
+}
+
+// ---------- fat invisible tap proxy around the top paddy ----------
+const TOP_PADDY = new THREE.Vector3(0, terraceTopY(N_LEVELS - 1), terraceZ(N_LEVELS - 1));
+const paddyProxy = new THREE.Mesh(new THREE.BoxGeometry(LEVEL_W - 2, 2.2, 2.4),
+  new THREE.MeshBasicMaterial({ visible: false }));
+paddyProxy.position.copy(TOP_PADDY).add(new THREE.Vector3(0, 0.4, 0));
+slabGroup.add(paddyProxy);
+
+// ---------- fit points ----------
+const FIT_CENTER = new THREE.Vector3(0, 2.1, -0.4);
+const FIT_PTS = [];
+for (const sx of [-1, 1]) for (const sz of [-1, 1]) {
+  FIT_PTS.push(new THREE.Vector3(sx * SLAB_HALF, 0.35, sz * SLAB_HALF));
+  FIT_PTS.push(new THREE.Vector3(sx * SLAB_HALF, -1.5, sz * SLAB_HALF));
+}
+FIT_PTS.push(new THREE.Vector3(-4.9, terraceTopY(N_LEVELS - 1) + 2.2, terraceZ(N_LEVELS - 1)));
+FIT_PTS.push(new THREE.Vector3(0, terraceTopY(N_LEVELS - 1) + 0.5, Z_BACK));
+
+// ---------- camera fit ----------
+function fitDir() {
+  const a = innerWidth / innerHeight;
+  if (a < 0.62) return new THREE.Vector3(0.09, 0.37, 1).normalize();
+  if (a < 0.9) return new THREE.Vector3(0.44, 0.4, 1).normalize();
+  return new THREE.Vector3(0.62, 0.42, 1).normalize();
+}
+const _rel = new THREE.Vector3();
+function requiredDistance(right, up, fwd, target) {
+  const fovV = THREE.MathUtils.degToRad(camera.fov);
+  const tanH = Math.tan(Math.atan(Math.tan(fovV/2) * camera.aspect));
+  const tanV = Math.tan(fovV/2);
+  let d = 4;
+  for (const c of FIT_PTS) {
+    _rel.copy(c).sub(target);
+    const cf = _rel.dot(fwd);
+    d = Math.max(d, Math.abs(_rel.dot(right)) / tanH - cf, Math.abs(_rel.dot(up)) / tanV - cf);
+  }
+  return d;
+}
+function frameInitialCamera() {
+  pickFov();
+  const fd = fitDir();
+  const fwd = fd.clone().negate();
+  const right = new THREE.Vector3().crossVectors(fwd, new THREE.Vector3(0,1,0)).normalize();
+  const up = new THREE.Vector3().crossVectors(right, fwd).normalize();
+  const dist = requiredDistance(right, up, fwd, FIT_CENTER) * (innerWidth / innerHeight < 0.62 ? 1.01 : 1.06);
+  camera.position.copy(FIT_CENTER).addScaledVector(fd, dist);
+  controls.target.copy(FIT_CENTER);
+  camera.updateProjectionMatrix(); controls.update();
+}
+frameInitialCamera();
+
+// ---------- hint ----------
+const HINTS = { idle: 'Tap the top paddy to release the water', flow: 'Water flows down the terraces' };
+function setHint(k) {
+  hintEl.textContent = HINTS[k];
+  hintEl.classList.toggle('faded', k !== 'idle');
+}
+setHint('idle');
+
+// ---------- cascade state ----------
+let cascadeT = -1;              // -1 idle, otherwise seconds since release
+const FRONT_SPEED = 2.6;        // levels per second
+const CASCADE_DONE = (N_LEVELS + 1) / FRONT_SPEED + 1.4;
+
+// ---------- tap ----------
+const ray = new THREE.Raycaster(); const ndc = new THREE.Vector2();
+let downX = 0, downY = 0, downT = 0;
+renderer.domElement.addEventListener('pointerdown', e => { downX = e.clientX; downY = e.clientY; downT = performance.now(); });
+renderer.domElement.addEventListener('pointerup', e => {
+  if (Math.hypot(e.clientX - downX, e.clientY - downY) > 7 || performance.now() - downT > 450) return;
+  ndc.set((e.clientX / innerWidth) * 2 - 1, -(e.clientY / innerHeight) * 2 + 1);
+  ray.setFromCamera(ndc, camera);
+  const hits = ray.intersectObject(paddyProxy, false);
+  if (!hits.length) return;
+  cascadeT = 0;
+  setHint('flow');
+  clearTimeout(setHint._t);
+  setHint._t = setTimeout(() => setHint('idle'), 6000);
+});
+
+addEventListener('resize', () => {
+  camera.aspect = innerWidth/innerHeight;
+  renderer.setSize(innerWidth, innerHeight);
+  renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+  frameInitialCamera();
+});
+
+// ---------- animate ----------
+const clock = new THREE.Clock();
+function animate() {
+  requestAnimationFrame(animate);
+  const dt = Math.min(clock.getDelta(), 0.05);
+  const t = clock.elapsedTime;
+
+  // ambient water shimmer
+  for (let i = 0; i < waters.length; i++) {
+    waters[i].material.metalness = 0.3 + 0.12 * Math.sin(t * 0.8 + i * 1.3);
+  }
+
+  // cascade
+  if (cascadeT >= 0) {
+    cascadeT += dt;
+    const front = cascadeT * FRONT_SPEED;   // front level index (0 = top paddy ... N = reservoir)
+    for (let i = 0; i <= N_LEVELS; i++) {
+      const lv = N_LEVELS - i;              // pour order: top level first
+      const local = front - i;              // seconds*rate since front hit this level
+      const ring = ripples[lv];
+      if (local > 0 && local < 1.6) {
+        const k = local / 1.6;
+        ring.scale.setScalar(0.4 + k * 2.6);
+        ring.material.opacity = 0.85 * (1 - k);
+      } else ring.material.opacity = 0;
+      if (lv < N_LEVELS) {
+        const pulse = Math.max(0, 1 - Math.abs(local - 0.35) / 0.9);
+        waters[lv].material.emissive = new THREE.Color(PAL.waterHi);
+        waters[lv].material.emissiveIntensity = pulse * 0.45;
+        const streak = streaks[lv];
+        if (streak) streak.material.opacity = (local > 0 && local < 1.1) ? 0.7 * (1 - local / 1.1) : 0;
+      }
+    }
+    for (const e of egrets) {
+      const lv = N_LEVELS - e.userData.lv;   // pour order index of this egret's level
+      const local = front - lv;
+      e.position.y = e.userData.homeY + (local > 0 ? 0.3 * Math.max(0, Math.sin(Math.min(local, 1.2) * Math.PI)) : 0);
+    }
+    if (cascadeT > CASCADE_DONE) cascadeT = -1;
+  } else {
+    for (const r of ripples) r.material.opacity = 0;
+    for (const s of streaks) if (s) s.material.opacity = 0;
+    for (const w of waters) w.material.emissiveIntensity = 0;
+    for (const e of egrets) e.position.y = e.userData.homeY;
+  }
+
+  const fwd = new THREE.Vector3(); camera.getWorldDirection(fwd);
+  const right = new THREE.Vector3().crossVectors(fwd, new THREE.Vector3(0,1,0)).normalize();
+  const up2 = new THREE.Vector3().crossVectors(right, fwd).normalize();
+  controls.minDistance = Math.min(requiredDistance(right, up2, fwd, controls.target) * 1.04, 26);
+
+  controls.update();
+  renderer.render(scene, camera);
+}
+animate();
+// rice-terraces p1: 8 stepped paddies, mirror/planted water, rippling cascade from top paddy
+// to reservoir, egret hops, hut, farmer, palms. marker:rice-p1
+</script>
+</body>
+</html>
