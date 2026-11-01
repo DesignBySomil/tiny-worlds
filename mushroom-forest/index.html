@@ -318,9 +318,11 @@ for (const pl of PLACEMENTS) {
     const bb = new THREE.Box3().setFromObject(group);
     const c = bb.getCenter(new THREE.Vector3());
     const size = bb.getSize(new THREE.Vector3());
-    const proxy = new THREE.Mesh(new THREE.SphereGeometry(Math.max(size.x, size.y, size.z) * 0.62 + 0.35, 8, 6),
+    // cap-top proxy: users tap the cap (the thing that lights); a mid-stem sphere
+    // this forgiving blankets neighbours from some camera angles (pass 12)
+    const proxy = new THREE.Mesh(new THREE.SphereGeometry(Math.max(size.x, size.z) * 0.62 + 0.22, 8, 6),
       new THREE.MeshBasicMaterial({ visible: false }));
-    proxy.position.copy(c); proxy.userData.msh = m;
+    proxy.position.set(c.x, bb.max.y - size.y * 0.15, c.z); proxy.userData.msh = m;
     scene.add(proxy); tapTargets.push(proxy);
   }
   MSH.push(m);
@@ -464,7 +466,9 @@ function setHint(s) {
 // the full-cycle retest; REMOVED before acceptance (same rule as volcano pass 20)
 window.__qaLit = () => MSH.map(m => ({ sp: m.species, x: m.x, z: m.z, lit: m.lit }));
 window.__qaCaps = () => MSH.map(m => {
-  const c = new THREE.Box3().setFromObject(m.group).getCenter(new THREE.Vector3()).project(camera);
+  const bb = new THREE.Box3().setFromObject(m.group);
+  const c = bb.getCenter(new THREE.Vector3()); c.y = bb.max.y - bb.getSize(new THREE.Vector3()).y * 0.15;
+  c.project(camera);
   return { x: Math.round((c.x + 1) / 2 * innerWidth), y: Math.round((-c.y + 1) / 2 * innerHeight) };
 });
 }
@@ -542,6 +546,7 @@ Promise.all(['BirchTree_Dead_1.glb', 'BirchTree_Dead_3.glb', 'Rock_Moss_1.glb',
   });
 
 // pass markers for deploy verification
+// pass 12: proxies repositioned to cap tops with tighter radius (were blanketing neighbours)
 // pass 11: QA lit-state probe for deterministic retest
 // pass 10: invisible forgiving hit proxies per mushroom (phone tap usability)
 // pass 9: QA hook uses per-group bbox center (fixed-height probe missed short teal caps)
@@ -680,7 +685,9 @@ setTimeout(() => hintEl.classList.add('faded'), 6000);
 // the full-cycle retest; REMOVED before acceptance (same rule as volcano pass 20)
 window.__qaLit = () => MSH.map(m => ({ sp: m.species, x: m.x, z: m.z, lit: m.lit }));
 window.__qaCaps = () => MSH.map(m => {
-  const c = new THREE.Box3().setFromObject(m.group).getCenter(new THREE.Vector3()).project(camera);
+  const bb = new THREE.Box3().setFromObject(m.group);
+  const c = bb.getCenter(new THREE.Vector3()); c.y = bb.max.y - bb.getSize(new THREE.Vector3()).y * 0.15;
+  c.project(camera);
   return { x: Math.round((c.x + 1) / 2 * innerWidth), y: Math.round((-c.y + 1) / 2 * innerHeight) };
 });
 </script>
