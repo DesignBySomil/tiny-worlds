@@ -46,6 +46,8 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 // pass 3: structure pass (main direction) - faceted multi-frequency sea surface (was flat+camo shadow acne; added
 //          normalBias), beam alpha fades to zero before the far rim (kills opaque endcap), foam broken into
 //          irregular jittered patches (was a flat band), fill light so slab strata read
+// pass 4: normalBias did not cure the acne - sea no longer receives shadow maps (camo patches gone),
+//          fake radial contact shadow under the islet instead
 // pass 1: first lighthouse-night build - marine night palette, striped tower on rocky islet, drag beam sweep, tap fog, course-correcting ships, exact corner-fit camera
 
 const PAL = {
@@ -117,7 +119,20 @@ strata(1.2, -SLAB_H + 2.0 + 0.6, 0x424a52);
 const seaGeo = new THREE.PlaneGeometry(SLAB, SLAB, 64, 64);
 const seaMat = new THREE.MeshStandardMaterial({ color: PAL.sea, roughness: 0.42, metalness: 0.25, flatShading: true });
 const sea = new THREE.Mesh(seaGeo, seaMat);
-sea.rotation.x = -Math.PI/2; sea.position.y = 0.02; sea.receiveShadow = true;
+sea.rotation.x = -Math.PI/2; sea.position.y = 0.02; sea.receiveShadow = false; // shadow-map acne made camo patches
+
+// fake soft contact shadow under the islet (replaces real shadow-mapped water)
+{
+  const c = document.createElement('canvas'); c.width = c.height = 256;
+  const g = c.getContext('2d');
+  const gr = g.createRadialGradient(128,128,10,128,128,128);
+  gr.addColorStop(0, 'rgba(4,10,14,0.62)'); gr.addColorStop(0.55, 'rgba(4,10,14,0.30)'); gr.addColorStop(1, 'rgba(4,10,14,0)');
+  g.fillStyle = gr; g.fillRect(0,0,256,256);
+  const tex = new THREE.CanvasTexture(c);
+  const sh = new THREE.Mesh(new THREE.CircleGeometry(4.1, 32),
+    new THREE.MeshBasicMaterial({ map: tex, transparent: true, depthWrite: false }));
+  sh.rotation.x = -Math.PI/2; sh.position.y = 0.035; slabGroup.add(sh);
+}
 slabGroup.add(sea);
 const seaBase = seaGeo.attributes.position.array.slice();
 
