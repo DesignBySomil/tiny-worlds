@@ -396,7 +396,7 @@ FIT_PTS.push(new THREE.Vector3(6.6, 3.2, -0.6));
 FIT_PTS.push(new THREE.Vector3(5.4, 1.6, 4.4));     // signpost
 function fitDir() {
   const a = innerWidth / innerHeight;
-  if (a < 0.62) return new THREE.Vector3(0.08, 0.33, 1).normalize();
+  if (a < 0.62) return new THREE.Vector3(0.09, 0.37, 1).normalize();
   if (a < 0.9) return new THREE.Vector3(0.42, 0.4, 1).normalize();
   return new THREE.Vector3(0.62, 0.42, 1).normalize();
 }
@@ -419,7 +419,7 @@ function frameInitialCamera() {
   const fwd = fd.clone().negate();
   const right = new THREE.Vector3().crossVectors(fwd, new THREE.Vector3(0,1,0)).normalize();
   const up = new THREE.Vector3().crossVectors(right, fwd).normalize();
-  const dist = requiredDistance(right, up, fwd, FIT_CENTER) * (innerWidth / innerHeight < 0.62 ? 0.97 : 1.06);
+  const dist = requiredDistance(right, up, fwd, FIT_CENTER) * (innerWidth / innerHeight < 0.62 ? 1.01 : 1.06);
   camera.position.copy(FIT_CENTER).addScaledVector(fd, dist);
   controls.target.copy(FIT_CENTER);
   camera.updateProjectionMatrix(); controls.update();
@@ -488,6 +488,7 @@ function animate() {
   renderer.render(scene, camera);
 }
 animate();
+// pass 7b: relax portrait crop
 // pass 7: dark contrast cracks, humanoid skaters, deeper ice, tighter portrait fit
 // pass 6: raise deep water + fish above strata top (they were hidden inside the rock)
 // pass 5: unlit radial-gradient deep water (reads true blue)
