@@ -249,7 +249,7 @@ for (let i = 0; i < 6; i++) {
 }
 const blossoms = [];
 for (let i = 0; i < 14; i++) {
-  const m = new THREE.Mesh(new THREE.SphereGeometry(0.085, 6, 5), blossomMat);
+  const m = new THREE.Mesh(new THREE.SphereGeometry(0.12, 6, 5), blossomMat);
   tree.add(m); blossoms.push(m);
 }
 const sprout = new THREE.Group();
@@ -279,7 +279,7 @@ const petalCv = document.createElement('canvas'); petalCv.width = petalCv.height
 { const c = petalCv.getContext('2d'); c.fillStyle = '#f7c9d8';
   c.beginPath(); c.ellipse(16, 16, 9, 6, 0.6, 0, 6.29); c.fill(); }
 const petals = new THREE.Points(petalGeo, new THREE.PointsMaterial({
-  map: new THREE.CanvasTexture(petalCv), size: 0.14, transparent: true, depthWrite: false }));
+  map: new THREE.CanvasTexture(petalCv), size: 0.2, transparent: true, depthWrite: false }));
 petals.frustumCulled = false; scene.add(petals);
 
 // butterflies (appear at maturity)
@@ -289,8 +289,8 @@ const butterflies = [];
     const g = new THREE.Group();
     const wMat = new THREE.MeshBasicMaterial({ color: i ? 0xf2d45c : 0xe8863a, side: THREE.DoubleSide });
     for (const d of [-1, 1]) {
-      const w = new THREE.Mesh(new THREE.PlaneGeometry(0.14, 0.1), wMat);
-      w.position.x = d * 0.07; w.userData.d = d; g.add(w);
+      const w = new THREE.Mesh(new THREE.PlaneGeometry(0.2, 0.14), wMat);
+      w.position.x = d * 0.1; w.userData.d = d; g.add(w);
     }
     g.visible = false; g.userData = { ph: rand(0, 6.28), r: rand(1.1, 1.7), h: rand(2.6, 3.6), s: rand(0.5, 0.8) };
     scene.add(g); butterflies.push(g);
@@ -309,7 +309,7 @@ function layoutTree(g, t) {
   seedMesh.position.y = 0.5 - smooth(0, 0.06, g) * 0.22;
   sprout.visible = g > 0.04 && g < 0.5;
   const sp = smooth(0.04, 0.3, g); sprout.scale.setScalar(Math.max(0.001, sp));
-  const th = 3.1 * smooth(0.12, 0.62, g);
+  const th = 3.6 * smooth(0.12, 0.62, g);
   const tw = 0.4 + 0.6 * smooth(0.12, 0.75, g);
   trunk.visible = th > 0.01;
   trunk.scale.set(tw, Math.max(0.001, th), tw); trunk.position.y = 0.3 + th / 2;
@@ -325,16 +325,16 @@ function layoutTree(g, t) {
   canopy.forEach((m, i) => {
     const a = i * 1.05, rr = i === 0 ? 0 : 0.75;
     m.visible = cs > 0.01;
-    const s = cs * (i === 0 ? 1.5 : rand0(i) * 0.5 + 0.75);
+    const s = cs * (i === 0 ? 1.9 : rand0(i) * 0.6 + 0.95);
     m.scale.setScalar(Math.max(0.001, s));
-    m.position.set(Math.cos(a) * rr * cs, 0.3 + th + (i === 0 ? 0.55 : 0.15 + 0.28 * Math.sin(i * 2.1)) , Math.sin(a) * rr * cs);
+    m.position.set(Math.cos(a) * rr * cs, 0.3 + th + (i === 0 ? 0.7 : 0.2 + 0.34 * Math.sin(i * 2.1)) , Math.sin(a) * rr * cs);
   });
   const bs = smooth(0.78, 1, g);
   blossoms.forEach((m, i) => {
     const a = i * 2.4, rr = 0.9 + 0.45 * Math.sin(i * 3.7);
     m.visible = bs > 0.01;
     m.scale.setScalar(Math.max(0.001, bs));
-    m.position.set(Math.cos(a) * rr * cs, 0.3 + th + 0.5 + 0.35 * Math.sin(i * 1.3), Math.sin(a) * rr * cs);
+    m.position.set(Math.cos(a) * rr * cs * 1.05, 0.3 + th + 0.6 + 0.4 * Math.sin(i * 1.3), Math.sin(a) * rr * cs * 1.05);
   });
 }
 function rand0(i) { return (Math.sin(i * 12.9898) * 43758.5453) % 1 * 0.5 + 0.5; }
@@ -352,7 +352,7 @@ function swirlStep() {
 const HINTS = {
   seed: 'Tap the soil to plant a seed',
   growing: 'Watch it grow',
-  mature: 'Tap the tree for a new season'
+  mature: 'Tap the tree to replant'
 };
 function setHint(s) {
   hintEl.textContent = HINTS[s]; hintEl.dataset.s = s; hintEl.classList.remove('faded');
@@ -366,7 +366,7 @@ const FIT_CENTER = new THREE.Vector3(0, 1.1, 0);
 const FIT_PTS = [];
 for (const x of [-6, 6]) for (const y of [-SLAB_H, 0.4]) for (const z of [-6, 6])
   FIT_PTS.push(new THREE.Vector3(x, y, z));
-FIT_PTS.push(new THREE.Vector3(0, 5.2, 0));      // mature tree top
+FIT_PTS.push(new THREE.Vector3(0, 5.9, 0));      // mature tree top
 FIT_PTS.push(new THREE.Vector3(2.9, 1.0, 1.6));  // watering can
 function fitDir() {
   const a = innerWidth / innerHeight;
@@ -477,6 +477,7 @@ function animate() {
 }
 animate();
 
+// pass 2: fuller canopy, taller hero tree, bigger blossoms/petals/butterflies, one-line replant hint
 // pass 1: initial build - wall-clock growth (9s), tap soil to plant, tap mature tree to replant,
 // petals + butterflies at maturity, fence/watering can/pot/trowel dressing, portrait bird's fit,
 // hint ownership pattern, seeded mulberry32(20261101)
