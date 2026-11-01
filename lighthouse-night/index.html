@@ -312,9 +312,11 @@ const lensGlow = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTex('rgba(
 lensGlow.scale.setScalar(3.2); beamGroup.add(lensGlow);
 // light pool where the beam points on the sea
 const pool = new THREE.Mesh(new THREE.CircleGeometry(1.5, 24),
-  new THREE.MeshBasicMaterial({ color: PAL.beam, transparent: true, opacity: 0.30,
-    blending: THREE.AdditiveBlending, depthWrite: false }));
-pool.rotation.x = -Math.PI/2; scene.add(pool);
+  new THREE.MeshBasicMaterial({ map: glowTex('rgba(255,217,138,0.9)','rgba(255,217,138,0)'),
+    transparent: true, opacity: 0.55, blending: THREE.AdditiveBlending, depthWrite: false }));
+pool.scale.set(1.8, 1.1, 1); // elongated along the beam
+pool.rotation.x = -Math.PI/2;
+const poolGroup = new THREE.Group(); poolGroup.add(pool); scene.add(poolGroup);
 
 // ---------- ships ----------
 const ships = [];
@@ -439,8 +441,8 @@ function animate() {
   if (autoSweep) beamYaw += Math.sin(t*0.3) * dt * 0.5;
   beamGroup.rotation.y = beamYaw;
   const bdir = new THREE.Vector3(Math.sin(beamYaw), 0, Math.cos(beamYaw));
-  pool.position.copy(bdir).multiplyScalar(6.2); pool.position.y = 0.35;
-  pool.material.opacity = fogOn ? 0.12 : 0.30;
+  poolGroup.position.copy(bdir).multiplyScalar(6.2); poolGroup.position.y = 0.35; poolGroup.rotation.y = beamYaw;
+  pool.material.opacity = (fogOn ? 0.25 : 0.55) + Math.sin(t*3.1)*0.06;
   beamMat.opacity += ((fogOn ? 0.30 : 0.16) - beamMat.opacity) * dt * 2.5;
   lensGlow.material.opacity = 0.85 + Math.sin(t*2.2)*0.15;
   lampLight.intensity = 38 + Math.sin(t*2.2)*7;
