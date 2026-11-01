@@ -316,12 +316,12 @@ const dustSprites = [];
   const cv = document.createElement('canvas'); cv.width = cv.height = 64;
   const cx = cv.getContext('2d');
   const grad = cx.createRadialGradient(32, 32, 2, 32, 32, 30);
-  grad.addColorStop(0, 'rgba(168,148,112,0.9)'); grad.addColorStop(1, 'rgba(168,148,112,0)');
+  grad.addColorStop(0, 'rgba(206,186,148,0.95)'); grad.addColorStop(1, 'rgba(206,186,148,0)');
   cx.fillStyle = grad; cx.fillRect(0, 0, 64, 64);
   const tex = new THREE.CanvasTexture(cv);
   for (let i = 0; i < 42; i++) {
     const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true, opacity: 0, depthWrite: false }));
-    sp.userData = { a: rand(0, 6.28), r: rand(0.6, 2.6), h: rand(0, 1.2), spd: rand(2.2, 4.2), s: rand(0.7, 1.6) };
+    sp.userData = { a: rand(0, 6.28), r: rand(0.5, 3.2), h: rand(0, 2.2), spd: rand(2.2, 4.2), s: rand(1.1, 2.4) };
     scene.add(sp); dustSprites.push(sp);
   }
 }
@@ -330,7 +330,7 @@ const debris = [];
   const dMat = new THREE.MeshStandardMaterial({ color: 0x7a6240, roughness: 0.95, flatShading: true });
   const dMat2 = new THREE.MeshStandardMaterial({ color: PAL.bale, roughness: 0.95, flatShading: true });
   for (let i = 0; i < 14; i++) {
-    const m = new THREE.Mesh(new THREE.BoxGeometry(rand(0.1, 0.28), rand(0.05, 0.12), rand(0.3, 0.6)),
+    const m = new THREE.Mesh(new THREE.BoxGeometry(rand(0.14, 0.38), rand(0.07, 0.16), rand(0.4, 0.8)),
       i % 3 ? dMat : dMat2);
     m.userData = { a: rand(0, 6.28), r: rand(0.8, 2.4), h: rand(0.2, 2.8), spd: rand(3, 5.5), spin: rand(2, 6) };
     m.visible = false; scene.add(m); debris.push(m);
@@ -370,7 +370,7 @@ function stormStep(dt, t) {
       const a = u.a + t * u.spd;
       sp.position.set(fx + Math.cos(a) * u.r, 0.12 + u.h * (0.5 + 0.5 * Math.sin(t * 2 + u.a)), fz + Math.sin(a) * u.r);
       const sc = u.s * (funnelState === 'down' ? 1 : 0.6); sp.scale.set(sc, sc, 1);
-      sp.material.opacity = funnelState === 'down' ? 0.65 : 0.35;
+      sp.material.opacity = funnelState === 'down' ? 0.78 : 0.4;
     } else sp.material.opacity = Math.max(0, sp.material.opacity - dt * 1.5);
   }
   for (const m of debris) {
@@ -509,6 +509,7 @@ function animate() {
   renderer.render(scene, camera);
 }
 animate();
+// pass 4: readable dust skirt + bigger debris
 // pass 3: wide funnel tap proxy tracking sway, deck uncrowded from header, softened funnel
 // pass 2: ropey twisted funnel, solid cloud deck, 720 wheat tufts
 // pass 1: tornado-prairie initial build - wheat field + 260 swaying tufts, farm
