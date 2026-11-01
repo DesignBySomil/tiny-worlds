@@ -462,15 +462,6 @@ function setHint(s) {
   hintEl.textContent = HINTS[s]; hintEl.classList.remove('faded');
   clearTimeout(setHint._t);
   setHint._t = setTimeout(() => hintEl.classList.add('faded'), 6000);
-// pass 8: TEMPORARY QA hook - projects mushroom tap points to screen coords for
-// the full-cycle retest; REMOVED before acceptance (same rule as volcano pass 20)
-window.__qaLit = () => MSH.map(m => ({ sp: m.species, x: m.x, z: m.z, lit: m.lit }));
-window.__qaCaps = () => MSH.map(m => {
-  const bb = new THREE.Box3().setFromObject(m.group);
-  const c = bb.getCenter(new THREE.Vector3()); c.y = bb.max.y - bb.getSize(new THREE.Vector3()).y * 0.15;
-  c.project(camera);
-  return { x: Math.round((c.x + 1) / 2 * innerWidth), y: Math.round((-c.y + 1) / 2 * innerHeight) };
-});
 }
 function litCount() { return MSH.filter(m => m.lit).length; }
 function lightMushroom(m) {
@@ -556,6 +547,7 @@ Promise.all(['BirchTree_Dead_1.glb', 'BirchTree_Dead_3.glb', 'Rock_Moss_1.glb',
   });
 
 // pass markers for deploy verification
+// pass 14: QA hooks removed pre-acceptance (projection + lit probe), retest complete - full 10-group cycle verified on pass 13 build
 // pass 13: floor-tap nearest-mushroom fallback (forgiving targeting, phone-first)
 // pass 12: proxies repositioned to cap tops with tighter radius (were blanketing neighbours)
 // pass 11: QA lit-state probe for deterministic retest
@@ -692,15 +684,6 @@ addEventListener('resize', () => {
   frameInitialCamera();
 });
 setTimeout(() => hintEl.classList.add('faded'), 6000);
-// pass 8: TEMPORARY QA hook - projects mushroom tap points to screen coords for
-// the full-cycle retest; REMOVED before acceptance (same rule as volcano pass 20)
-window.__qaLit = () => MSH.map(m => ({ sp: m.species, x: m.x, z: m.z, lit: m.lit }));
-window.__qaCaps = () => MSH.map(m => {
-  const bb = new THREE.Box3().setFromObject(m.group);
-  const c = bb.getCenter(new THREE.Vector3()); c.y = bb.max.y - bb.getSize(new THREE.Vector3()).y * 0.15;
-  c.project(camera);
-  return { x: Math.round((c.x + 1) / 2 * innerWidth), y: Math.round((-c.y + 1) / 2 * innerHeight) };
-});
 </script>
 </body>
 </html>
