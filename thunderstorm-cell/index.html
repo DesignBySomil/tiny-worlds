@@ -51,6 +51,7 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 // pass 8: material change - solid mesh abandoned (read as rock); cloud is now a soft billboard-puff cluster (cumulonimbus layout, height-tinted), invisible sphere proxy for tap/drag raycast
 // pass 9: puff cluster scaled to hero size (pass 8 read tiny), deeper base tints
 // pass 10: crisper cores - denser texture falloff (was fog blob), extra mid puffs to close gaps
+// pass 11: portrait fit - wider bounds (cloud overhang at drag edges) + bigger fit margins (320px clipped slab left edge)
 
 // ---------- palette (brooding storm day, distinct from volcano dusk / mushroom night) ----------
 const PAL = {
@@ -346,17 +347,17 @@ function strike() {
 
 // ---------- camera framing (bounds-fit, portrait-aware) ----------
 const frameBox = new THREE.Box3(
-  new THREE.Vector3(-SLAB/2 - 1, -SLAB_H, -SLAB/2 - 1),
-  new THREE.Vector3(SLAB/2 + 1, CLOUD_Y + 6.6, SLAB/2 + 1));
+  new THREE.Vector3(-SLAB/2 - 2.5, -SLAB_H, -SLAB/2 - 2.5),
+  new THREE.Vector3(SLAB/2 + 2.5, CLOUD_Y + 6.6, SLAB/2 + 2.5));
 function frameInitialCamera() {
   const size = frameBox.getSize(new THREE.Vector3());
   const center = frameBox.getCenter(new THREE.Vector3());
   center.y = 2.5;
   const fovV = THREE.MathUtils.degToRad(camera.fov);
   const fovH = 2 * Math.atan(Math.tan(fovV/2) * camera.aspect);
-  const distV = (size.y * 0.62) / Math.tan(fovV/2);
-  const distH = (size.x * 0.62) / Math.tan(fovH/2);
-  const dist = Math.max(distV, distH) * 1.08;
+  const distV = (size.y * 0.68) / Math.tan(fovV/2);
+  const distH = (size.x * 0.68) / Math.tan(fovH/2);
+  const dist = Math.max(distV, distH) * 1.12;
   const dir = new THREE.Vector3(0.62, 0.42, 1).normalize();
   camera.position.copy(center).addScaledVector(dir, dist);
   controls.target.copy(center);
