@@ -47,7 +47,7 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 
-// pass 4
+// pass 5
 const container = document.getElementById('app');
 const hintEl = document.getElementById('hint');
 const scene = new THREE.Scene();
@@ -249,6 +249,23 @@ const grains = [];
 // ---------- sandstorm gust wall (interaction) ----------
 const gusts = [];
 const gustTex = makeSoftTexture('rgba(232,196,148,0.95)', 'rgba(232,196,148,0)');
+// sun disc + circling vultures
+const vultures = [];
+{
+  const sunTex = makeSoftTexture('rgba(255,244,214,1)', 'rgba(255,244,214,0)');
+  const sunSpr = new THREE.Sprite(new THREE.SpriteMaterial({ map: sunTex, transparent: true, opacity: 0.95, depthWrite: false }));
+  sunSpr.scale.set(3.4, 3.4, 1); sunSpr.position.set(-4.6, 5.6, -4);
+  scene.add(sunSpr);
+  const vTex = makeSoftTexture('rgba(60,44,30,0.95)', 'rgba(60,44,30,0)');
+  for (let i = 0; i < 4; i++) {
+    const mat = new THREE.SpriteMaterial({ map: vTex, transparent: true, opacity: 0.8, depthWrite: false });
+    const sp = new THREE.Sprite(mat);
+    const sc = rand(0.1, 0.16); sp.scale.set(sc * 2.4, sc, 1);
+    scene.add(sp);
+    vultures.push({ s: sp, ax: rand(-1, 2), ay: rand(4.2, 5.4), az: rand(-2, 0), r: rand(1.2, 2.4), spd: rand(0.2, 0.4), ph: rand(0, 6.3) });
+  }
+}
+
 const hintIdle = 'Summon the sandstorm';
 const hintStorm = 'It howls';
 let hintOwner = 'idle';
