@@ -46,6 +46,7 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 // pass 3: root form pass - cloud rebuilt as interpenetrating wide-base cumulonimbus (no coil stack), irregular mud-ring pond with visible water from start, hint contrast lifted
 // pass 4: coherent form - cloud is ONE sculpted lathe+value-noise volume with vertical vertex-color gradient (no ball seams), pond gets sandy mud shore + wider visible water, cloud shadow off (was blacking out the pond), lower cloud altitude, stronger hint contrast
 // pass 5: cloud billows - bigger low-frequency lumps (was a smooth cone/mound), composition lowered for header clearance
+// pass 6: cauliflower lobes - mid-frequency dominant displacement for real lobe shading separation, stronger base->top value contrast
 
 // ---------- palette (brooding storm day, distinct from volcano dusk / mushroom night) ----------
 const PAL = {
@@ -179,16 +180,16 @@ const cGeo = new THREE.LatheGeometry(cProfile.map(([r,y]) => new THREE.Vector2(r
 {
   const pos = cGeo.attributes.position;
   const cols = [];
-  const cBase = new THREE.Color(0x454c5a), cMid = new THREE.Color(0x6d7684), cTop = new THREE.Color(0xbcc6d3);
+  const cBase = new THREE.Color(0x3a414e), cMid = new THREE.Color(0x717b8a), cTop = new THREE.Color(0xd0d9e3);
   for (let i = 0; i < pos.count; i++) {
     const x = pos.getX(i), y = pos.getY(i), z = pos.getZ(i);
     const flat = THREE.MathUtils.smoothstep(y, 0.05, 1.1); // keep underside flat
     const radial = Math.hypot(x, z) || 1;
-    const n = vnoise(x*0.38+7, y*0.5, z*0.38) * 1.05 + vnoise(x*0.9, y*1.0, z*0.9) * 0.42 + vnoise(x*2.1, y*2.1, z*2.1) * 0.14;
-    const amp = 0.85 * flat;
+    const n = vnoise(x*0.7+7, y*0.85, z*0.7) * 1.1 + vnoise(x*1.7, y*1.9, z*1.7) * 0.5 + vnoise(x*3.2, y*3.2, z*3.2) * 0.18;
+    const amp = 1.0 * flat;
     pos.setXYZ(i,
       x + (x/radial) * n * amp,
-      y + vnoise(x*0.6+31, y*0.7, z*0.6) * 0.5 * flat,
+      y + vnoise(x*0.75+31, y*0.9, z*0.75) * 0.55 * flat,
       z + (z/radial) * n * amp);
     const t = THREE.MathUtils.clamp(y / 3.85, 0, 1);
     const c = t < 0.5 ? cBase.clone().lerp(cMid, t*2) : cMid.clone().lerp(cTop, (t-0.5)*2);
