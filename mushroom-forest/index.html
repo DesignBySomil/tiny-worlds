@@ -84,6 +84,8 @@ function frameInitialCamera() {
   const corners = [];
   for (const x of [-8.15, 8.15]) for (const y of [-4.35, 4.7]) for (const z of [-8.15, 8.15])
     corners.push(new THREE.Vector3(x, y, z));
+  for (const x of [-9.9, 9.9]) for (const z of [-9.9, 9.9])
+    corners.push(new THREE.Vector3(x, -4.3, z));   // shadow-disc extremes
   const mX = aspect < 0.78 ? 0.88 : 0.96, mY = aspect < 0.78 ? 0.82 : 0.92;
   let d = 7;
   for (; d < 60; d += 0.25) {
@@ -132,7 +134,7 @@ slab(1.6, -2.7, 0x56546a);            // stone
 slab(1.1, -1.6, 0x6a5548);            // clay soil
 slab(0.7, -0.5, 0x4f4038);            // humus
 slab(0.5, 0.0, 0x42332b);             // dark topsoil sides
-const shadowDisc = new THREE.Mesh(new THREE.CircleGeometry(11.5, 40),
+const shadowDisc = new THREE.Mesh(new THREE.CircleGeometry(9.8, 40),
   new THREE.MeshBasicMaterial({ color: 0x02040c, transparent: true, opacity: 0.55 }));
 shadowDisc.rotation.x = -Math.PI / 2; shadowDisc.position.y = -4.32; scene.add(shadowDisc);
 
@@ -141,7 +143,7 @@ const floorGeo = new THREE.PlaneGeometry(16, 16, 56, 56);
 floorGeo.rotateX(-Math.PI / 2);
 {
   const p = floorGeo.attributes.position, cols = [];
-  const soil = new THREE.Color(0x5d4a3f), moss = new THREE.Color(0x55624e), litter = new THREE.Color(0x68553f);
+  const soil = new THREE.Color(0x604d41), moss = new THREE.Color(0x5c6a55), litter = new THREE.Color(0x6b5b4a);
   for (let i = 0; i < p.count; i++) {
     const x = p.getX(i), z = p.getZ(i);
     const e = Math.max(Math.abs(x), Math.abs(z)) / 8;
@@ -152,9 +154,9 @@ floorGeo.rotateX(-Math.PI / 2);
              + 0.25 * Math.sin(x * 7.1 - z * 5.9 + 4.1);
     const sm = (a, b, v) => { const t = Math.min(1, Math.max(0, (v - a) / (b - a))); return t * t * (3 - 2 * t); };
     const c = soil.clone();
-    c.lerp(litter, sm(0.35, 0.9, -n2) * 0.3);
-    c.lerp(moss, sm(0.3, 0.9, n2) * 0.5);
-    c.offsetHSL(rand(-0.01, 0.01), rand(-0.03, 0.03), rand(-0.025, 0.025));
+    c.lerp(litter, sm(0.35, 0.9, -n2) * 0.2);
+    c.lerp(moss, sm(0.3, 0.9, n2) * 0.35);
+    c.offsetHSL(rand(-0.005, 0.005), rand(-0.015, 0.015), rand(-0.012, 0.012));
     cols.push(c.r, c.g, c.b);
   }
   floorGeo.setAttribute('color', new THREE.Float32BufferAttribute(cols, 3));
@@ -561,6 +563,8 @@ Promise.all(['CommonTree_2.glb', 'CommonTree_4.glb', 'BirchTree_Dead_1.glb', 'Bi
   });
 
 // pass markers for deploy verification
+// pass 18: portrait corner-clip fix - shadow disc shrunk to 9.8 + its extremes added to fit corner set;
+//          floor contrast lowered again (mottle read), per-vertex jitter halved
 // pass 17: floor texture read - higher frequency + lower contrast (medium blobs were still camo)
 // pass 16: floor de-blotch - smoothstep blends between soil/litter/moss (hard thresholds read as camo),
 //          softer moss value, lighter tree tint, slightly smaller canopy

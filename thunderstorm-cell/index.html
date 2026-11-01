@@ -57,7 +57,8 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 // pass 14: dynamic containment - frameBox never covered the cloud cluster at drag clamps (visual half-extent ~5.5 beyond center);
 //          per-frame required-distance fit against the live camera basis drives controls.minDistance
 // pass 15: fit TRUE physical boxes (slab + storm cluster, not inflated all-sky frameBox), responsive fov (38/46/58 by aspect)
-//          so portrait fit distance stays inside a usable range, fog far 120 and maxDistance 200 to match. TEMP __qa hook added.
+//          so portrait fit distance stays inside a usable range, fog far 120 and maxDistance 200 to match.
+// pass 19: QA hook stripped (probing complete: z-fight, resize, pond full-cycle all verified)
 // pass 18: z-fight root fix - plain top face was coplanar with strataTop top face (both y=0.0,
 //          whole-surface striping); decal stack raised with real separations + polygonOffset on patches
 // pass 17: cloud smoothing - position-keyed low-frequency noise (no shard cracks), detail-2 icosa,
@@ -565,8 +566,7 @@ function animate() {
   renderer.render(scene, camera);
 }
 animate();
-// TEMP QA HOOK - removed before acceptance
-window.__qa = { THREE, camera, controls, cloud, scene, renderer };
+
 
 addEventListener('resize', () => {
   camera.aspect = innerWidth/innerHeight;
