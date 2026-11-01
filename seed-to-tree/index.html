@@ -1,0 +1,485 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Seed to Tree - a tiny world</title>
+<style>
+  html, body { margin:0; padding:0; height:100%; background:#a9d6ee; overflow:hidden;
+    font-family: Georgia, 'Times New Roman', serif; }
+  #app { position:fixed; inset:0; }
+  header { position:fixed; top:0; left:0; right:0; text-align:center; pointer-events:none;
+    padding: max(18px, env(safe-area-inset-top)) 16px 18px; z-index:5;
+    background: linear-gradient(rgba(28,50,38,.60), rgba(28,50,38,.28) 55%, rgba(28,50,38,0)); }
+  header h1 { margin:0; font-size:15px; letter-spacing:.42em; font-weight:400;
+    color:#f7fbf4; text-transform:uppercase; text-shadow:0 1px 8px rgba(30,48,36,.7); }
+  header .rule { width:44px; height:1px; background:rgba(247,251,244,.55); margin:9px auto; }
+  #hint { display:inline-block; font-size:11.5px; letter-spacing:.24em; text-transform:uppercase;
+    color:#fbfef9; transition:opacity 1.2s ease; padding:5px 12px; border-radius:3px;
+    background:rgba(24,42,32,.40);
+    text-shadow:0 1px 3px rgba(12,22,16,.98), 0 0 8px rgba(12,22,16,.95), 0 0 18px rgba(12,22,16,.85); }
+  #hint.faded { opacity:.45; }
+  footer { position:fixed; bottom:0; left:0; right:0; text-align:center; pointer-events:none;
+    padding:0 16px max(14px, env(safe-area-inset-bottom)); z-index:5;
+    font-size:10px; letter-spacing:.34em; text-transform:uppercase; color:rgba(247,251,244,.6); }
+  canvas { display:block; touch-action:none; }
+</style>
+</head>
+<body>
+<div id="app"></div>
+<header>
+  <h1>Seed to Tree</h1>
+  <div class="rule"></div>
+  <span id="hint"></span>
+</header>
+<footer>A tiny world</footer>
+<script type="importmap">
+{ "imports": {
+  "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+  "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+} }
+</script>
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+const container = document.getElementById('app');
+const hintEl = document.getElementById('hint');
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0xa9d6ee);
+scene.fog = new THREE.Fog(0xa9d6ee, 60, 140);
+
+const camera = new THREE.PerspectiveCamera(38, innerWidth/innerHeight, 0.1, 240);
+function pickFov() {
+  const a = innerWidth / innerHeight;
+  camera.fov = a >= 0.9 ? 38 : (a >= 0.62 ? 46 : 58);
+  camera.updateProjectionMatrix();
+}
+pickFov();
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setSize(innerWidth, innerHeight);
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+container.appendChild(renderer.domElement);
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true; controls.dampingFactor = 0.06;
+controls.enablePan = false; controls.maxPolarAngle = Math.PI * 0.52;
+
+const sun = new THREE.DirectionalLight(0xfff2d8, 2.3);
+sun.position.set(9, 14, 7); sun.castShadow = true;
+sun.shadow.mapSize.set(1024, 1024);
+sun.shadow.camera.left = -14; sun.shadow.camera.right = 14;
+sun.shadow.camera.top = 14; sun.shadow.camera.bottom = -14;
+sun.shadow.camera.far = 60; sun.shadow.bias = -0.0006;
+scene.add(sun);
+scene.add(new THREE.HemisphereLight(0xd8ecf8, 0x5f7a4a, 1.1));
+
+function mulberry32(a) {
+  return function() {
+    a |= 0; a = a + 0x6D2B79F5 | 0;
+    let t = Math.imul(a ^ a >>> 15, 1 | a);
+    t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+    return ((t ^ t >>> 14) >>> 0) / 4294967296;
+  };
+}
+const rng = mulberry32(20261101);
+function rand(a, b) { return a + rng() * (b - a); }
+
+// ---------- slab: grass-topped garden plot ----------
+const SLAB_H = 1.4;
+const slabGroup = new THREE.Group(); scene.add(slabGroup);
+const grassMat = new THREE.MeshStandardMaterial({ color: 0x7cb44e, roughness: 0.95 });
+const earthMat = new THREE.MeshStandardMaterial({ color: 0x8a6844, roughness: 1 });
+const rockMat  = new THREE.MeshStandardMaterial({ color: 0x5d5148, roughness: 1 });
+{
+  const grass = new THREE.Mesh(new THREE.BoxGeometry(12, 0.22, 12), grassMat);
+  grass.position.y = -0.11; grass.receiveShadow = true; slabGroup.add(grass);
+  const earth = new THREE.Mesh(new THREE.BoxGeometry(12, SLAB_H, 12), earthMat);
+  earth.position.y = -SLAB_H/2 - 0.2; slabGroup.add(earth);
+  const rock = new THREE.Mesh(new THREE.BoxGeometry(12.4, 0.5, 12.4), rockMat);
+  rock.position.y = -SLAB_H - 0.45; slabGroup.add(rock);
+  // grass colour patches
+  const patchMat = new THREE.MeshStandardMaterial({ color: 0x8dc259, roughness: 1 });
+  for (let i = 0; i < 14; i++) {
+    const p = new THREE.Mesh(new THREE.CircleGeometry(rand(0.5, 1.3), 9), patchMat);
+    p.rotation.x = -Math.PI/2; p.position.set(rand(-5.4, 5.4), 0.011, rand(-5.4, 5.4));
+    p.receiveShadow = true; slabGroup.add(p);
+  }
+}
+
+// ---------- tilled soil bed (the planting spot) ----------
+const soilMat = new THREE.MeshStandardMaterial({ color: 0x5e422b, roughness: 1 });
+const soilGroup = new THREE.Group(); slabGroup.add(soilGroup);
+{
+  const bed = new THREE.Mesh(new THREE.CylinderGeometry(1.7, 1.9, 0.3, 18), soilMat);
+  bed.position.y = 0.15; bed.receiveShadow = true; bed.castShadow = true; soilGroup.add(bed);
+  const ridgeMat = new THREE.MeshStandardMaterial({ color: 0x523823, roughness: 1 });
+  for (let i = -2; i <= 2; i++) {
+    const r = new THREE.Mesh(new THREE.BoxGeometry(2.9, 0.09, 0.16), ridgeMat);
+    r.position.set(0, 0.32, i * 0.55); r.castShadow = true; soilGroup.add(r);
+  }
+  const mound = new THREE.Mesh(new THREE.SphereGeometry(0.42, 12, 8), soilMat);
+  mound.scale.y = 0.45; mound.position.y = 0.32; mound.castShadow = true; soilGroup.add(mound);
+}
+
+// ---------- picket fence (back edge) ----------
+{
+  const fenceMat = new THREE.MeshStandardMaterial({ color: 0xe8e2d2, roughness: 0.9 });
+  const fz = -5.5;
+  for (let i = 0; i < 9; i++) {
+    const post = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.85, 0.1), fenceMat);
+    post.position.set(-4.8 + i * 1.2, 0.42, fz); post.castShadow = true; slabGroup.add(post);
+    const tip = new THREE.Mesh(new THREE.ConeGeometry(0.1, 0.16, 4), fenceMat);
+    tip.position.set(-4.8 + i * 1.2, 0.93, fz); tip.rotation.y = Math.PI/4; slabGroup.add(tip);
+  }
+  for (const ry of [0.32, 0.62]) {
+    const rail = new THREE.Mesh(new THREE.BoxGeometry(10.2, 0.09, 0.06), fenceMat);
+    rail.position.set(0, ry, fz + 0.07); rail.castShadow = true; slabGroup.add(rail);
+  }
+}
+
+// ---------- watering can ----------
+{
+  const canMat = new THREE.MeshStandardMaterial({ color: 0x4f7fa0, roughness: 0.5, metalness: 0.55 });
+  const g = new THREE.Group();
+  const body = new THREE.Mesh(new THREE.CylinderGeometry(0.34, 0.4, 0.55, 12), canMat);
+  body.castShadow = true; g.add(body);
+  const spout = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.075, 0.7, 8), canMat);
+  spout.position.set(0.48, 0.12, 0); spout.rotation.z = -1.0; spout.castShadow = true; g.add(spout);
+  const rose = new THREE.Mesh(new THREE.CylinderGeometry(0.11, 0.09, 0.1, 8), canMat);
+  rose.position.set(0.76, 0.42, 0); rose.rotation.z = -1.0; g.add(rose);
+  const handle = new THREE.Mesh(new THREE.TorusGeometry(0.22, 0.035, 8, 14, Math.PI), canMat);
+  handle.position.set(-0.28, 0.28, 0); handle.rotation.z = 0.5; g.add(handle);
+  g.position.set(2.9, 0.28, 1.6); g.rotation.y = -0.6; slabGroup.add(g);
+}
+
+// ---------- terracotta pot + trowel ----------
+{
+  const potMat = new THREE.MeshStandardMaterial({ color: 0xb5663f, roughness: 0.85 });
+  const pot = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.22, 0.4, 10), potMat);
+  pot.position.set(-2.6, 0.2, 1.9); pot.castShadow = true; slabGroup.add(pot);
+  const rim = new THREE.Mesh(new THREE.CylinderGeometry(0.34, 0.32, 0.1, 10), potMat);
+  rim.position.set(-2.6, 0.42, 1.9); slabGroup.add(rim);
+  const soilTop = new THREE.Mesh(new THREE.CircleGeometry(0.27, 10), soilMat);
+  soilTop.rotation.x = -Math.PI/2; soilTop.position.set(-2.6, 0.44, 1.9); slabGroup.add(soilTop);
+  const trowelMat = new THREE.MeshStandardMaterial({ color: 0x9aa4ac, roughness: 0.4, metalness: 0.6 });
+  const blade = new THREE.Mesh(new THREE.ConeGeometry(0.09, 0.4, 6), trowelMat);
+  blade.position.set(-2.2, 0.07, 2.4); blade.rotation.set(Math.PI/2, 0, 0.8); blade.castShadow = true; slabGroup.add(blade);
+  const grip = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.035, 0.22, 6),
+    new THREE.MeshStandardMaterial({ color: 0x7a4a2a, roughness: 0.8 }));
+  grip.position.set(-2.32, 0.07, 2.62); grip.rotation.set(Math.PI/2, 0, 0.8); slabGroup.add(grip);
+}
+
+// ---------- wildflowers + grass tufts + rocks ----------
+const flowers = [];
+{
+  const headMats = [0xe86a8a, 0xf2d45c, 0xffffff, 0xb678e0].map(c =>
+    new THREE.MeshStandardMaterial({ color: c, roughness: 0.8 }));
+  const stemMat = new THREE.MeshStandardMaterial({ color: 0x4e7a33, roughness: 1 });
+  for (let i = 0; i < 12; i++) {
+    const g = new THREE.Group();
+    const h = rand(0.22, 0.4);
+    const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.025, h, 5), stemMat);
+    stem.position.y = h/2; g.add(stem);
+    const head = new THREE.Mesh(new THREE.SphereGeometry(0.07, 7, 6), headMats[i % headMats.length]);
+    head.position.y = h + 0.04; head.castShadow = true; g.add(head);
+    let x, z; do { x = rand(-5.2, 5.2); z = rand(-5.2, 5.2); } while (Math.hypot(x, z) < 2.4);
+    g.position.set(x, 0, z); g.userData.ph = rand(0, 6.28);
+    slabGroup.add(g); flowers.push(g);
+  }
+  const tuftMat = new THREE.MeshStandardMaterial({ color: 0x6aa544, roughness: 1, side: THREE.DoubleSide });
+  for (let i = 0; i < 22; i++) {
+    const t = new THREE.Mesh(new THREE.ConeGeometry(0.06, rand(0.16, 0.3), 4), tuftMat);
+    let x, z; do { x = rand(-5.5, 5.5); z = rand(-5.5, 5.5); } while (Math.hypot(x, z) < 2.2);
+    t.position.set(x, 0.1, z); t.rotation.y = rand(0, 3); slabGroup.add(t);
+  }
+  const rMat = new THREE.MeshStandardMaterial({ color: 0x9a948a, roughness: 1 });
+  for (let i = 0; i < 4; i++) {
+    const r = new THREE.Mesh(new THREE.DodecahedronGeometry(rand(0.12, 0.24)), rMat);
+    r.position.set(rand(-5, 5), 0.1, rand(-4.6, 4.6));
+    if (Math.hypot(r.position.x, r.position.z) < 2.3) { r.position.x += 3; }
+    r.castShadow = true; slabGroup.add(r);
+  }
+}
+
+// ---------- clouds + sun sprite ----------
+const clouds = [];
+{
+  const cMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 1, transparent: true, opacity: 0.92 });
+  for (let i = 0; i < 3; i++) {
+    const g = new THREE.Group();
+    for (let b = 0; b < 4; b++) {
+      const m = new THREE.Mesh(new THREE.SphereGeometry(rand(0.5, 0.9), 10, 8), cMat);
+      m.position.set(b * rand(0.55, 0.8) - 1, rand(-0.1, 0.25), rand(-0.2, 0.2));
+      m.scale.y = 0.6; g.add(m);
+    }
+    g.position.set(rand(-8, 8), rand(6.5, 8.5), rand(-7, -3));
+    g.userData.v = rand(0.08, 0.2);
+    scene.add(g); clouds.push(g);
+  }
+  const cv = document.createElement('canvas'); cv.width = cv.height = 128;
+  const cx = cv.getContext('2d');
+  const grad = cx.createRadialGradient(64, 64, 6, 64, 64, 64);
+  grad.addColorStop(0, 'rgba(255,246,214,1)'); grad.addColorStop(0.35, 'rgba(255,236,180,.85)');
+  grad.addColorStop(1, 'rgba(255,236,180,0)');
+  cx.fillStyle = grad; cx.fillRect(0, 0, 128, 128);
+  const spr = new THREE.Sprite(new THREE.SpriteMaterial({
+    map: new THREE.CanvasTexture(cv), transparent: true, depthWrite: false }));
+  spr.scale.setScalar(9); spr.position.set(11, 9.5, -14); scene.add(spr);
+}
+
+// ---------- the tree (growth state machine) ----------
+const tree = new THREE.Group(); slabGroup.add(tree);
+const trunkMat = new THREE.MeshStandardMaterial({ color: 0x7a5230, roughness: 0.95 });
+const leafMat  = new THREE.MeshStandardMaterial({ color: 0x4e8f3a, roughness: 0.9 });
+const leafMat2 = new THREE.MeshStandardMaterial({ color: 0x63a848, roughness: 0.9 });
+const blossomMat = new THREE.MeshStandardMaterial({ color: 0xf2aec2, roughness: 0.7 });
+const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.30, 1, 9), trunkMat);
+trunk.castShadow = true; tree.add(trunk);
+const branches = [];
+for (let i = 0; i < 4; i++) {
+  const b = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.09, 1, 7), trunkMat);
+  b.castShadow = true; tree.add(b); branches.push(b);
+}
+const canopy = [];
+for (let i = 0; i < 6; i++) {
+  const m = new THREE.Mesh(new THREE.IcosahedronGeometry(0.6, 1), i % 2 ? leafMat : leafMat2);
+  m.castShadow = true; tree.add(m); canopy.push(m);
+}
+const blossoms = [];
+for (let i = 0; i < 14; i++) {
+  const m = new THREE.Mesh(new THREE.SphereGeometry(0.085, 6, 5), blossomMat);
+  tree.add(m); blossoms.push(m);
+}
+const sprout = new THREE.Group();
+{
+  const sMat = new THREE.MeshStandardMaterial({ color: 0x66b84a, roughness: 0.8, side: THREE.DoubleSide });
+  const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.03, 0.3, 5), sMat);
+  stem.position.y = 0.15; sprout.add(stem);
+  for (const d of [-1, 1]) {
+    const leaf = new THREE.Mesh(new THREE.SphereGeometry(0.09, 6, 5), sMat);
+    leaf.scale.set(1.6, 0.4, 0.8); leaf.position.set(d * 0.12, 0.3, 0);
+    leaf.rotation.z = d * 0.5; sprout.add(leaf);
+  }
+}
+sprout.position.y = 0.42; tree.add(sprout);
+const seedMesh = new THREE.Mesh(new THREE.SphereGeometry(0.11, 8, 6),
+  new THREE.MeshStandardMaterial({ color: 0x3d2a18, roughness: 0.6 }));
+seedMesh.scale.set(1, 0.75, 0.8); seedMesh.position.y = 0.5; tree.add(seedMesh);
+
+// blossom petals (ambient once mature)
+const PETALS = 26;
+const petalGeo = new THREE.BufferGeometry();
+const petalPos = new Float32Array(PETALS * 3);
+const petalSeed = [];
+for (let i = 0; i < PETALS; i++) { petalPos[i*3+1] = -50; petalSeed.push(rand(0, 6.28)); }
+petalGeo.setAttribute('position', new THREE.BufferAttribute(petalPos, 3));
+const petalCv = document.createElement('canvas'); petalCv.width = petalCv.height = 32;
+{ const c = petalCv.getContext('2d'); c.fillStyle = '#f7c9d8';
+  c.beginPath(); c.ellipse(16, 16, 9, 6, 0.6, 0, 6.29); c.fill(); }
+const petals = new THREE.Points(petalGeo, new THREE.PointsMaterial({
+  map: new THREE.CanvasTexture(petalCv), size: 0.14, transparent: true, depthWrite: false }));
+petals.frustumCulled = false; scene.add(petals);
+
+// butterflies (appear at maturity)
+const butterflies = [];
+{
+  for (let i = 0; i < 2; i++) {
+    const g = new THREE.Group();
+    const wMat = new THREE.MeshBasicMaterial({ color: i ? 0xf2d45c : 0xe8863a, side: THREE.DoubleSide });
+    for (const d of [-1, 1]) {
+      const w = new THREE.Mesh(new THREE.PlaneGeometry(0.14, 0.1), wMat);
+      w.position.x = d * 0.07; w.userData.d = d; g.add(w);
+    }
+    g.visible = false; g.userData = { ph: rand(0, 6.28), r: rand(1.1, 1.7), h: rand(2.6, 3.6), s: rand(0.5, 0.8) };
+    scene.add(g); butterflies.push(g);
+  }
+}
+
+// ---------- growth driver (wall-clock) ----------
+const GROW_MS = 9000;
+let phase = 'seed';            // seed -> growing -> mature
+let growT0 = -1;
+function smooth(a, b, x) { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); }
+function layoutTree(g, t) {
+  const sway = Math.sin(t * 1.1) * 0.02 * g;
+  tree.rotation.z = sway;
+  seedMesh.visible = g < 0.06;
+  seedMesh.position.y = 0.5 - smooth(0, 0.06, g) * 0.22;
+  sprout.visible = g > 0.04 && g < 0.5;
+  const sp = smooth(0.04, 0.3, g); sprout.scale.setScalar(Math.max(0.001, sp));
+  const th = 3.1 * smooth(0.12, 0.62, g);
+  const tw = 0.4 + 0.6 * smooth(0.12, 0.75, g);
+  trunk.visible = th > 0.01;
+  trunk.scale.set(tw, Math.max(0.001, th), tw); trunk.position.y = 0.3 + th / 2;
+  branches.forEach((b, i) => {
+    const bs = smooth(0.4 + i * 0.05, 0.75, g);
+    const a = i * 1.65 + 0.6;
+    b.visible = bs > 0.01;
+    b.scale.set(bs, bs * 1.1, bs);
+    b.position.set(Math.cos(a) * 0.35 * bs, 0.3 + th * (0.62 + i * 0.09), Math.sin(a) * 0.35 * bs);
+    b.rotation.set(Math.sin(a) * 0.9, 0, -Math.cos(a) * 0.9);
+  });
+  const cs = smooth(0.5, 0.88, g);
+  canopy.forEach((m, i) => {
+    const a = i * 1.05, rr = i === 0 ? 0 : 0.75;
+    m.visible = cs > 0.01;
+    const s = cs * (i === 0 ? 1.5 : rand0(i) * 0.5 + 0.75);
+    m.scale.setScalar(Math.max(0.001, s));
+    m.position.set(Math.cos(a) * rr * cs, 0.3 + th + (i === 0 ? 0.55 : 0.15 + 0.28 * Math.sin(i * 2.1)) , Math.sin(a) * rr * cs);
+  });
+  const bs = smooth(0.78, 1, g);
+  blossoms.forEach((m, i) => {
+    const a = i * 2.4, rr = 0.9 + 0.45 * Math.sin(i * 3.7);
+    m.visible = bs > 0.01;
+    m.scale.setScalar(Math.max(0.001, bs));
+    m.position.set(Math.cos(a) * rr * cs, 0.3 + th + 0.5 + 0.35 * Math.sin(i * 1.3), Math.sin(a) * rr * cs);
+  });
+}
+function rand0(i) { return (Math.sin(i * 12.9898) * 43758.5453) % 1 * 0.5 + 0.5; }
+layoutTree(0, 0);
+
+// leaf swirl on replant
+const swirl = { t0: -1 };
+function swirlStep() {
+  if (swirl.t0 < 0) return;
+  const e = (performance.now() - swirl.t0) / 1000;
+  if (e > 1.6) { swirl.t0 = -1; return; }
+}
+
+// ---------- hints (ownership-checked) ----------
+const HINTS = {
+  seed: 'Tap the soil to plant a seed',
+  growing: 'Watch it grow',
+  mature: 'Tap the tree for a new season'
+};
+function setHint(s) {
+  hintEl.textContent = HINTS[s]; hintEl.dataset.s = s; hintEl.classList.remove('faded');
+  clearTimeout(setHint._t);
+  setHint._t = setTimeout(() => hintEl.classList.add('faded'), 6000);
+}
+setHint('seed');
+
+// ---------- fit ----------
+const FIT_CENTER = new THREE.Vector3(0, 1.1, 0);
+const FIT_PTS = [];
+for (const x of [-6, 6]) for (const y of [-SLAB_H, 0.4]) for (const z of [-6, 6])
+  FIT_PTS.push(new THREE.Vector3(x, y, z));
+FIT_PTS.push(new THREE.Vector3(0, 5.2, 0));      // mature tree top
+FIT_PTS.push(new THREE.Vector3(2.9, 1.0, 1.6));  // watering can
+function fitDir() {
+  const a = innerWidth / innerHeight;
+  if (a < 0.62) return new THREE.Vector3(0.05, 0.9, 1).normalize();
+  if (a < 0.9) return new THREE.Vector3(0.42, 0.4, 1).normalize();
+  return new THREE.Vector3(0.62, 0.42, 1).normalize();
+}
+const _rel = new THREE.Vector3();
+function requiredDistance(right, up, fwd, target) {
+  const fovV = THREE.MathUtils.degToRad(camera.fov);
+  const tanH = Math.tan(Math.atan(Math.tan(fovV/2) * camera.aspect));
+  const tanV = Math.tan(fovV/2);
+  let d = 4;
+  for (const c of FIT_PTS) {
+    _rel.copy(c).sub(target);
+    const cf = _rel.dot(fwd);
+    d = Math.max(d, Math.abs(_rel.dot(right)) / tanH - cf, Math.abs(_rel.dot(up)) / tanV - cf);
+  }
+  return d;
+}
+function frameInitialCamera() {
+  pickFov();
+  const fd = fitDir();
+  const fwd = fd.clone().negate();
+  const right = new THREE.Vector3().crossVectors(fwd, new THREE.Vector3(0,1,0)).normalize();
+  const up = new THREE.Vector3().crossVectors(right, fwd).normalize();
+  const dist = requiredDistance(right, up, fwd, FIT_CENTER) * (innerWidth / innerHeight < 0.62 ? 1.01 : 1.06);
+  camera.position.copy(FIT_CENTER).addScaledVector(fd, dist);
+  controls.target.copy(FIT_CENTER);
+  camera.updateProjectionMatrix(); controls.update();
+}
+frameInitialCamera();
+
+// ---------- tap ----------
+const ray = new THREE.Raycaster(); const ndc = new THREE.Vector2();
+let downX = 0, downY = 0, downT = 0;
+renderer.domElement.addEventListener('pointerdown', e => { downX = e.clientX; downY = e.clientY; downT = performance.now(); });
+renderer.domElement.addEventListener('pointerup', e => {
+  if (Math.hypot(e.clientX - downX, e.clientY - downY) > 7 || performance.now() - downT > 450) return;
+  ndc.set((e.clientX / innerWidth) * 2 - 1, -(e.clientY / innerHeight) * 2 + 1);
+  ray.setFromCamera(ndc, camera);
+  const hits = ray.intersectObjects([soilGroup, tree], true);
+  if (!hits.length) return;
+  if (phase === 'seed') {
+    phase = 'growing'; growT0 = performance.now(); setHint('growing');
+  } else if (phase === 'mature') {
+    swirl.t0 = performance.now();
+    phase = 'growing'; growT0 = performance.now() - 120; setHint('growing');
+  }
+});
+
+addEventListener('resize', () => {
+  camera.aspect = innerWidth/innerHeight;
+  renderer.setSize(innerWidth, innerHeight);
+  renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+  pickFov(); frameInitialCamera();
+});
+
+// ---------- animate ----------
+const clock = new THREE.Clock();
+function animate() {
+  requestAnimationFrame(animate);
+  const dt = Math.min(clock.getDelta(), 0.3);
+  const t = clock.elapsedTime;
+
+  if (phase === 'growing') {
+    const g = Math.min(1, (performance.now() - growT0) / GROW_MS);
+    layoutTree(g, t);
+    if (g >= 1) { phase = 'mature'; setHint('mature'); }
+  } else {
+    layoutTree(phase === 'mature' ? 1 : 0, t);
+  }
+
+  for (const f of flowers) f.rotation.z = Math.sin(t * 1.3 + f.userData.ph) * 0.08;
+  for (const c of clouds) {
+    c.position.x += c.userData.v * dt;
+    if (c.position.x > 11) c.position.x = -11;
+  }
+
+  const mature = phase === 'mature' || (phase === 'growing' && (performance.now() - growT0) / GROW_MS > 0.8);
+  const pp = petalGeo.attributes.position;
+  for (let i = 0; i < PETALS; i++) {
+    if (!mature) { pp.setY(i, -50); continue; }
+    let y = pp.getY(i);
+    if (y < 0.1) { pp.setX(i, rand(-1.4, 1.4)); pp.setZ(i, rand(-1.4, 1.4)); y = rand(3.4, 4.4); }
+    y -= dt * 0.35;
+    pp.setY(i, y);
+    pp.setX(i, pp.getX(i) + Math.sin(t * 1.6 + petalSeed[i]) * dt * 0.4);
+  }
+  pp.needsUpdate = true;
+
+  butterflies.forEach((b, i) => {
+    b.visible = mature;
+    if (!mature) return;
+    const u = b.userData, a = t * u.s + u.ph;
+    b.position.set(Math.cos(a) * u.r, u.h + Math.sin(t * 1.7 + u.ph) * 0.25, Math.sin(a) * u.r);
+    b.rotation.y = -a;
+    for (const w of b.children) w.rotation.y = w.userData.d * (0.4 + Math.sin(t * 18 + u.ph) * 0.55);
+  });
+
+  const fwd = new THREE.Vector3(); camera.getWorldDirection(fwd);
+  const right = new THREE.Vector3().crossVectors(fwd, new THREE.Vector3(0,1,0)).normalize();
+  const up2 = new THREE.Vector3().crossVectors(right, fwd).normalize();
+  controls.minDistance = Math.min(requiredDistance(right, up2, fwd, controls.target) * 1.04, 26);
+
+  controls.update();
+  renderer.render(scene, camera);
+}
+animate();
+
+// pass 1: initial build - wall-clock growth (9s), tap soil to plant, tap mature tree to replant,
+// petals + butterflies at maturity, fence/watering can/pot/trowel dressing, portrait bird's fit,
+// hint ownership pattern, seeded mulberry32(20261101)
+</script>
+</body>
+</html>
