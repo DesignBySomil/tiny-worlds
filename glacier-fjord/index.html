@@ -43,7 +43,7 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 
-// pass 2
+// pass 3
 const container = document.getElementById('app');
 const hintEl = document.getElementById('hint');
 const scene = new THREE.Scene();
@@ -143,6 +143,15 @@ const wallBlocks = [];
     cap.position.set(-W/2 + (i + 0.5) * (W / 4), 3.95, rand(-0.2, 0.2));
     cap.castShadow = true; glacierGroup.add(cap);
   }
+  // taller ice spires for silhouette
+  for (const sx of [-2.4, 0.4, 2.6]) {
+    const sp = new THREE.Mesh(new THREE.ConeGeometry(rand(0.5, 0.75), rand(1.4, 2.2), 7), ICE);
+    sp.position.set(sx, 4.6, rand(-0.3, 0.1));
+    sp.castShadow = true; glacierGroup.add(sp); wallBlocks.push(sp);
+    const tip = new THREE.Mesh(new THREE.SphereGeometry(0.4, 8, 6), SNOW);
+    tip.scale.y = 0.4; tip.position.set(sx, 5.5, sp.position.z);
+    glacierGroup.add(tip);
+  }
   // vertical crevasse lines (thin deep-blue boxes on the face)
   for (let i = 0; i < 9; i++) {
     const c = new THREE.Mesh(new THREE.BoxGeometry(0.09, rand(1.2, 3.4), 0.05), ICE_DEEP);
@@ -229,11 +238,11 @@ function makeMistTexture() {
 }
 {
   const tex = makeMistTexture();
-  for (let i = 0; i < 8; i++) {
-    const mat = new THREE.SpriteMaterial({ map: tex, transparent: true, opacity: rand(0.35, 0.6), depthWrite: false });
+  for (let i = 0; i < 11; i++) {
+    const mat = new THREE.SpriteMaterial({ map: tex, transparent: true, opacity: rand(0.5, 0.8), depthWrite: false });
     const s = new THREE.Sprite(mat);
-    const sc = rand(1.6, 3.2); s.scale.set(sc, sc * 0.7, 1);
-    s.position.set(rand(-6, 6), rand(2.2, 5.4), rand(-5, 4));
+    const sc = rand(2.2, 4.2); s.scale.set(sc, sc * 0.7, 1);
+    s.position.set(rand(-7, 7), rand(2.6, 6.4), rand(-5, 4));
     scene.add(s);
     mists.push({ s, spd: rand(0.12, 0.3), baseOp: mat.opacity });
   }
@@ -320,7 +329,7 @@ function collectFit() {
   const box = new THREE.Box3().setFromObject(scene);
   // limit to slab + glacier + bergs (exclude mists)
   const b2 = new THREE.Box3().setFromObject(slabGroup);
-  b2.expandByPoint(new THREE.Vector3(0, WATER_Y + 4.6, -6));
+  b2.expandByPoint(new THREE.Vector3(0, WATER_Y + 6.0, -6));
   return b2;
 }
 let fitBox = collectFit();
