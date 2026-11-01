@@ -128,8 +128,8 @@ const terraceTopY = i => 0.34 + i * STEP;     // top surface of level i (0 = low
 const terraceZ = i => Z_FRONT_BANK - (i + 0.5) * LEVEL_D;  // level 0 lowest at front, N-1 highest at back
 const waters = [], ripples = [], streaks = [];
 // contour curve: each terrace front undulates along x
-const contour = (i, x) => 0.28 * Math.sin(x * 0.45 + i * 1.15) + 0.1 * Math.sin(x * 1.25 + i * 0.6);
-const SEG = 7, SEG_W = LEVEL_W / SEG;
+const contour = (i, x) => 0.16 * Math.sin(x * 0.45 + i * 1.15) + 0.06 * Math.sin(x * 1.25 + i * 0.6);
+const SEG = 9, SEG_W = LEVEL_W / SEG;
 {
   const bankMat = new THREE.MeshStandardMaterial({ color: PAL.bank, roughness: 0.92, flatShading: true });
   const bankMatD = new THREE.MeshStandardMaterial({ color: PAL.bankDark, roughness: 0.94, flatShading: true });
@@ -494,8 +494,8 @@ function animate() {
   renderer.render(scene, camera);
 }
 animate();
-// rice-terraces p6: contour-curved terrace fronts, two-tier palms, farmer arms+bundle, hut door/window/ladder/overhang, stronger cascade. p5: steps descend toward viewer, pond-corner palms on mud, larger rice; 8 stepped paddies, mirror/planted water, rippling cascade from top paddy
-// to reservoir, egret hops, hut, farmer, palms. marker:rice-p6
+// rice-terraces p7: softer contour (amp 0.16, 9 segments). p6: contour-curved terrace fronts, two-tier palms, farmer arms+bundle, hut door/window/ladder/overhang, stronger cascade. p5: steps descend toward viewer, pond-corner palms on mud, larger rice; 8 stepped paddies, mirror/planted water, rippling cascade from top paddy
+// to reservoir, egret hops, hut, farmer, palms. marker:rice-p7
 </script>
 </body>
 </html>
