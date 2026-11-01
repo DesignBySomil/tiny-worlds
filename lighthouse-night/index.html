@@ -52,6 +52,9 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 //          poked through the water. Sea raised to y=0.28 (trough 0.04 > 0), waterline dependents moved with it
 // pass 6: foam as soft lacy texture patches (flat cutout discs), lighter readable strata, moon moved front-right
 //          as key light for sea facets / tower / strata
+// pass 7: density pass - outer rock outcrops with own foam, 26 drifting whitecap specks, blinking channel buoy
+//          (left half of the sea read sparse and dead). Also: the 'flat pale patch' main flagged was a low rock's
+//          flatShading top face catching the key light - submerged and darkened those two rocks
 // pass 1: first lighthouse-night build - marine night palette, striped tower on rocky islet, drag beam sweep, tap fog, course-correcting ships, exact corner-fit camera
 
 const PAL = {
@@ -147,7 +150,7 @@ const rockDarkMat = new THREE.MeshStandardMaterial({ color: PAL.rockDark, roughn
 const ROCKS = [
   [0,0.55,0,2.2,rockMat],[1.6,0.35,0.7,1.5,rockDarkMat],[-1.5,0.4,0.5,1.6,rockMat],
   [0.4,0.3,-1.5,1.4,rockDarkMat],[-0.9,0.3,-1.1,1.2,rockMat],[1.1,0.25,1.6,1.1,rockDarkMat],
-  [-1.9,0.22,1.4,0.9,rockDarkMat],[2.2,0.18,-0.6,0.8,rockMat],[-2.3,0.15,-0.5,0.75,rockMat]
+  [-1.9,0.22,1.4,0.9,rockDarkMat],[2.2,-0.06,-0.6,0.62,rockDarkMat],[-2.3,-0.08,-0.5,0.58,rockDarkMat]
 ];
 for (const [x,y,z,s,m] of ROCKS) {
   const r = new THREE.Mesh(new THREE.DodecahedronGeometry(s, 0), m);
@@ -178,6 +181,47 @@ for (let i = 0; i < 20; i++) {
   f.position.set(Math.cos(a)*r, 0.32 + Math.random()*0.02, Math.sin(a)*r);
   slabGroup.add(f); foamFlecks.push(f);
 }
+
+// outer rock outcrops poking through the swell, each with its own foam
+const outcrops = [[4.9, 2.1], [-5.3, -2.7]];
+for (const [ox, oz] of outcrops) {
+  for (let k = 0; k < 3; k++) {
+    const r = new THREE.Mesh(new THREE.DodecahedronGeometry(0.45 + Math.random()*0.5, 0),
+      k ? rockDarkMat : rockMat);
+    r.position.set(ox + (Math.random()-0.5)*0.9, 0.25 + Math.random()*0.15, oz + (Math.random()-0.5)*0.9);
+    r.rotation.set(Math.random()*2, Math.random()*2, Math.random()*2);
+    r.scale.y = 0.7; r.castShadow = true; slabGroup.add(r);
+  }
+  for (let k = 0; k < 5; k++) {
+    const a = Math.random()*Math.PI*2, rr = 0.8 + Math.random()*0.6;
+    const f = new THREE.Mesh(new THREE.CircleGeometry(0.14 + Math.random()*0.2, 8),
+      new THREE.MeshBasicMaterial({ map: foamMap, transparent: true, depthWrite: false,
+        opacity: 0.25 + Math.random()*0.35 }));
+    f.rotation.x = -Math.PI/2; f.rotation.z = Math.random()*Math.PI*2;
+    f.position.set(ox + Math.cos(a)*rr, 0.31, oz + Math.sin(a)*rr);
+    slabGroup.add(f); foamFlecks.push(f);
+  }
+}
+// whitecap specks drifting on the open water
+const whitecaps = [];
+for (let i = 0; i < 26; i++) {
+  const a = Math.random()*Math.PI*2, r = 3.4 + Math.random()*4.2;
+  const w = new THREE.Mesh(new THREE.CircleGeometry(0.08 + Math.random()*0.14, 7),
+    new THREE.MeshBasicMaterial({ map: foamMap, transparent: true, depthWrite: false,
+      opacity: 0.08 + Math.random()*0.2 }));
+  w.rotation.x = -Math.PI/2; w.rotation.z = Math.random()*Math.PI*2;
+  w.position.set(Math.cos(a)*r, 0.30, Math.sin(a)*r);
+  slabGroup.add(w); whitecaps.push(w);
+}
+// channel buoy with a slow red blink
+const buoy = new THREE.Group();
+const buoyBody = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.13, 0.34, 8),
+  new THREE.MeshStandardMaterial({ color: 0x7a2e28, roughness: 0.8 }));
+buoyBody.position.y = 0.15; buoyBody.castShadow = true; buoy.add(buoyBody);
+const buoyLight = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTex('rgba(255,90,70,1)','rgba(255,90,70,0)'),
+  transparent: true, depthWrite: false, blending: THREE.AdditiveBlending }));
+buoyLight.scale.setScalar(0.55); buoyLight.position.y = 0.44; buoy.add(buoyLight);
+buoy.position.set(-3.6, 0.28, 4.4); slabGroup.add(buoy);
 
 // ---------- lighthouse ----------
 const tower = new THREE.Group(); islet.add(tower);
@@ -423,6 +467,13 @@ function animate() {
     s.rotation.y += dh * Math.min(1, dt * (dA < 0.35 ? 0.8 : 0.3));
     u.win.material.opacity = fogOn ? 0.35 : 0.9;
   }
+
+  whitecaps.forEach((w, i) => {
+    w.material.opacity = 0.05 + 0.22*Math.abs(Math.sin(t*0.7 + i*2.3));
+    w.position.x += Math.sin(t*0.3 + i) * dt * 0.05;
+  });
+  buoyLight.material.opacity = (Math.sin(t*2.4) > 0.55) ? 0.95 : 0.06;
+  buoy.rotation.z = Math.sin(t*1.1)*0.08;
 
   controls.update();
   renderer.render(scene, camera);
