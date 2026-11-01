@@ -47,7 +47,7 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 
-// pass 2
+// pass 3
 function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;}}
 const rand = mulberry32(20261101);
 
@@ -94,8 +94,8 @@ const M = {
   rockDark: new THREE.MeshStandardMaterial({ color: 0x42597a, roughness: .95 }),
   vent: new THREE.MeshStandardMaterial({ color: 0x2e2a28, roughness: 1 }),
   ventGlow: new THREE.MeshStandardMaterial({ color: 0x33221a, emissive: 0xff8a40, emissiveIntensity: 2.4 }),
-  fish: new THREE.MeshStandardMaterial({ color: 0x1c2836, roughness: .7 }),
-  fishBelly: new THREE.MeshStandardMaterial({ color: 0x4a5f74, roughness: .7 }),
+  fish: new THREE.MeshStandardMaterial({ color: 0x33465e, roughness: .65 }),
+  fishBelly: new THREE.MeshStandardMaterial({ color: 0x6a8296, roughness: .65 }),
   lure: new THREE.MeshStandardMaterial({ color: 0x223311, emissive: 0xc8ff70, emissiveIntensity: 3.0 }),
   teeth: new THREE.MeshStandardMaterial({ color: 0xd8e2ea, roughness: .5 }),
   jelly: new THREE.MeshBasicMaterial({ color: 0x9fc8ff, transparent: true, opacity: .52, side: THREE.DoubleSide }),
@@ -130,9 +130,10 @@ for (let i = 0; i < 8; i++) {
 function makeWall(x, z, rotY, w, h) {
   const g = new THREE.Group();
   for (let i = 0; i < 6; i++) {
-    const b = new THREE.Mesh(new THREE.BoxGeometry(w * (0.5 + rand() * 0.6), h * (0.3 + rand() * 0.35), 1.2 + rand()), i % 2 ? M.rock : M.rockDark);
-    b.position.set((rand() - 0.5) * w * 0.5, -1.3 + i * h * 0.24 + h * 0.15, (rand() - 0.5) * 0.8);
-    b.rotation.y = (rand() - 0.5) * 0.4;
+    const b = new THREE.Mesh(new THREE.IcosahedronGeometry(0.7 + rand() * 0.7, 0), i % 2 ? M.rock : M.rockDark);
+    b.scale.set(w * 0.32 + rand() * 0.3, h * 0.22 + rand() * 0.15, 0.8 + rand() * 0.5);
+    b.position.set((rand() - 0.5) * w * 0.55, -1.3 + i * h * 0.22 + h * 0.15, (rand() - 0.5) * 0.8);
+    b.rotation.set(rand() * 0.6, rand() * Math.PI, rand() * 0.5);
     b.castShadow = true; b.receiveShadow = true;
     g.add(b);
   }
@@ -261,12 +262,12 @@ const angler = new THREE.Group();
   var lureMesh = new THREE.Mesh(new THREE.SphereGeometry(0.095, 8, 8), M.lure);
   lureMesh.position.set(0.55, 0.72, 0);
   angler.add(lureMesh);
-  var lureLight = new THREE.PointLight(0xc8ff70, 2.2, 6);
+  var lureLight = new THREE.PointLight(0xc8ff70, 3.0, 7);
   lureLight.position.copy(lureMesh.position);
   angler.add(lureLight);
 }
 const ANGLER_HOME = new THREE.Vector3(-0.3, 0.1, 1.8);
-angler.scale.setScalar(1.3);
+angler.scale.setScalar(1.45);
 angler.position.copy(ANGLER_HOME);
 angler.rotation.y = -0.5;
 scene.add(angler);
@@ -343,6 +344,8 @@ function makeStar(x, z, s) {
 }
 makeStar(-1.9, 1.8, 1.0);
 makeStar(2.1, 1.9, 0.85);
+makeCoral(-3.6, 0.2, M.coral2, 1.05);
+makeStar(-3.1, 0.9, 0.9);
 // scattered shells/pebbles
 for (let i = 0; i < 10; i++) {
   const p = new THREE.Mesh(new THREE.SphereGeometry(0.05 + rand() * 0.05, 6, 5), i % 3 ? M.rock : M.teeth);
