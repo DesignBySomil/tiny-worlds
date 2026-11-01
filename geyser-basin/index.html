@@ -238,7 +238,7 @@ function dropTexture() {
   g.fillStyle = grad; g.fillRect(0,0,32,32);
   const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t;
 }
-const pMat = new THREE.PointsMaterial({ size: 0.22, vertexColors: true, map: dropTexture(),
+const pMat = new THREE.PointsMaterial({ size: 0.36, vertexColors: true, map: dropTexture(),
   transparent: true, opacity: 0.96, depthWrite: false });
 const points = new THREE.Points(pGeo, pMat); points.frustumCulled = false; scene.add(points);
 const P = { vel: new Float32Array(MAXP * 3), life: new Float32Array(MAXP).fill(-1) };
@@ -269,11 +269,11 @@ let camShake = 0;
 function erupt(g) {
   g.eruptT = 0;
   camShake = Math.max(camShake, g.power * 0.045);
-  for (let i = 0; i < 130; i++) {
-    const a = rand(0, Math.PI * 2), rr = rand(0, 0.12);
+  for (let i = 0; i < 220; i++) {
+    const a = rand(0, Math.PI * 2), rr = rand(0, 0.1);
     spawnDrop(g.x + Math.cos(a) * rr, g.ch, g.z + Math.sin(a) * rr,
-      Math.cos(a) * rand(0.1, 0.7), g.power * rand(0.75, 1.12), Math.sin(a) * rand(0.1, 0.7),
-      rand(1.4, 2.1), Math.random() < 0.6 ? WATER_COL : STEAM_COL);
+      Math.cos(a) * rand(0.05, 0.45), g.power * rand(0.8, 1.15), Math.sin(a) * rand(0.05, 0.45),
+      rand(1.6, 2.4), Math.random() < 0.65 ? WATER_COL : STEAM_COL);
   }
   setHint('erupt');
 }
@@ -431,11 +431,11 @@ function animate() {
       g.eruptT += dt;
       if (g.eruptT < 1.9) {
         // sustained jet
-        for (let i = 0; i < 6; i++) {
-          const a = rand(0, Math.PI * 2), rr = rand(0, 0.1);
+        for (let i = 0; i < 16; i++) {
+          const a = rand(0, Math.PI * 2), rr = rand(0, 0.09);
           spawnDrop(g.x + Math.cos(a) * rr, g.ch, g.z + Math.sin(a) * rr,
-            Math.cos(a) * rand(0.1, 0.5), g.power * rand(0.7, 1.1), Math.sin(a) * rand(0.1, 0.5),
-            rand(1.2, 1.8), Math.random() < 0.5 ? WATER_COL : STEAM_COL);
+            Math.cos(a) * rand(0.05, 0.35), g.power * rand(0.75, 1.12), Math.sin(a) * rand(0.05, 0.35),
+            rand(1.3, 2.0), Math.random() < 0.6 ? WATER_COL : STEAM_COL);
         }
       }
       if (g.eruptT > 3.2) { g.eruptT = -1; setHint('idle'); }
@@ -487,6 +487,7 @@ function animate() {
   renderer.render(scene, camera);
 }
 animate();
+// pass 3: eruption density - bigger droplets, tighter spread, 220-particle burst + 16/frame sustained jet
 // pass 2: readability - cones darker than ground (were invisible cream-on-cream), wider/deeper orange
 //         mat rings, quieter sinter patchwork, wider dark vents
 // pass 1: first geyser-basin build - sinter terraces, three geysers (tap/auto eruption), painted
