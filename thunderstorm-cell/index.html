@@ -1,32 +1,59 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="utf-8"/>
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
-<title>Thunderstorm Cell - Tiny Worlds</title>
-<meta name="description" content="One dark cloud over an empty plain. Steer the storm by dragging it, tap the cloud to drop lightning, and rain slowly fills the pond below."/>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Thunderstorm Cell - a tiny world</title>
 <style>
-  html,body{margin:0;height:100%;background:#10151d;overflow:hidden;font-family:system-ui,-apple-system,sans-serif}
-  #app{position:fixed;inset:0;touch-action:none}
-  .hud{position:fixed;left:0;right:0;pointer-events:none;color:#e4e9f0;text-align:center;z-index:2}
-  .hud.top{top:max(14px,env(safe-area-inset-top))}
-  .hud h1{font-size:15px;font-weight:650;letter-spacing:.02em;margin:0;opacity:.95}
-  .hud p{font-size:11.5px;margin:4px 0 0;opacity:.55}
-  .hud.bottom{bottom:max(14px,env(safe-area-inset-bottom));font-size:11.5px;opacity:.6;transition:opacity 1s}
-  .hud.bottom.gone{opacity:0}
-  #vignette{position:fixed;inset:0;pointer-events:none;background:radial-gradient(ellipse at 50% 42%,transparent 55%,rgba(0,0,0,.5) 100%);z-index:1}
+  html, body { margin:0; padding:0; height:100%; background:#2e3540; overflow:hidden;
+    font-family: Georgia, 'Times New Roman', serif; }
+  #app { position:fixed; inset:0; }
+  header { position:fixed; top:0; left:0; right:0; text-align:center; pointer-events:none;
+    padding: max(18px, env(safe-area-inset-top)) 16px 0; z-index:5; }
+  header h1 { margin:0; font-size:15px; letter-spacing:.42em; font-weight:400;
+    color:#cfd8e2; text-transform:uppercase; text-shadow:0 1px 8px rgba(10,14,20,.7); }
+  header .rule { width:44px; height:1px; background:rgba(207,216,226,.5); margin:9px auto; }
+  #hint { display:inline-block; font-size:11.5px; letter-spacing:.24em; text-transform:uppercase;
+    color:#9fb0c0; transition:opacity 1.2s ease; text-shadow:0 1px 6px rgba(10,14,20,.7); }
+  #hint.faded { opacity:.42; }
+  footer { position:fixed; bottom:0; left:0; right:0; text-align:center; pointer-events:none;
+    padding:0 16px max(14px, env(safe-area-inset-bottom)); z-index:5;
+    font-size:10px; letter-spacing:.34em; text-transform:uppercase; color:rgba(159,176,192,.55); }
+  canvas { display:block; touch-action:none; }
 </style>
-<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"}}</script>
 </head>
 <body>
 <div id="app"></div>
-<div id="vignette"></div>
-<div class="hud top"><h1>Thunderstorm Cell</h1><p>a tiny world, one of fifty</p></div>
-<div class="hud bottom" id="hint">Drag the cloud to steer it. Tap it for lightning.</div>
+<header>
+  <h1>Thunderstorm Cell</h1>
+  <div class="rule"></div>
+  <span id="hint"></span>
+</header>
+<footer>A tiny world</footer>
+<script type="importmap">
+{ "imports": {
+  "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+  "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+} }
+</script>
 <script type="module">
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 
+// pass markers for deploy verification
+// pass 1: first thunderstorm-cell build - storm day palette, hero cumulonimbus, drag-to-steer, tap lightning, rain-fed pond
+
+// ---------- palette (brooding storm day, distinct from volcano dusk / mushroom night) ----------
+const PAL = {
+  skyTop: 0x39404d, skyHorizon: 0x8d9b8a,
+  grassBase: 0x5d7048, grassDark: 0x46573a, grassBlade: 0x6d8053,
+  strataTop: 0x5a4f3d, strataMid: 0x4a3f33, strataRock: 0x3a3a40,
+  cloudDark: 0x3b414c, cloudMid: 0x4d5560, cloudRim: 0x8a94a2,
+  pondBed: 0x33302a, pondWater: 0x51707e,
+  rain: 0xaab8c8, bolt: 0xeaf2ff, scorch: 0x141210
+};
+
+// ---------- renderer / scene / camera ----------
 const app = document.getElementById('app');
 const renderer = new THREE.WebGLRenderer({ antialias:true });
 renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
@@ -34,205 +61,411 @@ renderer.setSize(innerWidth, innerHeight);
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.05;
 app.appendChild(renderer.domElement);
 
 const scene = new THREE.Scene();
-scene.background = new THREE.Color(0x10151d);
-scene.fog = new THREE.Fog(0x10151d, 24, 55);
+scene.background = new THREE.Color(PAL.skyTop);
+scene.fog = new THREE.Fog(0x55606c, 26, 60);
 
-const camera = new THREE.PerspectiveCamera(40, innerWidth/innerHeight, .1, 120);
-camera.position.set(10.5, 8, 10.5);
+// vertical sky gradient dome
+{
+  const c = document.createElement('canvas'); c.width = 2; c.height = 256;
+  const g = c.getContext('2d');
+  const grad = g.createLinearGradient(0,0,0,256);
+  grad.addColorStop(0, '#39404d'); grad.addColorStop(0.55, '#5d6874'); grad.addColorStop(1, '#8d9b8a');
+  g.fillStyle = grad; g.fillRect(0,0,2,256);
+  const tex = new THREE.CanvasTexture(c); tex.colorSpace = THREE.SRGBColorSpace;
+  const dome = new THREE.Mesh(
+    new THREE.SphereGeometry(90, 24, 16),
+    new THREE.MeshBasicMaterial({ map: tex, side: THREE.BackSide, fog: false })
+  );
+  scene.add(dome);
+}
 
+const camera = new THREE.PerspectiveCamera(38, innerWidth/innerHeight, 0.1, 200);
 const controls = new OrbitControls(camera, renderer.domElement);
-controls.target.set(0, 1, 0);
-controls.enableDamping = true;
-controls.enablePan = false;
-controls.minDistance = 7; controls.maxDistance = 22;
-controls.maxPolarAngle = Math.PI * .47;
+controls.enableDamping = true; controls.dampingFactor = 0.08;
+controls.minDistance = 6; controls.maxDistance = 40;
+controls.maxPolarAngle = Math.PI * 0.52; controls.enablePan = false;
 
-scene.add(new THREE.HemisphereLight(0x7d8ba0, 0x131a14, .8));
-const key = new THREE.DirectionalLight(0xb9c6d8, .8);
-key.position.set(6, 11, 3);
-key.castShadow = true;
-key.shadow.mapSize.set(1024, 1024);
-key.shadow.camera.left = -8; key.shadow.camera.right = 8;
-key.shadow.camera.top = 8; key.shadow.camera.bottom = -8;
-scene.add(key);
-const flash = new THREE.PointLight(0xcfe2ff, 0, 26, 1.4);
-flash.position.set(0, 4, 0);
-scene.add(flash);
+// ---------- lights ----------
+const sun = new THREE.DirectionalLight(0xb8c4d2, 1.35);
+sun.position.set(-9, 14, 6);
+sun.castShadow = true;
+sun.shadow.mapSize.set(2048, 2048);
+sun.shadow.camera.left = -14; sun.shadow.camera.right = 14;
+sun.shadow.camera.top = 14; sun.shadow.camera.bottom = -14;
+sun.shadow.camera.far = 50; sun.shadow.bias = -0.0004;
+scene.add(sun);
+scene.add(new THREE.HemisphereLight(0x6d7887, 0x3f4a38, 0.85));
+const flashLight = new THREE.PointLight(0xcfe0ff, 0, 40, 1.6);
+scene.add(flashLight);
 
-// cutaway base: grass, soil, clay
-const top = new THREE.Mesh(new THREE.BoxGeometry(10, .7, 10), new THREE.MeshStandardMaterial({ color:0x51683b, roughness:1 }));
-top.position.y = -.35; top.receiveShadow = true; scene.add(top);
-const soil = new THREE.Mesh(new THREE.BoxGeometry(10, 1.6, 10), new THREE.MeshStandardMaterial({ color:0x4a3826, roughness:1 }));
-soil.position.y = -1.5; scene.add(soil);
-
-// pond: a dip in the plain that rain fills
-const pondMat = new THREE.MeshStandardMaterial({ color:0x2c5a74, roughness:.25, metalness:.2 });
-const pond = new THREE.Mesh(new THREE.CircleGeometry(1, 24), pondMat);
-pond.rotation.x = -Math.PI/2;
-pond.position.set(2.2, .02, 1.6);
-pond.scale.setScalar(.45);
-scene.add(pond);
-let pondFill = .45;
-
-// a few tufts of grass and one lonely tree
-const tuftMat = new THREE.MeshStandardMaterial({ color:0x65824a, roughness:1, flatShading:true });
-for (let i = 0; i < 18; i++){
-  const tuft = new THREE.Mesh(new THREE.ConeGeometry(.09, .3, 4), tuftMat);
-  const a = Math.random()*Math.PI*2, r = 1 + Math.random()*3.6;
-  tuft.position.set(Math.cos(a)*r, .15, Math.sin(a)*r);
-  scene.add(tuft);
+// ---------- slab ----------
+const SLAB = 16, SLAB_H = 3.2;
+const slabGroup = new THREE.Group(); scene.add(slabGroup);
+function strataLayer(h, y, color) {
+  const m = new THREE.Mesh(new THREE.BoxGeometry(SLAB, h, SLAB),
+    new THREE.MeshStandardMaterial({ color, roughness: 0.95 }));
+  m.position.y = y; m.castShadow = false; m.receiveShadow = true;
+  slabGroup.add(m); return m;
 }
-const tree = new THREE.Group();
-const trunk = new THREE.Mesh(new THREE.CylinderGeometry(.09, .13, 1.1, 6), new THREE.MeshStandardMaterial({ color:0x4c3a28, roughness:1 }));
-trunk.position.y = .55; trunk.castShadow = true; tree.add(trunk);
-const crown = new THREE.Mesh(new THREE.IcosahedronGeometry(.62, 0), new THREE.MeshStandardMaterial({ color:0x3f6134, roughness:1, flatShading:true }));
-crown.position.y = 1.45; crown.castShadow = true; tree.add(crown);
-tree.position.set(-2.8, 0, -1.8);
-scene.add(tree);
+strataLayer(0.9, -SLAB_H + 0.45, PAL.strataRock);
+strataLayer(1.1, -SLAB_H + 0.9 + 0.55, PAL.strataMid);
+strataLayer(1.2, -SLAB_H + 2.0 + 0.6, PAL.strataTop);
 
-// the storm cloud
-const cloud = new THREE.Group();
-const puffMat = new THREE.MeshStandardMaterial({ color:0x39424f, roughness:1, flatShading:true });
-const puffDark = new THREE.MeshStandardMaterial({ color:0x262d38, roughness:1, flatShading:true });
-[[0,0,0,1.15],[1.1,.12,.2,.85],[-1.05,.1,-.15,.9],[.4,.4,-.5,.75],[-.45,.42,.4,.7],[.1,-.18,.6,.8]].forEach(([x,y,z,s], i) => {
-  const p = new THREE.Mesh(new THREE.IcosahedronGeometry(s, 1), i % 2 ? puffDark : puffMat);
-  p.position.set(x, y, z);
-  p.castShadow = true;
-  cloud.add(p);
-});
-cloud.position.set(-1, 4.6, .5);
-scene.add(cloud);
+// plain top: subtle two-tone grass patches (hand-placed circles, not noise camo)
+const plainMat = new THREE.MeshStandardMaterial({ color: PAL.grassBase, roughness: 1 });
+const plain = new THREE.Mesh(new THREE.BoxGeometry(SLAB, 0.28, SLAB), plainMat);
+plain.position.y = -0.14; plain.receiveShadow = true;
+slabGroup.add(plain);
 
-// lightning bolt (jagged line), hidden until strike
-const boltMat = new THREE.LineBasicMaterial({ color:0xeaf4ff, transparent:true, opacity:0 });
-const boltGeo = new THREE.BufferGeometry();
-const bolt = new THREE.Line(boltGeo, boltMat);
-scene.add(bolt);
-let boltT = 1e9;
+const patchMats = [PAL.grassDark, PAL.grassBlade].map(c =>
+  new THREE.MeshStandardMaterial({ color: c, roughness: 1 }));
+const patches = [
+  [-5.5,-4.5,2.6,0], [3.5,-6,2.2,1], [6,1.5,2.8,0], [-3,4.5,2.4,1],
+  [0.5,-1.5,3.0,1], [-6.5,2.5,1.8,0], [5.5,5.5,2.0,1]
+];
+for (const [x,z,r,mi] of patches) {
+  const p = new THREE.Mesh(new THREE.CircleGeometry(r, 20), patchMats[mi]);
+  p.rotation.x = -Math.PI/2; p.position.set(x, 0.005, z);
+  p.receiveShadow = true; slabGroup.add(p);
+}
 
-// rain
-const RMAX = 420;
-const rGeo = new THREE.BufferGeometry();
-const rPos = new Float32Array(RMAX * 3);
-rPos.fill(-80);
-rGeo.setAttribute('position', new THREE.BufferAttribute(rPos, 3));
-const rain = new THREE.Points(rGeo, new THREE.PointsMaterial({ color:0x9fb8d8, size:.07, transparent:true, opacity:.75, depthWrite:false }));
-scene.add(rain);
-const drops = [];
-let raining = 0; // seconds of rain left
+// ---------- pond (off-center dip, fills with rain) ----------
+const POND = { x: 3.2, z: -2.6, maxR: 2.9, minR: 0.55, fill: 0.06 };
+const pondBed = new THREE.Mesh(new THREE.CircleGeometry(POND.maxR + 0.35, 28),
+  new THREE.MeshStandardMaterial({ color: PAL.pondBed, roughness: 1 }));
+pondBed.rotation.x = -Math.PI/2; pondBed.position.set(POND.x, 0.012, POND.z);
+pondBed.receiveShadow = true; slabGroup.add(pondBed);
+const pondWaterMat = new THREE.MeshStandardMaterial({
+  color: PAL.pondWater, roughness: 0.12, metalness: 0.05,
+  transparent: true, opacity: 0.92 });
+const pondWater = new THREE.Mesh(new THREE.CircleGeometry(1, 28), pondWaterMat);
+pondWater.rotation.x = -Math.PI/2; pondWater.position.set(POND.x, 0.03, POND.z);
+pondWater.scale.setScalar(POND.minR); slabGroup.add(pondWater);
 
-const hint = document.getElementById('hint');
-setTimeout(() => hint.classList.add('gone'), 8000);
+// ---------- hero cloud: layered cumulonimbus ----------
+const cloud = new THREE.Group(); scene.add(cloud);
+const CLOUD_Y = 7.2;
+function puff(x, y, z, s, color, flat=1) {
+  const m = new THREE.Mesh(new THREE.SphereGeometry(1, 20, 16),
+    new THREE.MeshStandardMaterial({ color, roughness: 0.9 }));
+  m.position.set(x, y, z); m.scale.set(s * 1.25, s * 0.82 * flat, s * 1.15);
+  m.castShadow = true; cloud.add(m); return m;
+}
+// flat dark base
+puff(0, -0.35, 0, 2.6, PAL.cloudDark, 0.55);
+puff(-2.0, -0.3, 0.4, 1.7, PAL.cloudDark, 0.6);
+puff(2.0, -0.28, -0.3, 1.8, PAL.cloudDark, 0.6);
+puff(0.3, -0.3, 1.6, 1.5, PAL.cloudDark, 0.55);
+puff(-0.4, -0.32, -1.6, 1.5, PAL.cloudDark, 0.55);
+// mid body
+puff(0, 0.7, 0, 2.2, PAL.cloudMid);
+puff(-1.5, 0.9, 0.6, 1.5, PAL.cloudMid);
+puff(1.5, 0.95, -0.5, 1.6, PAL.cloudMid);
+puff(0.4, 1.0, 1.2, 1.3, PAL.cloudMid);
+puff(-0.5, 1.05, -1.2, 1.35, PAL.cloudMid);
+// towering top, rim-lit
+puff(0, 2.1, 0, 1.7, PAL.cloudMid);
+puff(-0.7, 3.0, 0.3, 1.2, PAL.cloudRim);
+puff(0.6, 3.3, -0.2, 1.05, PAL.cloudRim);
+puff(0.1, 4.0, 0.1, 0.8, PAL.cloudRim);
+cloud.position.set(-2.5, CLOUD_Y, 1.0);
 
-function strike(){
-  // build a jagged bolt from cloud to ground
-  const pts = [];
-  let x = cloud.position.x + (Math.random()-.5)*.8, z = cloud.position.z + (Math.random()-.5)*.8;
-  const yTop = cloud.position.y - .5;
-  const steps = 8;
-  for (let i = 0; i <= steps; i++){
-    const y = yTop * (1 - i/steps);
-    pts.push(new THREE.Vector3(x + (Math.random()-.5)*.5 * (i/steps+.2), y, z + (Math.random()-.5)*.5 * (i/steps+.2)));
+// soft glow sprite inside cloud for idle flicker
+function glowTexture(inner, outer) {
+  const c = document.createElement('canvas'); c.width = c.height = 128;
+  const g = c.getContext('2d');
+  const grad = g.createRadialGradient(64,64,4, 64,64,64);
+  grad.addColorStop(0, inner); grad.addColorStop(1, outer);
+  g.fillStyle = grad; g.fillRect(0,0,128,128);
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t;
+}
+const flickerTex = glowTexture('rgba(210,225,255,0.85)', 'rgba(210,225,255,0)');
+const flicker = new THREE.Sprite(new THREE.SpriteMaterial({
+  map: flickerTex, transparent: true, opacity: 0, depthWrite: false,
+  blending: THREE.AdditiveBlending }));
+flicker.scale.setScalar(4.2); flicker.position.set(0, 1.2, 0); cloud.add(flicker);
+
+// ---------- rain shaft (follows cloud) ----------
+const RAIN_N = 900;
+const rainGeo = new THREE.BufferGeometry();
+const rainPos = new Float32Array(RAIN_N * 6);
+const rainSeed = [];
+for (let i = 0; i < RAIN_N; i++) {
+  rainSeed.push({ x: (Math.random()-0.5)*7, z: (Math.random()-0.5)*7, y: Math.random()*CLOUD_Y, v: 9 + Math.random()*5 });
+}
+rainGeo.setAttribute('position', new THREE.BufferAttribute(rainPos, 3));
+const rainMat = new THREE.LineBasicMaterial({ color: PAL.rain, transparent: true, opacity: 0.34 });
+const rain = new THREE.LineSegments(rainGeo, rainMat);
+rain.frustumCulled = false; scene.add(rain);
+const WIND = { x: 1.6, z: 0.4 };
+
+// mist where rain hits ground
+const mistTex = glowTexture('rgba(190,205,215,0.5)', 'rgba(190,205,215,0)');
+const mists = [];
+for (let i = 0; i < 3; i++) {
+  const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: mistTex, transparent: true,
+    opacity: 0.16, depthWrite: false }));
+  s.scale.setScalar(4 + i); s.position.y = 0.35; scene.add(s); mists.push(s);
+}
+
+// ---------- plain dressing: wind-bent grass tufts, fence posts, rocks, lone bent tree ----------
+const grassMat = new THREE.MeshStandardMaterial({ color: PAL.grassBlade, roughness: 1, side: THREE.DoubleSide });
+const grassTufts = [];
+function tuft(x, z, s) {
+  const g = new THREE.Group();
+  const blades = 4 + Math.floor(Math.random()*3);
+  for (let i = 0; i < blades; i++) {
+    const b = new THREE.Mesh(new THREE.PlaneGeometry(0.09, 0.55), grassMat);
+    b.position.set((Math.random()-0.5)*0.16, 0.27, (Math.random()-0.5)*0.16);
+    b.rotation.y = Math.random()*Math.PI;
+    b.rotation.z = 0.28 + Math.random()*0.2; // all lean with the wind (+x)
+    g.add(b);
   }
-  boltGeo.setFromPoints(pts);
-  boltT = 0;
-  flash.position.set(x, 2.2, z);
-  raining = Math.min(raining + 5, 9);
+  g.position.set(x, 0, z); g.scale.setScalar(s);
+  slabGroup.add(g); grassTufts.push(g); return g;
+}
+const tuftSpots = [];
+for (let i = 0; i < 90; i++) {
+  const x = (Math.random()-0.5)*(SLAB-1.6), z = (Math.random()-0.5)*(SLAB-1.6);
+  if (Math.hypot(x-POND.x, z-POND.z) < POND.maxR + 0.6) continue;
+  tuftSpots.push([x, z, 0.7 + Math.random()*0.7]);
+}
+tuftSpots.forEach(([x,z,s]) => tuft(x,z,s));
+
+const postMat = new THREE.MeshStandardMaterial({ color: 0x4c4136, roughness: 1 });
+for (let i = 0; i < 6; i++) {
+  const post = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.85, 0.12), postMat);
+  post.position.set(-6.8 + i*1.15, 0.42, 5.6 - i*0.35);
+  post.rotation.z = (Math.random()-0.5)*0.12;
+  post.castShadow = true; slabGroup.add(post);
+  if (i > 0) {
+    const prev = new THREE.Vector3(-6.8 + (i-1)*1.15, 0.68, 5.6 - (i-1)*0.35);
+    const cur = new THREE.Vector3(-6.8 + i*1.15, 0.66, 5.6 - i*0.35);
+    const wire = new THREE.Line(new THREE.BufferGeometry().setFromPoints([prev, cur]),
+      new THREE.LineBasicMaterial({ color: 0x2c2620 }));
+    slabGroup.add(wire);
+  }
+}
+const rockMat = new THREE.MeshStandardMaterial({ color: 0x5c5a52, roughness: 0.95 });
+[[-4.2,-5.8,0.5],[6.4,-4.2,0.4],[1.8,6.2,0.6],[-6.2,0.8,0.35],[5.2,2.8,0.3]].forEach(([x,z,s]) => {
+  const r = new THREE.Mesh(new THREE.DodecahedronGeometry(s, 0), rockMat);
+  r.position.set(x, s*0.45, z); r.rotation.set(Math.random(), Math.random(), Math.random());
+  r.castShadow = true; r.receiveShadow = true; slabGroup.add(r);
+});
+
+// lone bent tree (wind-shaped, leaning +x like the grass)
+const tree = new THREE.Group();
+const trunkMat = new THREE.MeshStandardMaterial({ color: 0x453a2e, roughness: 1 });
+const trunkCurve = new THREE.CatmullRomCurve3([
+  new THREE.Vector3(0,0,0), new THREE.Vector3(0.28,0.9,0),
+  new THREE.Vector3(0.8,1.7,0), new THREE.Vector3(1.5,2.2,0)
+]);
+tree.add(new THREE.Mesh(new THREE.TubeGeometry(trunkCurve, 12, 0.11, 6), trunkMat));
+const branchCurve = new THREE.CatmullRomCurve3([
+  new THREE.Vector3(0.5,1.25,0), new THREE.Vector3(1.0,1.9,0.3), new THREE.Vector3(1.6,2.2,0.5)
+]);
+tree.add(new THREE.Mesh(new THREE.TubeGeometry(branchCurve, 8, 0.06, 6), trunkMat));
+const canopyMat = new THREE.MeshStandardMaterial({ color: 0x55663f, roughness: 1 });
+[[1.75,2.35,0,0.75],[1.35,2.0,0.45,0.5],[2.05,2.1,-0.3,0.55]].forEach(([x,y,z,s]) => {
+  const c = new THREE.Mesh(new THREE.SphereGeometry(s, 12, 10), canopyMat);
+  c.position.set(x,y,z); c.scale.set(1.5, 0.75, 1.2); c.castShadow = true; tree.add(c);
+});
+tree.position.set(-5.6, 0, -3.4); tree.traverse(o => { if (o.isMesh) o.castShadow = true; });
+slabGroup.add(tree);
+
+// ---------- lightning ----------
+const boltMat = new THREE.LineBasicMaterial({ color: PAL.bolt, transparent: true, opacity: 0,
+  blending: THREE.AdditiveBlending });
+let bolt = null, boltLife = 0, scorch = null, scorchLife = 0;
+function strike() {
+  const from = new THREE.Vector3(cloud.position.x, CLOUD_Y - 1.2, cloud.position.z);
+  const to = new THREE.Vector3(cloud.position.x + (Math.random()-0.5)*1.2, 0.05,
+                               cloud.position.z + (Math.random()-0.5)*1.2);
+  const pts = [from.clone()];
+  const segs = 9;
+  for (let i = 1; i < segs; i++) {
+    const t = i / segs;
+    const p = from.clone().lerp(to, t);
+    p.x += (Math.random()-0.5) * 0.9 * (1-t);
+    p.z += (Math.random()-0.5) * 0.9 * (1-t);
+    pts.push(p);
+  }
+  pts.push(to.clone());
+  if (bolt) { scene.remove(bolt); bolt.geometry.dispose(); }
+  bolt = new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), boltMat.clone());
+  bolt.material.opacity = 1; scene.add(bolt); boltLife = 1;
+  flashLight.position.copy(to).y = 2.5; flashLight.intensity = 60;
+  renderer.toneMappingExposure = 1.7;
+  camShake = 0.35;
+  if (scorch) { scene.remove(scorch); scorch.geometry.dispose(); }
+  scorch = new THREE.Mesh(new THREE.CircleGeometry(0.55, 14),
+    new THREE.MeshBasicMaterial({ color: PAL.scorch, transparent: true, opacity: 0.85 }));
+  scorch.rotation.x = -Math.PI/2; scorch.position.copy(to).y = 0.045;
+  scene.add(scorch); scorchLife = 1;
 }
 
-// drag the cloud / tap it
+// ---------- camera framing (bounds-fit, portrait-aware) ----------
+const frameBox = new THREE.Box3(
+  new THREE.Vector3(-SLAB/2 - 1, -SLAB_H, -SLAB/2 - 1),
+  new THREE.Vector3(SLAB/2 + 1, CLOUD_Y + 5.5, SLAB/2 + 1));
+function frameInitialCamera() {
+  const size = frameBox.getSize(new THREE.Vector3());
+  const center = frameBox.getCenter(new THREE.Vector3());
+  center.y = 1.6;
+  const fovV = THREE.MathUtils.degToRad(camera.fov);
+  const fovH = 2 * Math.atan(Math.tan(fovV/2) * camera.aspect);
+  const distV = (size.y * 0.62) / Math.tan(fovV/2);
+  const distH = (size.x * 0.62) / Math.tan(fovH/2);
+  const dist = Math.max(distV, distH) * 1.08;
+  const dir = new THREE.Vector3(0.62, 0.42, 1).normalize();
+  camera.position.copy(center).addScaledVector(dir, dist);
+  controls.target.copy(center);
+  camera.updateProjectionMatrix(); controls.update();
+}
+frameInitialCamera();
+
+// ---------- hints ----------
+const hintEl = document.getElementById('hint');
+const HINTS = {
+  idle: 'Drag the storm - tap the cloud for lightning',
+  steering: 'Steering the cell - rain follows',
+  struck: 'Struck - the plain smells of rain',
+  full: 'The pond brims over'
+};
+function setHint(s) {
+  hintEl.textContent = HINTS[s]; hintEl.classList.remove('faded');
+  clearTimeout(setHint._t);
+  setHint._t = setTimeout(() => hintEl.classList.add('faded'), 6000);
+}
+setHint('idle');
+
+// ---------- interaction: drag cloud / tap lightning / orbit otherwise ----------
 const ray = new THREE.Raycaster();
 const ndc = new THREE.Vector2();
-const dragPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), -4.6);
-let downAt = null, draggingCloud = false;
-renderer.domElement.addEventListener('pointerdown', e => {
-  downAt = { x:e.clientX, y:e.clientY, t:performance.now() };
-  ndc.set(e.clientX / innerWidth * 2 - 1, -(e.clientY / innerHeight) * 2 + 1);
-  ray.setFromCamera(ndc, camera);
-  const hits = ray.intersectObjects(cloud.children, false);
-  if (hits.length){
-    draggingCloud = true;
-    controls.enabled = false;
+const dragPlane = new THREE.Plane(new THREE.Vector3(0,1,0), -CLOUD_Y);
+let dragging = false, downAt = 0, downXY = [0,0], camShake = 0;
+function toNDC(e) {
+  ndc.set((e.clientX/innerWidth)*2 - 1, -(e.clientY/innerHeight)*2 + 1);
+}
+function hitsCloud(e) {
+  toNDC(e); ray.setFromCamera(ndc, camera);
+  return ray.intersectObject(cloud, true).length > 0;
+}
+renderer.domElement.addEventListener('pointerdown', (e) => {
+  camera.updateMatrixWorld(true); cloud.updateMatrixWorld(true);
+  downAt = performance.now(); downXY = [e.clientX, e.clientY];
+  if (hitsCloud(e)) { dragging = true; controls.enabled = false; setHint('steering'); }
+});
+renderer.domElement.addEventListener('pointermove', (e) => {
+  if (!dragging) return;
+  toNDC(e); ray.setFromCamera(ndc, camera);
+  const p = new THREE.Vector3();
+  if (ray.ray.intersectPlane(dragPlane, p)) {
+    const lim = SLAB/2 - 1.5;
+    cloud.position.x = THREE.MathUtils.clamp(p.x, -lim, lim);
+    cloud.position.z = THREE.MathUtils.clamp(p.z, -lim, lim);
   }
 });
-renderer.domElement.addEventListener('pointermove', e => {
-  if (!draggingCloud) return;
-  ndc.set(e.clientX / innerWidth * 2 - 1, -(e.clientY / innerHeight) * 2 + 1);
-  ray.setFromCamera(ndc, camera);
-  const pt = new THREE.Vector3();
-  if (ray.ray.intersectPlane(dragPlane, pt)){
-    cloud.position.x = THREE.MathUtils.clamp(pt.x, -4.4, 4.4);
-    cloud.position.z = THREE.MathUtils.clamp(pt.z, -4.4, 4.4);
+renderer.domElement.addEventListener('pointerup', (e) => {
+  const dt = performance.now() - downAt;
+  const moved = Math.hypot(e.clientX - downXY[0], e.clientY - downXY[1]);
+  if (dragging) {
+    dragging = false; controls.enabled = true;
+    if (moved < 7 && dt < 450) { strike(); setHint('struck'); }
+    else setHint('idle');
   }
-});
-addEventListener('pointerup', e => {
-  const wasDrag = draggingCloud;
-  draggingCloud = false;
-  controls.enabled = true;
-  if (!downAt) return;
-  const moved = Math.hypot((e.clientX ?? 0) - downAt.x, (e.clientY ?? 0) - downAt.y);
-  const dt = performance.now() - downAt.t;
-  downAt = null;
-  if (wasDrag && moved <= 8 && dt < 500) strike();
 });
 
+// ---------- animate ----------
 const clock = new THREE.Clock();
-function animate(){
+let flickerTimer = 2 + Math.random()*4, driftT = 0;
+function animate() {
   requestAnimationFrame(animate);
-  const dt = Math.min(clock.getDelta(), .05);
+  const dt = Math.min(clock.getDelta(), 0.05);
   const t = clock.elapsedTime;
+
+  // cloud idle drift + bob
+  if (!dragging) {
+    driftT += dt;
+    cloud.position.x += Math.sin(driftT * 0.11) * dt * 0.35;
+    cloud.position.z += Math.cos(driftT * 0.09) * dt * 0.3;
+    const lim = SLAB/2 - 1.5;
+    cloud.position.x = THREE.MathUtils.clamp(cloud.position.x, -lim, lim);
+    cloud.position.z = THREE.MathUtils.clamp(cloud.position.z, -lim, lim);
+  }
+  cloud.position.y = CLOUD_Y + Math.sin(t * 0.5) * 0.12;
+
+  // rain shaft follows cloud
+  for (let i = 0; i < RAIN_N; i++) {
+    const r = rainSeed[i];
+    r.y -= r.v * dt;
+    if (r.y < 0) { r.y = CLOUD_Y - 1.4; r.x = (Math.random()-0.5)*7; r.z = (Math.random()-0.5)*7; }
+    const j = i * 6;
+    const wx = cloud.position.x + r.x, wz = cloud.position.z + r.z;
+    rainPos[j]   = wx;                 rainPos[j+1] = r.y;        rainPos[j+2] = wz;
+    rainPos[j+3] = wx + WIND.x * 0.05; rainPos[j+4] = r.y - 0.42; rainPos[j+5] = wz + WIND.z * 0.05;
+  }
+  rainGeo.attributes.position.needsUpdate = true;
+  mists.forEach((m, i) => {
+    m.position.x = cloud.position.x + Math.sin(t*0.7 + i*2.1) * 1.2;
+    m.position.z = cloud.position.z + Math.cos(t*0.6 + i*1.7) * 1.2;
+    m.material.opacity = 0.12 + Math.sin(t*1.3 + i) * 0.05;
+  });
+
+  // pond fill: rises when cloud is over/near pond, drains otherwise
+  const overPond = Math.hypot(cloud.position.x - POND.x, cloud.position.z - POND.z) < POND.maxR + 1.6;
+  POND.fill = THREE.MathUtils.clamp(POND.fill + (overPond ? dt/90 : -dt/240), 0, 1);
+  const r = THREE.MathUtils.lerp(POND.minR, POND.maxR, POND.fill);
+  pondWater.scale.setScalar(r);
+  pondWater.position.y = 0.03 + POND.fill * 0.045;
+  pondWaterMat.opacity = 0.85 + Math.sin(t*2.2) * 0.04 * POND.fill;
+  if (POND.fill >= 0.999 && hintEl.textContent !== HINTS.full) setHint('full');
+
+  // grass sway (all lean +x, ripple phase by position)
+  for (const g of grassTufts) {
+    g.rotation.z = Math.sin(t * 1.8 + g.position.x * 0.5 + g.position.z * 0.3) * 0.09;
+  }
+
+  // idle internal flicker
+  flickerTimer -= dt;
+  if (flickerTimer < 0) { flickerTimer = 2 + Math.random()*5; flicker.material.opacity = 0.7; }
+  flicker.material.opacity = Math.max(0, flicker.material.opacity - dt * 1.4);
+
+  // lightning decay
+  if (bolt && boltLife > 0) {
+    boltLife -= dt * 4.5;
+    bolt.material.opacity = Math.max(0, boltLife) * (0.7 + Math.random()*0.3);
+    if (boltLife <= 0) { scene.remove(bolt); bolt = null; }
+  }
+  flashLight.intensity = Math.max(0, flashLight.intensity - dt * 260);
+  renderer.toneMappingExposure += (1.05 - renderer.toneMappingExposure) * dt * 6;
+  if (scorch && scorchLife > 0) {
+    scorchLife -= dt / 30;
+    scorch.material.opacity = Math.max(0, scorchLife) * 0.85;
+    if (scorchLife <= 0) { scene.remove(scorch); scorch = null; }
+  }
+  if (camShake > 0) {
+    camShake -= dt * 1.4;
+    camera.position.x += (Math.random()-0.5) * camShake * 0.14;
+    camera.position.y += (Math.random()-0.5) * camShake * 0.1;
+  }
+
   controls.update();
-
-  // cloud idles with a slow drift and bob
-  cloud.position.y = 4.6 + Math.sin(t * .8) * .15;
-  if (!draggingCloud) cloud.position.x += Math.sin(t * .21) * dt * .35;
-  cloud.rotation.y = Math.sin(t * .3) * .06;
-
-  // lightning flash decay
-  boltT += dt;
-  const k = boltT < .55 ? Math.max(0, 1 - boltT / .55) : 0;
-  boltMat.opacity = k * (0.6 + Math.random() * .4);
-  flash.intensity = k * 90;
-
-  // rain
-  if (raining > 0){
-    raining -= dt;
-    for (let i = 0; i < 10 && drops.length < RMAX; i++){
-      drops.push({
-        x: cloud.position.x + (Math.random()-.5) * 2.4,
-        y: cloud.position.y - .6,
-        z: cloud.position.z + (Math.random()-.5) * 2.4,
-        v: 7 + Math.random() * 3
-      });
-    }
-    pondFill = Math.min(pondFill + dt * .03, 1.15);
-  }
-  const ra = rGeo.attributes.position.array;
-  for (let i = drops.length - 1; i >= 0; i--){
-    const d = drops[i];
-    d.y -= d.v * dt;
-    if (d.y <= .05){ drops.splice(i, 1); continue; }
-    ra[i*3] = d.x; ra[i*3+1] = d.y; ra[i*3+2] = d.z;
-  }
-  for (let i = drops.length; i < RMAX; i++){ ra[i*3+1] = -80; }
-  rGeo.attributes.position.needsUpdate = true;
-
-  // pond rises
-  pond.scale.setScalar(pondFill);
-  pondMat.color.setHSL(.55, .45, .28 + pondFill * .1);
-
   renderer.render(scene, camera);
 }
 animate();
 
 addEventListener('resize', () => {
-  camera.aspect = innerWidth / innerHeight;
-  camera.updateProjectionMatrix();
+  camera.aspect = innerWidth/innerHeight;
   renderer.setSize(innerWidth, innerHeight);
+  renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+  frameInitialCamera();
 });
+setTimeout(() => hintEl.classList.add('faded'), 6000);
 </script>
 </body>
 </html>
