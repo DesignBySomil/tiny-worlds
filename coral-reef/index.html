@@ -126,6 +126,7 @@ sandGeo.rotateX(-Math.PI / 2);
   sandGeo.computeVertexNormals();
 }
 const sand = new THREE.Mesh(sandGeo, new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 1 }));
+sand.position.y = 0.12;   // pass 3: was coplanar with strata top (y=0) -> checkerboard z-fight
 sand.receiveShadow = true; slabGroup.add(sand);
 
 // ---------- coral builders ----------
@@ -533,6 +534,8 @@ function animate() {
   renderer.render(scene, camera);
 }
 animate();
+// pass 3: checkerboard was z-fight (sand plane coplanar with strata top y=0), not grain -
+//         sand lifted to y=0.12
 // pass 2: sand checkerboard killed (high-freq grain aliased at 56x56; now dune ripple
 //         bands), corals to hero scale (bigger staghorn/brain/fan/sponge/anemone), bigger fish
 // pass 1: first coral-reef build - sand/rock cutaway slab, staghorn/brain/fan/sponge/anemone

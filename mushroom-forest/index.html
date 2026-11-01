@@ -160,6 +160,8 @@ floorGeo.rotateX(-Math.PI / 2);
   floorGeo.computeVertexNormals();
 }
 const floor = new THREE.Mesh(floorGeo, new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 1, emissive: 0x140c06, emissiveIntensity: 0.55 }));
+floor.position.y = 0.08;  // pass 20: ROOT CAUSE of the mottle - floor bumps (+-0.07) dipped below the
+                          // topsoil box top (y=0), z-fighting per-pixel. Raised clear; scatter lifted too.
 floor.receiveShadow = true; block.add(floor);
 
 // ---------- mycelium network on the two visible cut faces ----------
@@ -342,25 +344,25 @@ for (const pl of PLACEMENTS) {
   const pebMat = new THREE.MeshStandardMaterial({ color: 0x5a5a62, roughness: 0.95 });
   for (let i = 0; i < 34; i++) {
     const p = new THREE.Mesh(new THREE.DodecahedronGeometry(rand(0.05, 0.13), 0), pebMat);
-    p.position.set(rand(-7.2, 7.2), 0.03, rand(-7.2, 7.2));
+    p.position.set(rand(-7.2, 7.2), 0.12, rand(-7.2, 7.2));
     p.rotation.set(rand(0, 3), rand(0, 3), rand(0, 3)); p.castShadow = true; block.add(p);
   }
   const leafCols = [0x6a4a26, 0x7a5326, 0x5c4426];
   for (let i = 0; i < 78; i++) {
     const leaf = new THREE.Mesh(new THREE.CircleGeometry(rand(0.07, 0.13), 5),
       new THREE.MeshStandardMaterial({ color: leafCols[i % 3], roughness: 1, side: THREE.DoubleSide }));
-    leaf.position.set(rand(-7.4, 7.4), 0.045, rand(-7.4, 7.4));
+    leaf.position.set(rand(-7.4, 7.4), 0.15, rand(-7.4, 7.4));
     leaf.rotation.set(-Math.PI / 2 + rand(-0.3, 0.3), rand(0, 6.28), 0); block.add(leaf);
   }
   const mossMats = [0x2f5238, 0x3a5f40, 0x274631].map(c => new THREE.MeshStandardMaterial({ color: c, roughness: 1 }));
   for (let i = 0; i < 46; i++) {
     const m = new THREE.Mesh(new THREE.SphereGeometry(rand(0.09, 0.24), 7, 5), mossMats[i % 3]);
-    m.position.set(rand(-7.2, 7.2), 0.0, rand(-7.2, 7.2)); m.scale.y = 0.35; block.add(m);
+    m.position.set(rand(-7.2, 7.2), 0.1, rand(-7.2, 7.2)); m.scale.y = 0.35; block.add(m);
   }
   const twigMat = new THREE.MeshStandardMaterial({ color: 0x4a3626, roughness: 1 });
   for (let i = 0; i < 11; i++) {
     const t = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.028, rand(0.4, 0.9), 5), twigMat);
-    t.position.set(rand(-7, 7), 0.05, rand(-7, 7));
+    t.position.set(rand(-7, 7), 0.14, rand(-7, 7));
     t.rotation.set(Math.PI / 2 + rand(-0.15, 0.15), rand(0, 6.28), 0); t.castShadow = true; block.add(t);
   }
 }
@@ -569,6 +571,8 @@ Promise.all(['CommonTree_2.glb', 'CommonTree_4.glb', 'BirchTree_Dead_1.glb', 'Bi
 //          growth (offset midpoints, no straight wires), brighter caps + readable gills, lifted night light,
 //          canopy trees + berry bushes replace wire birches, near-frontal portrait fit
 // pass 14: QA hooks removed pre-acceptance (projection + lit probe), retest complete - full 10-group cycle verified on pass 13 build
+// pass 20: floor mottle root cause = coplanar z-fight with topsoil box top (y=0) -
+//          floor raised to 0.08, scatter lifted; same bug family as thunderstorm plain/strata
 // pass 19: floor direction 4 - uniform warm soil (no regional vertex patches), geometry-carried detail
 //          (more leaves/moss tones), warm emissive lift + warmer hemisphere bounce
 // pass 13: floor-tap nearest-mushroom fallback (forgiving targeting, phone-first)
