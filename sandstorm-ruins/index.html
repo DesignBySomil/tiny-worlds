@@ -47,7 +47,7 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 
-// pass 5
+// pass 6
 const container = document.getElementById('app');
 const hintEl = document.getElementById('hint');
 const scene = new THREE.Scene();
@@ -236,7 +236,7 @@ for (let i = 0; i < 8; i++) {
 // ---------- sand particles (ambient drift) ----------
 const grains = [];
 {
-  const tex = makeSoftTexture('rgba(246,222,180,0.9)', 'rgba(246,222,180,0)');
+  const tex = makeSoftTexture('rgba(186,138,88,0.9)', 'rgba(186,138,88,0)');
   for (let i = 0; i < 90; i++) {
     const mat = new THREE.SpriteMaterial({ map: tex, transparent: true, opacity: rand(0.25, 0.6), depthWrite: false });
     const s = new THREE.Sprite(mat);
@@ -248,12 +248,13 @@ const grains = [];
 }
 // ---------- sandstorm gust wall (interaction) ----------
 const gusts = [];
-const gustTex = makeSoftTexture('rgba(232,196,148,0.95)', 'rgba(232,196,148,0)');
+const gustTex = makeSoftTexture('rgba(172,124,76,0.95)', 'rgba(172,124,76,0)');
 // sun disc + circling vultures
+let sunSpr;
 const vultures = [];
 {
   const sunTex = makeSoftTexture('rgba(255,244,214,1)', 'rgba(255,244,214,0)');
-  const sunSpr = new THREE.Sprite(new THREE.SpriteMaterial({ map: sunTex, transparent: true, opacity: 0.95, depthWrite: false }));
+  sunSpr = new THREE.Sprite(new THREE.SpriteMaterial({ map: sunTex, transparent: true, opacity: 0.95, depthWrite: false }));
   sunSpr.scale.set(3.4, 3.4, 1); sunSpr.position.set(-4.6, 5.6, -4);
   scene.add(sunSpr);
   const vTex = makeSoftTexture('rgba(60,44,30,0.95)', 'rgba(60,44,30,0)');
@@ -349,11 +350,16 @@ addEventListener('resize', () => {
 // ---------- animate ----------
 const clock = new THREE.Clock();
 const ndcV = new THREE.Vector3();
+const bgBase = new THREE.Color(0xe8c9a0);
+const bgStorm = new THREE.Color(0xbd8a54);
 function animate() {
   requestAnimationFrame(animate);
   const dt = Math.min(clock.getDelta(), 0.3);
   const now = performance.now() / 1000;
   const stormBoost = storm.active ? Math.max(0, 1 - (now - storm.t0) / 5.2) : 0;
+  scene.background.copy(bgBase).lerp(bgStorm, stormBoost * 0.85);
+  scene.fog.color.copy(scene.background);
+  sunSpr.material.opacity = 0.95 * (1 - stormBoost * 0.65);
   if (storm.active && now - storm.t0 > 5.4) storm.active = false;
   // ambient grains, sped up during storm
   for (const g of grains) {
@@ -371,7 +377,7 @@ function animate() {
     if (t >= 1) { gu.s.material.opacity = 0; continue; }
     gu.s.position.x = gu.x0 + t * 11;
     gu.s.position.y = gu.y0 + Math.sin(t * 9) * 0.2;
-    gu.s.material.opacity = Math.sin(Math.min(t * 1.2, 1) * Math.PI) * 0.55;
+    gu.s.material.opacity = Math.sin(Math.min(t * 1.2, 1) * Math.PI) * 0.75;
   }
   // vultures circle high, faded in title band
   for (const v of vultures) {
