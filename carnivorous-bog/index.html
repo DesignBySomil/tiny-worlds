@@ -47,7 +47,7 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 
-// pass 5
+// pass 6
 const container = document.getElementById('app');
 const hintEl = document.getElementById('hint');
 const scene = new THREE.Scene();
@@ -406,7 +406,7 @@ const bubbles = [];
 // ---------- dead bog tree ----------
 function makeBogTree(x, z) {
   const g = new THREE.Group(); g.position.set(x, 0, z); g.rotation.y = rand(-0.4, 0.4);
-  const bark = new THREE.MeshStandardMaterial({ color: 0x3a2e22, roughness: 0.95 });
+  const bark = new THREE.MeshStandardMaterial({ color: 0x4a3a2a, roughness: 0.95 });
   const mossMat = new THREE.MeshStandardMaterial({ color: 0x5a7040, roughness: 1 });
   const t1 = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.18, 2.0, 7), bark);
   t1.position.y = 1.0; t1.rotation.z = 0.08; t1.castShadow = true; g.add(t1);
@@ -443,7 +443,7 @@ function fitCamera() {
       for (const z of [fitBox.min.z, fitBox.max.z])
         corners.push(new THREE.Vector3(x, y, z));
   const probe = new THREE.PerspectiveCamera(camera.fov, camera.aspect, 0.1, 240);
-  probe.position.copy(center).addScaledVector(dir, 10); probe.lookAt(center); probe.updateMatrixWorld();
+  probe.position.copy(center).addScaledVector(dir, 0.001); probe.lookAt(center); probe.updateMatrixWorld();
   const inv = probe.matrixWorldInverse;
   let need = 0;
   const vFov = THREE.MathUtils.degToRad(camera.fov) / 2;
@@ -453,7 +453,7 @@ function fitCamera() {
     const d = -p.z;
     need = Math.max(need, d + Math.abs(p.y) / Math.tan(vFov), d + Math.abs(p.x) / Math.tan(hFov));
   }
-  const dist = need * 1.02 + 0.2;
+  const dist = need * 1.06 + 0.2;
   camera.position.copy(center).addScaledVector(dir, dist);
   camera.lookAt(center); controls.update();
 }
