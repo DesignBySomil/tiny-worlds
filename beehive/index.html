@@ -15,7 +15,7 @@
     color:#fbf7e8; text-transform:uppercase; text-shadow:0 1px 8px rgba(60,72,35,.7); }
   header .rule { width:44px; height:1px; background:rgba(251,247,232,.55); margin:9px auto; }
   #hint { display:inline-block; font-size:11.5px; letter-spacing:.24em; text-transform:uppercase;
-    color:#fdfaf0; transition:opacity 1.2s ease; text-shadow:0 1px 2px rgba(60,72,35,.85), 0 0 12px rgba(60,72,35,.6); }
+    color:#fffdf2; transition:opacity 1.2s ease; text-shadow:0 1px 3px rgba(46,58,22,.95), 0 0 6px rgba(46,58,22,.9), 0 0 16px rgba(46,58,22,.75); }
   #hint.faded { opacity:.45; }
   footer { position:fixed; bottom:0; left:0; right:0; text-align:center; pointer-events:none;
     padding:0 16px max(14px, env(safe-area-inset-bottom)); z-index:5;
@@ -147,7 +147,7 @@ const slabGroup = new THREE.Group(); scene.add(slabGroup);
 // grass tufts
 {
   const tuftMat = new THREE.MeshStandardMaterial({ color: PAL.grassDeep, roughness: 0.9, flatShading: true });
-  for (let i = 0; i < 60; i++) {
+  for (let i = 0; i < 110; i++) {
     const t = new THREE.Mesh(new THREE.ConeGeometry(rand(0.04, 0.08), rand(0.14, 0.3), 4), tuftMat);
     t.position.set(rand(-7, 7), 0.22, rand(-7, 7));
     t.rotation.set(rand(-0.2, 0.2), rng() * 6.28, rand(-0.2, 0.2));
@@ -158,7 +158,7 @@ const slabGroup = new THREE.Group(); scene.add(slabGroup);
 {
   const heads = [PAL.poppy, PAL.daisy, PAL.lavender];
   const stemMat = new THREE.MeshStandardMaterial({ color: PAL.grassDeep, roughness: 0.9, flatShading: true });
-  for (let i = 0; i < 14; i++) {
+  for (let i = 0; i < 26; i++) {
     const f = new THREE.Group();
     const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.015, 0.02, 0.34, 4), stemMat);
     stem.position.y = 0.17; f.add(stem);
@@ -182,6 +182,17 @@ const slabGroup = new THREE.Group(); scene.add(slabGroup);
     cap.position.y = 0.22; cap.castShadow = true; m.add(cap);
     m.position.set(-3.4 + rand(-0.7, 0.9), 0.16, -1.7 + rand(-0.6, 0.8));
     slabGroup.add(m);
+  }
+}
+// bushes
+{
+  const bushM1 = new THREE.MeshStandardMaterial({ color: PAL.leaf, roughness: 0.9, flatShading: true });
+  const bushM2 = new THREE.MeshStandardMaterial({ color: PAL.leafLight, roughness: 0.9, flatShading: true });
+  const spots = [[3.2, -3.6, 0.5], [5.4, 1.8, 0.42], [-5.2, 2.8, 0.46], [1.8, 4.6, 0.38], [-1.6, -4.9, 0.4]];
+  let k = 0;
+  for (const [x, z, r] of spots) {
+    const b = new THREE.Mesh(new THREE.IcosahedronGeometry(r, 1), k++ % 2 ? bushM1 : bushM2);
+    b.position.set(x, 0.3, z); b.castShadow = true; slabGroup.add(b);
   }
 }
 // rocks
@@ -246,7 +257,7 @@ const hiveGroup = new THREE.Group();
   const cord = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 0.75, 4),
     new THREE.MeshStandardMaterial({ color: PAL.bark, roughness: 0.95 }));
   cord.position.y = 1.45; hiveGroup.add(cord);
-  hiveGroup.position.copy(HIVE_POS);
+  hiveGroup.position.copy(HIVE_POS); hiveGroup.scale.setScalar(1.28);
   slabGroup.add(hiveGroup);
 }
 // fat invisible tap proxy around the hive
@@ -276,6 +287,7 @@ const bees = [];
       a: rng() * 6.28, r: rand(0.9, 1.8), spd: rand(0.5, 1.3) * (rng() < 0.5 ? 1 : -1),
       dy: rand(-0.5, 0.6), wob: rng() * 6, burstR: rand(2.2, 4.6), w1, w2
     };
+    b.scale.setScalar(1.4);
     slabGroup.add(b); bees.push(b);
   }
 }
@@ -307,7 +319,7 @@ FIT_PTS.push(new THREE.Vector3(HIVE_POS.x, HIVE_POS.y + 1.2, HIVE_POS.z));
 // ---------- camera fit ----------
 function fitDir() {
   const a = innerWidth / innerHeight;
-  if (a < 0.62) return new THREE.Vector3(0.14, 0.4, 1).normalize();
+  if (a < 0.62) return new THREE.Vector3(0.09, 0.37, 1).normalize();
   if (a < 0.9) return new THREE.Vector3(0.44, 0.4, 1).normalize();
   return new THREE.Vector3(0.62, 0.42, 1).normalize();
 }
@@ -330,7 +342,7 @@ function frameInitialCamera() {
   const fwd = fd.clone().negate();
   const right = new THREE.Vector3().crossVectors(fwd, new THREE.Vector3(0,1,0)).normalize();
   const up = new THREE.Vector3().crossVectors(right, fwd).normalize();
-  const dist = requiredDistance(right, up, fwd, FIT_CENTER) * 1.06;
+  const dist = requiredDistance(right, up, fwd, FIT_CENTER) * (innerWidth / innerHeight < 0.62 ? 1.01 : 1.06);
   camera.position.copy(FIT_CENTER).addScaledVector(fd, dist);
   controls.target.copy(FIT_CENTER);
   camera.updateProjectionMatrix(); controls.update();
@@ -413,6 +425,7 @@ function animate() {
   renderer.render(scene, camera);
 }
 animate();
+// pass 2: denser meadow, bigger hive+bees, bushes, hint contrast, tighter portrait
 // pass 1: beehive initial build - warm meadow, banded skep hive, 16 orbiting bees,
 // butterflies, wildflowers; tap hive = swarm burst then settle
 </script>
