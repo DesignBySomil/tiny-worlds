@@ -55,6 +55,7 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 // pass 7: density pass - outer rock outcrops with own foam, 26 drifting whitecap specks, blinking channel buoy
 //          (left half of the sea read sparse and dead). Also: the 'flat pale patch' main flagged was a low rock's
 //          flatShading top face catching the key light - submerged and darkened those two rocks
+// pass 8: TEMP __qa hook (removed pre-acceptance) to identify the persistent pale flat patch by raycast
 // pass 1: first lighthouse-night build - marine night palette, striped tower on rocky islet, drag beam sweep, tap fog, course-correcting ships, exact corner-fit camera
 
 const PAL = {
@@ -479,6 +480,8 @@ function animate() {
   renderer.render(scene, camera);
 }
 animate();
+// TEMP QA HOOK - removed before acceptance
+window.__qa = { THREE, camera, controls, scene, slabGroup, islet, ships, pool, foamFlecks, beamGroup, ray: new THREE.Raycaster() };
 
 addEventListener('resize', () => {
   camera.aspect = innerWidth/innerHeight;
