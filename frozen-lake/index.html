@@ -424,9 +424,12 @@ const HINTS = {
   wind: 'A cold wind sweeps the lake'
 };
 function setHint(s) {
-  hintEl.textContent = HINTS[s]; hintEl.classList.remove('faded');
+  hintEl.textContent = HINTS[s]; hintEl.dataset.s = s; hintEl.classList.remove('faded');
   clearTimeout(setHint._t);
   setHint._t = setTimeout(() => hintEl.classList.add('faded'), 6000);
+}
+function resetHintIf(state, ms) {   // only the event that owns the hint may clear it
+  setTimeout(() => { if (hintEl.dataset.s === state) setHint('idle'); }, ms);
 }
 setHint('idle');
 
@@ -491,8 +494,7 @@ renderer.domElement.addEventListener('pointerup', e => {
   fireCrack(p.x, p.z);
   for (const s of skaters) s.userData.scatterT0 = performance.now();
   setHint('crack');
-  clearTimeout(fireCrack._t);
-  fireCrack._t = setTimeout(() => setHint('idle'), 7000);
+  resetHintIf('crack', 7000);
 });
 
 addEventListener('resize', () => {
@@ -513,7 +515,7 @@ function animate() {
   if (performance.now() >= nextGustAt) {
     nextGustAt = performance.now() + rand(14, 24) * 1000;
     gustK = 1; setHint('wind');
-    setTimeout(() => { gustK = 0; setHint('idle'); }, 5200);
+    setTimeout(() => { gustK = 0; }, 5200); resetHintIf('wind', 5200);
   }
 
   skaterStep(dt, t);
@@ -538,6 +540,7 @@ function animate() {
   renderer.render(scene, camera);
 }
 animate();
+// pass 11: hint ownership - gust timer can no longer stomp a newer crack hint
 // pass 10: portrait fits ice area (steeper angle), wall-clock effect lifetimes (crack/scatter/gust)
 // pass 9: bird's-angle portrait fit, dark hint pill + stronger scrim
 // pass 8: falling snow + low sun glow for phone sky, stronger hint contrast
