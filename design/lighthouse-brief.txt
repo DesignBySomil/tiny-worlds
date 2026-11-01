@@ -1,0 +1,24 @@
+LIGHTHOUSE AT NIGHT - design brief (world 4, distinct from volcano dusk / mushroom indigo forest / thunderstorm grey day)
+Source concept (user's list): "Lighthouse at night. Rocks, waves, one tower. Drag to sweep the beam; ships out in the dark correct their course as the fog rolls in."
+
+MOOD / REFERENCE BAR
+- MARINE night, not forest night: deep teal-navy sea, near-black sky with a few stars, warm AMBER beam as the single warm accent. Palette anchor: cold blue-green water + warm tungsten lamp. Distinct from mushroom (violet-indigo, cool bioluminescent) and volcano (orange dusk).
+- Guronnimo tactility: chunky hand-placed rocks, foam rings, a tidy tower with gallery + lamp room.
+
+HERO FORMS
+- ONE lighthouse on a rocky islet: striped tower (warm white + deep red bands), gallery deck, lamp room with visible glowing lens, small attached keeper's hut. Hero scale - tower height ~2/3 of slab width.
+- Islet: cluster of angular dark rocks rising from the slab's sea top; slab top IS the sea (no grass) with soil/rock strata sides.
+- Waves: animated low swell ridges (displaced ring plane or layered sine rows) + white foam ring lapping the rocks; foam pulses with swell.
+- Ships: 2-3 tiny silhouette boats (dark hulls, one warm window dot each) drifting slowly on fixed lanes.
+
+INTERACTION
+- DRAG horizontally to sweep the beam: pointer drag rotates the beam yaw (volumetric cone: additive gradient cone mesh + spot glow sprite at lens + a moving light pool ellipse on the sea where the beam points). Orbit stays on empty-space drag (drag discrimination: pointerdown on tower/beam handle = sweep, else orbit).
+- TAP the lamp room: fog rolls in/out - fog density animates over ~3s; in fog the beam reads as a soft volumetric shaft and ships' window dots dim; tap again to clear.
+- Ships correct course: the ship nearest the beam's current line slowly turns to parallel the shore (visible heading change over ~5s when the beam dwells on it).
+- Idle: beam slowly auto-sweeps left-right, waves roll, lamp breathes.
+
+CAMERA / FIT
+- Slightly low three-quarter view: islet + tower + sea lanes + beam sweep arc must all fit; portrait refit verified at 320x660 with beam at both sweep extremes (learned from thunderstorm pass 11-12).
+
+QUALITY GATES (same bar)
+- Desktop idle + beam sweep + fog tap + ship course proof + 320x660, all attached pixels; DOM-hint verification; no fit/fix claims without pixels; main inspects every shot.
