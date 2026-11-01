@@ -1,0 +1,379 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Ant Colony - a tiny world</title>
+<style>
+  html, body { margin:0; padding:0; height:100%; background:#e8d9b8; overflow:hidden;
+    font-family: Georgia, 'Times New Roman', serif; }
+  #app { position:fixed; inset:0; }
+  header { position:fixed; top:0; left:0; right:0; text-align:center; pointer-events:none;
+    padding: max(18px, env(safe-area-inset-top)) 16px 18px; z-index:5;
+    background: linear-gradient(rgba(52,36,18,.60), rgba(52,36,18,.28) 55%, rgba(52,36,18,0)); }
+  header h1 { margin:0; font-size:15px; letter-spacing:.42em; font-weight:400;
+    color:#fdf8ee; text-transform:uppercase; text-shadow:0 1px 8px rgba(46,32,16,.7); }
+  header .rule { width:44px; height:1px; background:rgba(253,248,238,.55); margin:9px auto; }
+  #hint { display:inline-block; font-size:11.5px; letter-spacing:.24em; text-transform:uppercase;
+    color:#fffdf6; transition:opacity 1.2s ease; padding:5px 12px; border-radius:3px;
+    background:rgba(46,32,16,.40);
+    text-shadow:0 1px 3px rgba(26,17,8,.98), 0 0 8px rgba(26,17,8,.95), 0 0 18px rgba(26,17,8,.85); }
+  #hint.faded { opacity:.45; }
+  footer { position:fixed; bottom:0; left:0; right:0; text-align:center; pointer-events:none;
+    padding:0 16px max(14px, env(safe-area-inset-bottom)); z-index:5;
+    font-size:10px; letter-spacing:.34em; text-transform:uppercase; color:rgba(253,248,238,.6); }
+  canvas { display:block; touch-action:none; }
+</style>
+</head>
+<body>
+<div id="app"></div>
+<header>
+  <h1>Ant Colony</h1>
+  <div class="rule"></div>
+  <span id="hint"></span>
+</header>
+<footer>A tiny world</footer>
+<script type="importmap">
+{ "imports": {
+  "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+  "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+} }
+</script>
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+const container = document.getElementById('app');
+const hintEl = document.getElementById('hint');
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0xe8d9b8);
+scene.fog = new THREE.Fog(0xe8d9b8, 60, 140);
+
+const camera = new THREE.PerspectiveCamera(38, innerWidth/innerHeight, 0.1, 240);
+function pickFov() {
+  const a = innerWidth / innerHeight;
+  camera.fov = a >= 0.9 ? 38 : (a >= 0.62 ? 46 : 58);
+  camera.updateProjectionMatrix();
+}
+pickFov();
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setSize(innerWidth, innerHeight);
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+container.appendChild(renderer.domElement);
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true; controls.dampingFactor = 0.06;
+controls.enablePan = false; controls.maxPolarAngle = Math.PI * 0.52;
+
+const sun = new THREE.DirectionalLight(0xfff0d0, 2.3);
+sun.position.set(9, 13, 6); sun.castShadow = true;
+sun.shadow.mapSize.set(1024, 1024);
+sun.shadow.camera.left = -14; sun.shadow.camera.right = 14;
+sun.shadow.camera.top = 14; sun.shadow.camera.bottom = -14;
+sun.shadow.camera.far = 60; sun.shadow.bias = -0.0006;
+scene.add(sun);
+scene.add(new THREE.HemisphereLight(0xf8ecd4, 0x7a5c38, 1.05));
+
+function mulberry32(a) {
+  return function() {
+    a |= 0; a = a + 0x6D2B79F5 | 0;
+    let t = Math.imul(a ^ a >>> 15, 1 | a);
+    t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+    return ((t ^ t >>> 14) >>> 0) / 4294967296;
+  };
+}
+const rng = mulberry32(20261101);
+function rand(a, b) { return a + rng() * (b - a); }
+
+// ---------- slab: sandy ground ----------
+const SLAB_H = 1.4;
+const slabGroup = new THREE.Group(); scene.add(slabGroup);
+{
+  const topMat = new THREE.MeshStandardMaterial({ color: 0xc9a96e, roughness: 0.95 });
+  const top = new THREE.Mesh(new THREE.BoxGeometry(12, 0.22, 12), topMat);
+  top.position.y = -0.11; top.receiveShadow = true; slabGroup.add(top);
+  const midMat = new THREE.MeshStandardMaterial({ color: 0x9a7448, roughness: 1 });
+  const mid = new THREE.Mesh(new THREE.BoxGeometry(12, SLAB_H, 12), midMat);
+  mid.position.y = -SLAB_H/2 - 0.2; slabGroup.add(mid);
+  const baseMat = new THREE.MeshStandardMaterial({ color: 0x6e4f2e, roughness: 1 });
+  const base = new THREE.Mesh(new THREE.BoxGeometry(12.4, 0.5, 12.4), baseMat);
+  base.position.y = -SLAB_H - 0.45; slabGroup.add(base);
+  const patchMat = new THREE.MeshStandardMaterial({ color: 0xb99861, roughness: 1 });
+  for (let i = 0; i < 14; i++) {
+    const p = new THREE.Mesh(new THREE.CircleGeometry(rand(0.5, 1.3), 9), patchMat);
+    p.rotation.x = -Math.PI/2; p.position.set(rand(-5.4, 5.4), 0.011, rand(-5.4, 5.4));
+    p.receiveShadow = true; slabGroup.add(p);
+  }
+}
+
+// ---------- anthill ----------
+const HILL = { x: 0.4, z: -0.6, r: 1.35 };
+const hillGroup = new THREE.Group(); hillGroup.position.set(HILL.x, 0, HILL.z); slabGroup.add(hillGroup);
+{
+  const hillMat = new THREE.MeshStandardMaterial({ color: 0xa8845a, roughness: 1 });
+  const hill = new THREE.Mesh(new THREE.ConeGeometry(HILL.r, 1.15, 14), hillMat);
+  hill.position.y = 0.57; hill.castShadow = true; hill.receiveShadow = true; hillGroup.add(hill);
+  // granular rings on the hill
+  for (let i = 0; i < 26; i++) {
+    const a = rand(0, Math.PI * 2), rr = rand(0.25, HILL.r * 0.95);
+    const gr = new THREE.Mesh(new THREE.DodecahedronGeometry(rand(0.05, 0.11), 0), hillMat);
+    const hgt = Math.max(0.05, 1.15 * (1 - rr / HILL.r));
+    gr.position.set(Math.cos(a) * rr, hgt, Math.sin(a) * rr);
+    gr.rotation.set(rand(0, 3), rand(0, 3), 0); hillGroup.add(gr);
+  }
+  const hole = new THREE.Mesh(new THREE.CircleGeometry(0.22, 12),
+    new THREE.MeshBasicMaterial({ color: 0x1a0f06 }));
+  hole.rotation.x = -Math.PI/2; hole.position.y = 1.16; hillGroup.add(hole);
+  // trailed sand around the base
+  const trailMat = new THREE.MeshStandardMaterial({ color: 0xb6906a, roughness: 1 });
+  for (let i = 0; i < 8; i++) {
+    const a = rand(0, Math.PI * 2);
+    const tr = new THREE.Mesh(new THREE.CircleGeometry(rand(0.3, 0.6), 8), trailMat);
+    tr.rotation.x = -Math.PI/2;
+    tr.position.set(Math.cos(a) * rand(1.5, 2.2), 0.012, Math.sin(a) * rand(1.5, 2.2));
+    hillGroup.add(tr);
+  }
+  const proxy = new THREE.Mesh(new THREE.CylinderGeometry(HILL.r + 0.7, HILL.r + 0.7, 2.2, 12),
+    new THREE.MeshBasicMaterial({ visible: false }));
+  proxy.position.y = 0.9; hillGroup.add(proxy);
+  hillGroup.userData.proxy = proxy;
+}
+
+// ---------- ants ----------
+const antBodyMat = new THREE.MeshStandardMaterial({ color: 0x6e2f16, roughness: 0.6 });
+const antHeadMat = new THREE.MeshStandardMaterial({ color: 0x571f0e, roughness: 0.6 });
+function makeAnt() {
+  const g = new THREE.Group();
+  const abd = new THREE.Mesh(new THREE.SphereGeometry(0.13, 10, 8), antBodyMat);
+  abd.scale.set(1, 0.85, 1.35); abd.position.set(0, 0.16, -0.19); abd.castShadow = true; g.add(abd);
+  const tho = new THREE.Mesh(new THREE.SphereGeometry(0.09, 9, 7), antBodyMat);
+  tho.position.set(0, 0.15, 0); tho.castShadow = true; g.add(tho);
+  const head = new THREE.Mesh(new THREE.SphereGeometry(0.095, 9, 7), antHeadMat);
+  head.position.set(0, 0.16, 0.15); head.castShadow = true; g.add(head);
+  const legs = [];
+  for (let l = 0; l < 6; l++) {
+    const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.014, 0.018, 0.22, 4), antHeadMat);
+    const side = l < 3 ? 1 : -1;
+    leg.position.set(side * 0.1, 0.09, (l % 3) * 0.09 - 0.08);
+    leg.rotation.z = side * 0.85; g.add(leg); legs.push(leg);
+  }
+  for (const s of [-1, 1]) {
+    const ant2 = new THREE.Mesh(new THREE.CylinderGeometry(0.008, 0.008, 0.14, 4), antHeadMat);
+    ant2.position.set(s * 0.05, 0.24, 0.22);
+    ant2.rotation.z = s * 0.5; ant2.rotation.x = -0.5; g.add(ant2);
+  }
+  g.userData.legs = legs;
+  return g;
+}
+const ants = [];
+function antLoop(cx, cz, rx, rz, wobble) {
+  const pts = [];
+  for (let i = 0; i < 8; i++) {
+    const a = (i / 8) * Math.PI * 2;
+    pts.push(new THREE.Vector3(
+      cx + Math.cos(a) * (rx + rand(-wobble, wobble)), 0,
+      cz + Math.sin(a) * (rz + rand(-wobble, wobble))));
+  }
+  return new THREE.CatmullRomCurve3(pts, true, 'centripetal');
+}
+for (let i = 0; i < 13; i++) {
+  const g = makeAnt(); slabGroup.add(g);
+  const nearHill = i < 5;
+  const curve = antLoop(
+    nearHill ? HILL.x + rand(-1, 1) : rand(-4.5, 4.5),
+    nearHill ? HILL.z + rand(-1, 1) : rand(-4.5, 4.5),
+    rand(1.0, 2.6), rand(1.0, 2.4), 0.5);
+  ants.push({ g, curve, u: rand(0, 1), sp: rand(0.018, 0.034), ph: rand(0, 6.28), carry: null });
+}
+// 3 leaf-carrying ants
+{
+  const leafMat = new THREE.MeshStandardMaterial({ color: 0x5da854, roughness: 0.7, side: THREE.DoubleSide });
+  for (let i = 0; i < 3; i++) {
+    const ant = ants[i * 3];
+    const leaf = new THREE.Mesh(new THREE.CircleGeometry(0.16, 3), leafMat);
+    leaf.rotation.x = -Math.PI / 2 + 0.3; leaf.position.set(0, 0.34, 0.26);
+    ant.g.add(leaf); ant.carry = leaf;
+  }
+}
+// swarm ants (hidden until tap, wall-clock emergence)
+const swarmAnts = [];
+for (let i = 0; i < 7; i++) {
+  const g = makeAnt(); g.visible = false; slabGroup.add(g);
+  const a = rand(0, Math.PI * 2);
+  const curve = new THREE.CatmullRomCurve3([
+    new THREE.Vector3(HILL.x, 0, HILL.z),
+    new THREE.Vector3(HILL.x + Math.cos(a) * 1.6, 0, HILL.z + Math.sin(a) * 1.6),
+    new THREE.Vector3(HILL.x + Math.cos(a + 0.9) * 2.6, 0, HILL.z + Math.sin(a + 0.9) * 2.6),
+    new THREE.Vector3(HILL.x + Math.cos(a + 1.8) * 1.7, 0, HILL.z + Math.sin(a + 1.8) * 1.7),
+    new THREE.Vector3(HILL.x, 0, HILL.z),
+  ], true, 'centripetal');
+  swarmAnts.push({ g, curve, u: rand(0, 1), sp: rand(0.05, 0.075), ph: rand(0, 6.28) });
+}
+const swarm = { t0: -1 };
+const SWARM_MS = 4500;
+
+// ---------- scenery: grass, pebbles, twigs, flowers ----------
+{
+  const grassMats = [0x7fae56, 0x93bd66, 0x6b9a4a].map(c => new THREE.MeshStandardMaterial({ color: c, roughness: 0.9 }));
+  for (let i = 0; i < 26; i++) {
+    const g = new THREE.Group();
+    const n = 3;
+    for (let k = 0; k < n; k++) {
+      const bl = new THREE.Mesh(new THREE.ConeGeometry(0.035, rand(0.25, 0.5), 4), grassMats[k % 3]);
+      bl.position.set(rand(-0.08, 0.08), 0.15, rand(-0.08, 0.08));
+      bl.rotation.z = rand(-0.3, 0.3); bl.castShadow = true; g.add(bl);
+    }
+    let x, z;
+    do { x = rand(-5.4, 5.4); z = rand(-5.4, 5.4); } while (Math.hypot(x - HILL.x, z - HILL.z) < 2.2);
+    g.position.set(x, 0, z); slabGroup.add(g);
+  }
+  const pebMats = [0x9a8a72, 0x8a7a64, 0xa89880].map(c => new THREE.MeshStandardMaterial({ color: c, roughness: 1 }));
+  for (let i = 0; i < 16; i++) {
+    const p = new THREE.Mesh(new THREE.DodecahedronGeometry(rand(0.06, 0.15), 0), pebMats[i % 3]);
+    p.position.set(rand(-5.4, 5.4), 0.05, rand(-5.4, 5.4));
+    p.scale.y = 0.6; p.rotation.y = rand(0, 3); p.castShadow = true; slabGroup.add(p);
+  }
+  const twigMat = new THREE.MeshStandardMaterial({ color: 0x7a5a38, roughness: 1 });
+  for (let i = 0; i < 4; i++) {
+    const tw = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.05, rand(0.7, 1.2), 6), twigMat);
+    tw.rotation.set(Math.PI / 2, 0, rand(0, 3));
+    tw.position.set(rand(-4.5, 4.5), 0.05, rand(-4.5, 4.5));
+    tw.castShadow = true; slabGroup.add(tw);
+  }
+  const petalCols = [0xf2f0e4, 0xffd166, 0xf4a7b9];
+  for (let i = 0; i < 6; i++) {
+    const fg = new THREE.Group();
+    const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.03, 0.35, 5),
+      new THREE.MeshStandardMaterial({ color: 0x6b9a4a, roughness: 1 }));
+    stem.position.y = 0.17; fg.add(stem);
+    for (let p = 0; p < 5; p++) {
+      const pt = new THREE.Mesh(new THREE.CircleGeometry(0.09, 6),
+        new THREE.MeshStandardMaterial({ color: petalCols[i % 3], roughness: 0.8, side: THREE.DoubleSide }));
+      const a = (p / 5) * Math.PI * 2;
+      pt.position.set(Math.cos(a) * 0.1, 0.37, Math.sin(a) * 0.1);
+      pt.rotation.x = -Math.PI / 2 + 0.4; fg.add(pt);
+    }
+    const ctr = new THREE.Mesh(new THREE.SphereGeometry(0.05, 6, 5),
+      new THREE.MeshStandardMaterial({ color: 0xe8a13a, roughness: 0.8 }));
+    ctr.position.y = 0.38; fg.add(ctr);
+    let x, z;
+    do { x = rand(-5, 5); z = rand(-5, 5); } while (Math.hypot(x - HILL.x, z - HILL.z) < 2.4);
+    fg.position.set(x, 0, z); fg.castShadow = true; slabGroup.add(fg);
+  }
+}
+
+// ---------- hints ----------
+const HINTS = {
+  idle: 'Tap the anthill',
+  swarm: 'Watch them swarm',
+};
+function setHint(s) {
+  hintEl.textContent = HINTS[s]; hintEl.dataset.s = s; hintEl.classList.remove('faded');
+  clearTimeout(setHint._t);
+  setHint._t = setTimeout(() => hintEl.classList.add('faded'), 6000);
+}
+function resetHintIf(state, ms) {
+  setTimeout(() => { if (hintEl.dataset.s === state) setHint('idle'); }, ms);
+}
+setHint('idle');
+
+// ---------- fit ----------
+const FIT_CENTER = new THREE.Vector3(0, 0.5, 0);
+const FIT_PTS = [];
+for (const x of [-6, 6]) for (const y of [-SLAB_H, 0.4]) for (const z of [-6, 6])
+  FIT_PTS.push(new THREE.Vector3(x, y, z));
+FIT_PTS.push(new THREE.Vector3(HILL.x, 1.3, HILL.z));
+function fitDir() {
+  const a = innerWidth / innerHeight;
+  if (a < 0.62) return new THREE.Vector3(0.05, 0.9, 1).normalize();
+  if (a < 0.9) return new THREE.Vector3(0.42, 0.4, 1).normalize();
+  return new THREE.Vector3(0.62, 0.42, 1).normalize();
+}
+const _rel = new THREE.Vector3();
+function requiredDistance(right, up, fwd, target) {
+  const fovV = THREE.MathUtils.degToRad(camera.fov);
+  const tanH = Math.tan(Math.atan(Math.tan(fovV/2) * camera.aspect));
+  const tanV = Math.tan(fovV/2);
+  let d = 4;
+  for (const c of FIT_PTS) {
+    _rel.copy(c).sub(target);
+    const cf = _rel.dot(fwd);
+    d = Math.max(d, Math.abs(_rel.dot(right)) / tanH - cf, Math.abs(_rel.dot(up)) / tanV - cf);
+  }
+  return d;
+}
+function frameInitialCamera() {
+  pickFov();
+  const fd = fitDir();
+  const fwd = fd.clone().negate();
+  const right = new THREE.Vector3().crossVectors(fwd, new THREE.Vector3(0,1,0)).normalize();
+  const up = new THREE.Vector3().crossVectors(right, fwd).normalize();
+  const dist = requiredDistance(right, up, fwd, FIT_CENTER) * (innerWidth / innerHeight < 0.62 ? 1.01 : 1.06);
+  camera.position.copy(FIT_CENTER).addScaledVector(fd, dist);
+  controls.target.copy(FIT_CENTER);
+  camera.updateProjectionMatrix(); controls.update();
+}
+frameInitialCamera();
+
+// ---------- tap ----------
+const ray = new THREE.Raycaster(); const ndc = new THREE.Vector2();
+let downX = 0, downY = 0, downT = 0;
+renderer.domElement.addEventListener('pointerdown', e => { downX = e.clientX; downY = e.clientY; downT = performance.now(); });
+renderer.domElement.addEventListener('pointerup', e => {
+  if (Math.hypot(e.clientX - downX, e.clientY - downY) > 7 || performance.now() - downT > 450) return;
+  ndc.set((e.clientX / innerWidth) * 2 - 1, -(e.clientY / innerHeight) * 2 + 1);
+  ray.setFromCamera(ndc, camera);
+  const hits = ray.intersectObjects([hillGroup.userData.proxy], false);
+  if (!hits.length) return;
+  swarm.t0 = performance.now();
+  for (const s of swarmAnts) { s.g.visible = true; s.u = rand(0, 0.15); }
+  if (hintEl.dataset.s !== 'swarm') { setHint('swarm'); resetHintIf('swarm', SWARM_MS); }
+});
+
+addEventListener('resize', () => {
+  camera.aspect = innerWidth/innerHeight;
+  renderer.setSize(innerWidth, innerHeight);
+  renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+  pickFov(); frameInitialCamera();
+});
+
+// ---------- animate ----------
+const clock = new THREE.Clock();
+const _p = new THREE.Vector3(), _tan = new THREE.Vector3();
+function walkAnt(a, dt, speedMul) {
+  a.u = (a.u + a.sp * speedMul * dt) % 1;
+  a.curve.getPointAt(a.u, _p);
+  a.curve.getTangentAt(a.u, _tan);
+  a.g.position.set(_p.x, 0, _p.z);
+  a.g.rotation.y = Math.atan2(_tan.x, _tan.z);
+  const wig = Math.sin(clock.elapsedTime * 14 + a.ph) * 0.35 * Math.min(speedMul, 2);
+  a.g.userData.legs.forEach((l, i) => { l.rotation.x = wig * (i % 2 === 0 ? 1 : -1); });
+}
+function animate() {
+  requestAnimationFrame(animate);
+  const dt = Math.min(clock.getDelta(), 0.3);
+  const now = performance.now();
+
+  let speedMul = 1;
+  if (swarm.t0 > 0) {
+    const e = (now - swarm.t0) / SWARM_MS;
+    if (e >= 1) {
+      swarm.t0 = -1;
+      for (const s of swarmAnts) s.g.visible = false;
+    } else speedMul = 1 + Math.sin(Math.min(e, 1) * Math.PI) * 2.2;
+  }
+  for (const a of ants) walkAnt(a, dt, speedMul);
+  if (swarm.t0 > 0) for (const s of swarmAnts) walkAnt(s, dt, 1);
+
+  controls.update();
+  renderer.render(scene, camera);
+}
+animate();
+
+// pass 1: initial build - sandy slab, granular anthill + hole, 13 looping ants (3 leaf-carriers),
+//   tap anthill -> 7 swarm ants emerge + all ants 3x speed (wall-clock 4.5s), grass, pebbles,
+//   twigs, flowers, hint ownership, mulberry32(20261101), bird's-angle portrait fit
+</script>
+</body>
+</html>
