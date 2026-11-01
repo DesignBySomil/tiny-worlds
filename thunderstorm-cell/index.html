@@ -52,6 +52,7 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 // pass 9: puff cluster scaled to hero size (pass 8 read tiny), deeper base tints
 // pass 10: crisper cores - denser texture falloff (was fog blob), extra mid puffs to close gaps
 // pass 11: portrait fit - wider bounds (cloud overhang at drag edges) + bigger fit margins (320px clipped slab left edge)
+// pass 12: drag clamp tightened to slab/2-2.5 so the whole cloud (incl. tower) stays in frame at 320px drag extremes
 
 // ---------- palette (brooding storm day, distinct from volcano dusk / mushroom night) ----------
 const PAL = {
@@ -402,7 +403,7 @@ renderer.domElement.addEventListener('pointermove', (e) => {
   toNDC(e); ray.setFromCamera(ndc, camera);
   const p = new THREE.Vector3();
   if (ray.ray.intersectPlane(dragPlane, p)) {
-    const lim = SLAB/2 - 1.5;
+    const lim = SLAB/2 - 2.5;
     cloud.position.x = THREE.MathUtils.clamp(p.x, -lim, lim);
     cloud.position.z = THREE.MathUtils.clamp(p.z, -lim, lim);
   }
@@ -430,7 +431,7 @@ function animate() {
     driftT += dt;
     cloud.position.x += Math.sin(driftT * 0.11) * dt * 0.35;
     cloud.position.z += Math.cos(driftT * 0.09) * dt * 0.3;
-    const lim = SLAB/2 - 1.5;
+    const lim = SLAB/2 - 2.5;
     cloud.position.x = THREE.MathUtils.clamp(cloud.position.x, -lim, lim);
     cloud.position.z = THREE.MathUtils.clamp(cloud.position.z, -lim, lim);
   }
