@@ -446,7 +446,7 @@ for (const x of [-5.4, 5.4]) for (const z of [-5.4, 5.4])
   FIT_PTS_PORTRAIT.push(new THREE.Vector3(x, 0.15, z));   // ice corners
 FIT_PTS_PORTRAIT.push(new THREE.Vector3(5.4, 1.6, 4.4));  // signpost
 FIT_PTS_PORTRAIT.push(new THREE.Vector3(0, 3.5, -3.2));   // central back pine top
-function fitPoints() { return innerWidth / innerHeight < 0.62 ? FIT_PTS_PORTRAIT : FIT_PTS; }
+function fitPoints() { return FIT_PTS; }   // full ensemble in every aspect; portrait fills via the steeper angle
 function fitDir() {
   const a = innerWidth / innerHeight;
   if (a < 0.62) return new THREE.Vector3(0.05, 0.9, 1).normalize();
@@ -472,7 +472,7 @@ function frameInitialCamera() {
   const fwd = fd.clone().negate();
   const right = new THREE.Vector3().crossVectors(fwd, new THREE.Vector3(0,1,0)).normalize();
   const up = new THREE.Vector3().crossVectors(right, fwd).normalize();
-  const dist = requiredDistance(right, up, fwd, FIT_CENTER) * (innerWidth / innerHeight < 0.62 ? 0.98 : 1.06);
+  const dist = requiredDistance(right, up, fwd, FIT_CENTER) * (innerWidth / innerHeight < 0.62 ? 1.01 : 1.06);
   camera.position.copy(FIT_CENTER).addScaledVector(fd, dist);
   controls.target.copy(FIT_CENTER);
   camera.updateProjectionMatrix(); controls.update();
@@ -514,7 +514,7 @@ function animate() {
 
   if (performance.now() >= nextGustAt) {
     nextGustAt = performance.now() + rand(14, 24) * 1000;
-    gustK = 1; setHint('wind');
+    gustK = 1; if (hintEl.dataset.s !== 'crack') setHint('wind');
     setTimeout(() => { gustK = 0; }, 5200); resetHintIf('wind', 5200);
   }
 
@@ -540,6 +540,7 @@ function animate() {
   renderer.render(scene, camera);
 }
 animate();
+// pass 12: portrait fits full ensemble at steeper angle (no side crop); user tap hint outranks ambient gust
 // pass 11: hint ownership - gust timer can no longer stomp a newer crack hint
 // pass 10: portrait fits ice area (steeper angle), wall-clock effect lifetimes (crack/scatter/gust)
 // pass 9: bird's-angle portrait fit, dark hint pill + stronger scrim
