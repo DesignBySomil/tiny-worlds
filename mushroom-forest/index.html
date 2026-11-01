@@ -112,7 +112,7 @@ moon.shadow.camera.top = 13; moon.shadow.camera.bottom = -13;
 moon.shadow.camera.near = 2; moon.shadow.camera.far = 45;
 moon.shadow.bias = -0.0015;
 scene.add(moon);
-scene.add(new THREE.HemisphereLight(0x4c6099, 0x2a231c, 1.35));
+scene.add(new THREE.HemisphereLight(0x4c6099, 0x35291d, 1.35));
 const fill = new THREE.DirectionalLight(0x4a6ab0, 0.5);
 fill.position.set(9, 6, 4); scene.add(fill);
 
@@ -143,26 +143,23 @@ const floorGeo = new THREE.PlaneGeometry(16, 16, 56, 56);
 floorGeo.rotateX(-Math.PI / 2);
 {
   const p = floorGeo.attributes.position, cols = [];
-  const soil = new THREE.Color(0x604d41), moss = new THREE.Color(0x5c6a55), litter = new THREE.Color(0x6b5b4a);
+  const soil = new THREE.Color(0x6a5240);   // pass 19: single dominant warm soil, no regional hue patches
   for (let i = 0; i < p.count; i++) {
     const x = p.getX(i), z = p.getZ(i);
     const e = Math.max(Math.abs(x), Math.abs(z)) / 8;
     p.setY(i, (hash3(x, 0, z) - 0.5) * 0.14 * (e > 0.94 ? 0.15 : 1));   // gentle bumps, crisp edges
-    // fine-grain low-contrast variation: reads as ground texture, not camo blobs
-    const n2 = Math.sin(x * 1.9 + 1.7) * Math.sin(z * 2.2 + 0.4)
-             + 0.5 * Math.sin(x * 4.3 + z * 2.8 + 2.2)
-             + 0.25 * Math.sin(x * 7.1 - z * 5.9 + 4.1);
-    const sm = (a, b, v) => { const t = Math.min(1, Math.max(0, (v - a) / (b - a))); return t * t * (3 - 2 * t); };
+    // pass 19: uniform soil + ultra-fine grain only; regional patches read as mottle three times.
+    // variety now comes from geometry scatter (leaves, moss clumps, pebbles), not vertex-color regions
+    const n2 = Math.sin(x * 11.3 + 1.7) * Math.sin(z * 12.7 + 0.4) * 0.5
+             + 0.5 * Math.sin(x * 23.1 + z * 19.4 + 2.2);
     const c = soil.clone();
-    c.lerp(litter, sm(0.35, 0.9, -n2) * 0.2);
-    c.lerp(moss, sm(0.3, 0.9, n2) * 0.35);
-    c.offsetHSL(rand(-0.005, 0.005), rand(-0.015, 0.015), rand(-0.012, 0.012));
+    c.offsetHSL(rand(-0.004, 0.004), rand(-0.008, 0.008), n2 * 0.012 + rand(-0.008, 0.008));
     cols.push(c.r, c.g, c.b);
   }
   floorGeo.setAttribute('color', new THREE.Float32BufferAttribute(cols, 3));
   floorGeo.computeVertexNormals();
 }
-const floor = new THREE.Mesh(floorGeo, new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 1 }));
+const floor = new THREE.Mesh(floorGeo, new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 1, emissive: 0x140c06, emissiveIntensity: 0.55 }));
 floor.receiveShadow = true; block.add(floor);
 
 // ---------- mycelium network on the two visible cut faces ----------
@@ -349,15 +346,15 @@ for (const pl of PLACEMENTS) {
     p.rotation.set(rand(0, 3), rand(0, 3), rand(0, 3)); p.castShadow = true; block.add(p);
   }
   const leafCols = [0x6a4a26, 0x7a5326, 0x5c4426];
-  for (let i = 0; i < 42; i++) {
+  for (let i = 0; i < 78; i++) {
     const leaf = new THREE.Mesh(new THREE.CircleGeometry(rand(0.07, 0.13), 5),
       new THREE.MeshStandardMaterial({ color: leafCols[i % 3], roughness: 1, side: THREE.DoubleSide }));
     leaf.position.set(rand(-7.4, 7.4), 0.045, rand(-7.4, 7.4));
     leaf.rotation.set(-Math.PI / 2 + rand(-0.3, 0.3), rand(0, 6.28), 0); block.add(leaf);
   }
-  const mossMat = new THREE.MeshStandardMaterial({ color: 0x2f5238, roughness: 1 });
-  for (let i = 0; i < 24; i++) {
-    const m = new THREE.Mesh(new THREE.SphereGeometry(rand(0.1, 0.22), 7, 5), mossMat);
+  const mossMats = [0x2f5238, 0x3a5f40, 0x274631].map(c => new THREE.MeshStandardMaterial({ color: c, roughness: 1 }));
+  for (let i = 0; i < 46; i++) {
+    const m = new THREE.Mesh(new THREE.SphereGeometry(rand(0.09, 0.24), 7, 5), mossMats[i % 3]);
     m.position.set(rand(-7.2, 7.2), 0.0, rand(-7.2, 7.2)); m.scale.y = 0.35; block.add(m);
   }
   const twigMat = new THREE.MeshStandardMaterial({ color: 0x4a3626, roughness: 1 });
@@ -572,6 +569,8 @@ Promise.all(['CommonTree_2.glb', 'CommonTree_4.glb', 'BirchTree_Dead_1.glb', 'Bi
 //          growth (offset midpoints, no straight wires), brighter caps + readable gills, lifted night light,
 //          canopy trees + berry bushes replace wire birches, near-frontal portrait fit
 // pass 14: QA hooks removed pre-acceptance (projection + lit probe), retest complete - full 10-group cycle verified on pass 13 build
+// pass 19: floor direction 4 - uniform warm soil (no regional vertex patches), geometry-carried detail
+//          (more leaves/moss tones), warm emissive lift + warmer hemisphere bounce
 // pass 13: floor-tap nearest-mushroom fallback (forgiving targeting, phone-first)
 // pass 12: proxies repositioned to cap tops with tighter radius (were blanketing neighbours)
 // pass 11: QA lit-state probe for deterministic retest
