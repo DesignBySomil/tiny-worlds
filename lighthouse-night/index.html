@@ -41,10 +41,12 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 
 // pass markers for deploy verification
+// pass 2: visibility/light pass - scene read as near-black void with solid-grey beam cone; lifted moon/hemisphere,
+//          lighter sheen sea, narrow warm double-cone beam, brighter foam/pool/lamp
 // pass 1: first lighthouse-night build - marine night palette, striped tower on rocky islet, drag beam sweep, tap fog, course-correcting ships, exact corner-fit camera
 
 const PAL = {
-  sky: 0x0a1420, sea: 0x12303a, seaDeep: 0x0d232c, foam: 0xcfe8e4,
+  sky: 0x0a1420, sea: 0x1b4551, seaDeep: 0x0d232c, foam: 0xcfe8e4,
   rock: 0x3d434c, rockDark: 0x2c3138,
   towerWhite: 0xf2ede2, towerRed: 0x8e3b34, lampRoom: 0x2a2f38,
   beam: 0xffd98a, hut: 0x4a3f36, hutRoof: 0x33302c, window: 0xffc46b
@@ -71,7 +73,7 @@ controls.minDistance = 6; controls.maxDistance = 60;
 controls.maxPolarAngle = Math.PI * 0.52; controls.enablePan = false;
 
 // ---------- lights ----------
-const moon = new THREE.DirectionalLight(0x9db4cc, 0.75);
+const moon = new THREE.DirectionalLight(0xa9c0d8, 1.35);
 moon.position.set(8, 12, -6);
 moon.castShadow = true;
 moon.shadow.mapSize.set(2048, 2048);
@@ -79,8 +81,8 @@ moon.shadow.camera.left = -14; moon.shadow.camera.right = 14;
 moon.shadow.camera.top = 14; moon.shadow.camera.bottom = -14;
 moon.shadow.camera.far = 60; moon.shadow.bias = -0.0004;
 scene.add(moon);
-scene.add(new THREE.HemisphereLight(0x2c3d50, 0x0e1a20, 0.7));
-const lampLight = new THREE.PointLight(PAL.beam, 25, 30, 1.7);
+scene.add(new THREE.HemisphereLight(0x3a5068, 0x14222a, 1.15));
+const lampLight = new THREE.PointLight(PAL.beam, 40, 34, 1.6);
 scene.add(lampLight);
 
 // stars
@@ -108,7 +110,7 @@ strata(1.2, -SLAB_H + 2.0 + 0.6, 0x424a52);
 
 // animated sea surface
 const seaGeo = new THREE.PlaneGeometry(SLAB, SLAB, 42, 42);
-const seaMat = new THREE.MeshStandardMaterial({ color: PAL.sea, roughness: 0.35, metalness: 0.25 });
+const seaMat = new THREE.MeshStandardMaterial({ color: PAL.sea, roughness: 0.28, metalness: 0.4 });
 const sea = new THREE.Mesh(seaGeo, seaMat);
 sea.rotation.x = -Math.PI/2; sea.position.y = 0.02; sea.receiveShadow = true;
 slabGroup.add(sea);
@@ -130,8 +132,8 @@ for (const [x,y,z,s,m] of ROCKS) {
 }
 
 // foam ring + flecks
-const foamMat = new THREE.MeshBasicMaterial({ color: PAL.foam, transparent: true, opacity: 0.5 });
-const foamRing = new THREE.Mesh(new THREE.RingGeometry(2.6, 3.4, 40), foamMat);
+const foamMat = new THREE.MeshBasicMaterial({ color: 0xe4f4f0, transparent: true, opacity: 0.75 });
+const foamRing = new THREE.Mesh(new THREE.RingGeometry(2.35, 2.95, 40), foamMat);
 foamRing.rotation.x = -Math.PI/2; foamRing.position.y = 0.06; slabGroup.add(foamRing);
 const foamFlecks = [];
 for (let i = 0; i < 10; i++) {
@@ -190,12 +192,18 @@ hut.position.set(1.7, 0.75, 1.2); hut.rotation.y = -0.5; islet.add(hut);
 // ---------- beam ----------
 const beamGroup = new THREE.Group(); beamGroup.position.set(0, LENS_Y, 0); scene.add(beamGroup);
 const BEAM_LEN = 9;
-const beamGeo = new THREE.ConeGeometry(1.9, BEAM_LEN, 20, 1, true);
-beamGeo.translate(0, -BEAM_LEN/2, 0);
-beamGeo.rotateX(-Math.PI/2); // point +z
-const beamMat = new THREE.MeshBasicMaterial({ color: PAL.beam, transparent: true, opacity: 0.10,
-  blending: THREE.AdditiveBlending, side: THREE.DoubleSide, depthWrite: false, fog: false });
-const beam = new THREE.Mesh(beamGeo, beamMat); beamGroup.add(beam);
+function beamCone(radius, len, opacity) {
+  const g = new THREE.ConeGeometry(radius, len, 20, 1, true);
+  g.translate(0, -len/2, 0);
+  g.rotateX(-Math.PI/2); // point +z
+  return new THREE.Mesh(g, new THREE.MeshBasicMaterial({ color: 0xffe2a8, transparent: true,
+    opacity, blending: THREE.AdditiveBlending, side: THREE.DoubleSide, depthWrite: false, fog: false }));
+}
+const beamOuter = beamCone(1.35, BEAM_LEN, 0.16);
+const beamInner = beamCone(0.55, BEAM_LEN, 0.38);
+beamGroup.add(beamOuter); beamGroup.add(beamInner);
+const beamMat = { get opacity() { return beamOuter.material.opacity; },
+  set opacity(v) { beamOuter.material.opacity = v; beamInner.material.opacity = v * 2.4; } };
 // lens glow
 function glowTex(inner, outer) {
   const c = document.createElement('canvas'); c.width = c.height = 128;
@@ -207,10 +215,10 @@ function glowTex(inner, outer) {
 }
 const lensGlow = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTex('rgba(255,222,150,0.95)','rgba(255,222,150,0)'),
   transparent: true, depthWrite: false, blending: THREE.AdditiveBlending }));
-lensGlow.scale.setScalar(2.2); beamGroup.add(lensGlow);
+lensGlow.scale.setScalar(3.2); beamGroup.add(lensGlow);
 // light pool where the beam points on the sea
 const pool = new THREE.Mesh(new THREE.CircleGeometry(1.5, 24),
-  new THREE.MeshBasicMaterial({ color: PAL.beam, transparent: true, opacity: 0.16,
+  new THREE.MeshBasicMaterial({ color: PAL.beam, transparent: true, opacity: 0.30,
     blending: THREE.AdditiveBlending, depthWrite: false }));
 pool.rotation.x = -Math.PI/2; scene.add(pool);
 
@@ -336,10 +344,10 @@ function animate() {
   beamGroup.rotation.y = beamYaw;
   const bdir = new THREE.Vector3(Math.sin(beamYaw), 0, Math.cos(beamYaw));
   pool.position.copy(bdir).multiplyScalar(6.2); pool.position.y = 0.09;
-  pool.material.opacity = fogOn ? 0.07 : 0.16;
-  beamMat.opacity += ((fogOn ? 0.26 : 0.10) - beamMat.opacity) * dt * 2.5;
+  pool.material.opacity = fogOn ? 0.12 : 0.30;
+  beamMat.opacity += ((fogOn ? 0.30 : 0.16) - beamMat.opacity) * dt * 2.5;
   lensGlow.material.opacity = 0.85 + Math.sin(t*2.2)*0.15;
-  lampLight.intensity = 22 + Math.sin(t*2.2)*5;
+  lampLight.intensity = 38 + Math.sin(t*2.2)*7;
 
   // fog ease
   const targetD = fogOn ? 0.055 : 0.008;
