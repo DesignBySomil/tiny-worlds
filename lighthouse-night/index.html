@@ -447,9 +447,11 @@ function animate() {
   lensGlow.material.opacity = 0.85 + Math.sin(t*2.2)*0.15;
   lampLight.intensity = 38 + Math.sin(t*2.2)*7;
 
-  // fog ease
-  const targetD = fogOn ? 0.055 : 0.008;
+  // fog ease - dense enough to swallow distance, thin enough to keep the tower; haze glows, not pitch black
+  const targetD = fogOn ? 0.026 : 0.008;
   scene.fog.density += (targetD - scene.fog.density) * dt * 1.4;
+  const fogCol = new THREE.Color(PAL.sky).lerp(new THREE.Color(0x3a4a56), THREE.MathUtils.clamp((scene.fog.density - 0.008) / 0.018, 0, 1));
+  scene.fog.color.copy(fogCol); scene.background = fogCol;
 
   // ships: drift lanes, correct course near beam
   for (const s of ships) {
