@@ -1,0 +1,18 @@
+Mushroom Forest Argon rework - QA record (updated November 2 2026, 03:57 IST)
+
+Scope: recovered genuine-Argon mushroom-forest/index.html (with repair: distForWidth = reqDistX extraction fix). Interaction = tap each of 7 hero mushrooms to light; all 7 lit triggers full bloom ("The whole forest blooms as one"), ~7s hold, 20s fade, reset to "Tap a mushroom to wake its glow".
+
+Results by viewport:
+- 320x700: FULL PASS (unmodified build). Full bloom cycle: 7 heroes, hold, fade, reset.
+- 616x562: PARTIAL. Bloom + hold passed; after-fade/reset NOT run (cut by timeout). Reset explicitly incomplete at 616 - do not record as full-cycle passed.
+- 390x844: REDUCED-RESOLUTION DIAGNOSTIC PASS ONLY. Ran on debug-390.html (byte copy + diagnostics + renderer.setPixelRatio(0.35) harness shim). All 7 heroes lit in order 0-6 via real taps at visual cap positions; bloom, hold, fade-mid, and reset all verified; zero JS exceptions. NOT an unmodified-build full pass: only the render backing store was shrunk; CSS size, canvas rect, NDC mapping, camera fit, raycast, and interaction logic identical to production.
+
+Why the shim was needed (measured): synthetic CDP taps at 390x844 processed ~630-665ms apart in this sandbox (SwiftShader software rendering, ~1.5 fps under load), tripping the app's tap guard (down-to-up elapsed < 550ms). Events fired with correct coordinates and pointerId; the guard rejected on elapsed time only. At 320x700 the same harness stayed under the threshold. This explains THIS test environment's failure; it does NOT establish that every real device is unaffected - a real tap is 50-150ms, but no real-device run has been done at any viewport.
+
+Known preserved gaps (not regressions, do not "fix" silently):
+- Diorama reads notably dark and small in portrait composition (flagged by main on 320px frames).
+- Overlapping tap targets: proxy cylinders of the mid-left pair (hero 3 pink dome / hero 4 teal lantern) overlap; an imprecise tap between them lights the teal lantern first. Both remain individually tappable (verified at 390: hero 3 lit at (108,449)).
+
+Standing rule (main, 03:56): never change production rendering merely to pass a test. debug-390.html is an untracked local diagnostic file; production index.html is unchanged.
+
+Provenance: byte-exact recovery from Gemini conversation /app/9736229ddec5c480 (genuine Argon output per user's Gemini history). Repairs: extraction artifact joining reqDistX across a line + latent distForWidh typo, fixed to `distForWidth = reqDistX;` (verified present in local and remote backup copies).
