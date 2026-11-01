@@ -1,0 +1,9 @@
+Coral Reef Argon rework, November 1 2026
+Source: https://gemini.google.com/app/4049f3f575c8e8f1
+Fresh generation at 22:23-22:27 IST with Argon selected and available, rather than the earlier model-switched output.
+Original source and all original tap/school/automatic-wander mechanics supplied in prompt.
+Local repairs: declare the blue tang marking mesh variable; shorten and lower the six sunbeam planes to keep them beneath the header.
+Procedural reef pinnacle, layered slab, many coral types, sea fans, clams, seagrass, fish, caustic water, bubbles and marine snow.
+Local Chromium pixels inspected at 616x562, 390x844 and 320x700. Tap upper coral calls school for 7000ms, idle hint resets, fish keep moving after reset, repeated tap calls school again at each size. Full base and footer clear. Portrait has upper/lower breathing room.
+Not yet published or live-tested.
+Recovered Nov 2 ~03:00 IST from the Gemini conversation after the prior workspace expired; identical extraction (55,271 chars), repairs reapplied, re-QA pending.
