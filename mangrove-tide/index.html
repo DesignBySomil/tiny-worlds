@@ -47,7 +47,7 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 
-// pass 2
+// pass 3
 const container = document.getElementById('app');
 const hintEl = document.getElementById('hint');
 const scene = new THREE.Scene();
@@ -327,9 +327,12 @@ function fitCamera() {
     const d = -p.z;
     need = Math.max(need, d + Math.abs(p.y) / Math.tan(vFov), d + Math.abs(p.x) / Math.tan(hFov));
   }
-  const dist = need * 1.06 + 0.2;
+  const dist = need * 1.1 + 0.2;
+  const footerBias = -0.35; // aim lower so the slab clears the footer band
+  controls.target.y += footerBias;
   camera.position.copy(center).addScaledVector(dir, dist);
-  camera.lookAt(center); controls.update();
+  camera.position.y += footerBias;
+  camera.lookAt(controls.target); controls.update();
 }
 fitCamera();
 addEventListener('resize', () => {

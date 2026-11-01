@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Sandstorm Ruins - a tiny world</title>
+<style>
+  html, body { margin:0; padding:0; height:100%; background:#e8c9a0; overflow:hidden;
+    font-family: Georgia, 'Times New Roman', serif; }
+  #app { position:fixed; inset:0; }
+  header { position:fixed; top:0; left:0; right:0; text-align:center; pointer-events:none;
+    padding: max(18px, env(safe-area-inset-top)) 16px 18px; z-index:5;
+    background: linear-gradient(rgba(58,34,14,.62), rgba(58,34,14,.30) 55%, rgba(58,34,14,0)); }
+  header h1 { margin:0; font-size:15px; letter-spacing:.42em; font-weight:400;
+    color:#fdf6ea; text-transform:uppercase; text-shadow:0 1px 8px rgba(46,26,10,.75); }
+  header .rule { width:44px; height:1px; background:rgba(253,246,234,.55); margin:9px auto; }
+  #hint { display:inline-block; font-size:11.5px; letter-spacing:.24em; text-transform:uppercase;
+    color:#fef8ec; transition:opacity 1.2s ease; padding:5px 12px; border-radius:3px;
+    background:rgba(50,30,12,.45);
+    text-shadow:0 1px 3px rgba(38,22,8,.98), 0 0 8px rgba(38,22,8,.95), 0 0 18px rgba(38,22,8,.85); }
+  #hint.faded { opacity:.45; }
+  footer { position:fixed; bottom:0; left:0; right:0; text-align:center; pointer-events:none;
+    padding:0 16px max(14px, env(safe-area-inset-bottom)); z-index:5;
+    font-size:10px; letter-spacing:.34em; text-transform:uppercase; color:rgba(253,246,234,.6); }
+  canvas { display:block; touch-action:none; }
+  @media (max-width: 380px) {
+    header h1 { font-size:12px; letter-spacing:.3em; }
+    #hint { font-size:10px; letter-spacing:.2em; }
+  }
+</style>
+</head>
+<body>
+<div id="app"></div>
+<header>
+  <h1>Sandstorm Ruins</h1>
+  <div class="rule"></div>
+  <span id="hint"></span>
+</header>
+<footer>A tiny world</footer>
+<script type="importmap">
+{ "imports": {
+  "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+  "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+} }
+</script>
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+// pass 1
+const container = document.getElementById('app');
+const hintEl = document.getElementById('hint');
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0xe8c9a0);
+scene.fog = new THREE.Fog(0xe8c9a0, 24, 75);
+
+const camera = new THREE.PerspectiveCamera(38, innerWidth/innerHeight, 0.1, 240);
+function pickFov() {
+  const a = innerWidth / innerHeight;
+  camera.fov = a >= 0.9 ? 38 : (a >= 0.62 ? 46 : 58);
+  camera.updateProjectionMatrix();
+}
+pickFov();
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setSize(innerWidth, innerHeight);
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+container.appendChild(renderer.domElement);
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true; controls.dampingFactor = 0.06;
+controls.enablePan = false; controls.maxPolarAngle = Math.PI * 0.52;
+
+const sun = new THREE.DirectionalLight(0xffe8c4, 2.6);
+sun.position.set(8, 9, 4); sun.castShadow = true;
+sun.shadow.mapSize.set(1024, 1024);
+sun.shadow.camera.left = -10; sun.shadow.camera.right = 10;
+sun.shadow.camera.top = 10; sun.shadow.camera.bottom = -10;
+sun.shadow.camera.far = 60; sun.shadow.bias = -0.0006;
+scene.add(sun);
+scene.add(new THREE.HemisphereLight(0xf6e2c0, 0x7a5c3a, 1.35));
+
+function mulberry32(a) {
+  return function() {
+    a |= 0; a = a + 0x6D2B79F5 | 0;
+    let t = Math.imul(a ^ a >>> 15, 1 | a);
+    t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+    return ((t ^ t >>> 14) >>> 0) / 4294967296;
+  };
+}
+const rng = mulberry32(20261101);
+function rand(a, b) { return a + rng() * (b - a); }
+
+function makeSoftTexture(inner, outer) {
+  const c = document.createElement('canvas'); c.width = c.height = 128;
+  const ctx = c.getContext('2d');
+  const g = ctx.createRadialGradient(64, 64, 4, 64, 64, 62);
+  g.addColorStop(0, inner); g.addColorStop(1, outer);
+  ctx.fillStyle = g; ctx.fillRect(0, 0, 128, 128);
+  return new THREE.CanvasTexture(c);
+}
+
+// ---------- slab + dunes ----------
+const SLAB_H = 1.4;
+const slabGroup = new THREE.Group(); scene.add(slabGroup);
+{
+  const top = new THREE.Mesh(new THREE.BoxGeometry(6.5, 0.22, 6.5), new THREE.MeshStandardMaterial({ color: 0xd9b57e, roughness: 1 }));
+  top.position.y = -0.11; top.receiveShadow = true; slabGroup.add(top);
+  const mid = new THREE.Mesh(new THREE.BoxGeometry(6.5, SLAB_H, 6.5),
+    new THREE.MeshStandardMaterial({ color: 0xa87f52, roughness: 1 }));
+  mid.position.y = -SLAB_H/2 - 0.2; slabGroup.add(mid);
+  const base = new THREE.Mesh(new THREE.BoxGeometry(6.9, 0.5, 6.9),
+    new THREE.MeshStandardMaterial({ color: 0x7a5a3a, roughness: 1 }));
+  base.position.y = -SLAB_H - 0.45; slabGroup.add(base);
+}
+// wind-rippled dunes: flattened, stretched spheres
+{
+  const duneA = new THREE.MeshStandardMaterial({ color: 0xe2c18c, roughness: 1 });
+  const duneB = new THREE.MeshStandardMaterial({ color: 0xcea672, roughness: 1 });
+  for (let i = 0; i < 10; i++) {
+    const d = new THREE.Mesh(new THREE.SphereGeometry(rand(0.5, 1.1), 12, 8), i % 2 ? duneA : duneB);
+    d.scale.set(rand(1.6, 2.4), rand(0.22, 0.4), rand(0.9, 1.3));
+    d.position.set(rand(-2.8, 2.8), 0, rand(-2.8, 2.8));
+    d.rotation.y = -0.5 + rand(-0.15, 0.15);
+    d.receiveShadow = true; d.castShadow = true;
+    slabGroup.add(d);
+  }
+}
+
+// ---------- ruins ----------
+const stoneMat = new THREE.MeshStandardMaterial({ color: 0xcbb28e, roughness: 0.9 });
+const stoneDark = new THREE.MeshStandardMaterial({ color: 0xb09a78, roughness: 0.95 });
+// broken columns with capitals
+function makeColumn(x, z, h, tilt, broken) {
+  const g = new THREE.Group(); g.position.set(x, 0, z); g.rotation.z = tilt;
+  const base = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.16, 0.42), stoneDark);
+  base.position.y = 0.08; base.castShadow = true; g.add(base);
+  const shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.14, 0.17, h, 10), stoneMat);
+  shaft.position.y = 0.16 + h / 2; shaft.castShadow = true; g.add(shaft);
+  if (!broken) {
+    const cap = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.14, 0.4), stoneDark);
+    cap.position.y = 0.16 + h + 0.07; cap.castShadow = true; g.add(cap);
+  } else {
+    // jagged top: short angled stub
+    const stub = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.15, 0.16, 7), stoneMat);
+    stub.position.y = 0.16 + h + 0.06; stub.rotation.z = 0.2; g.add(stub);
+  }
+  slabGroup.add(g);
+  return g;
+}
+makeColumn(-1.7, -1.5, 1.9, 0, false);
+makeColumn(-0.6, -1.7, 1.4, 0.06, true);
+makeColumn(0.5, -1.6, 1.9, 0, false);
+makeColumn(1.6, -1.4, 0.9, -0.12, true);
+// architrave spanning the two tall columns
+{
+  const beam = new THREE.Mesh(new THREE.BoxGeometry(2.6, 0.2, 0.36), stoneDark);
+  beam.position.set(-0.6, 2.32, -1.55); beam.castShadow = true; slabGroup.add(beam);
+}
+// fallen column (drum segments)
+{
+  for (let i = 0; i < 3; i++) {
+    const drum = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.16, 0.42, 10), stoneMat);
+    drum.rotation.z = Math.PI / 2; drum.rotation.y = rand(-0.4, 0.4);
+    drum.position.set(1.2 + i * 0.45, 0.16, 0.6 + rand(-0.15, 0.15));
+    drum.castShadow = true; slabGroup.add(drum);
+  }
+}
+// broken wall with arched window
+{
+  const wall = new THREE.Mesh(new THREE.BoxGeometry(1.7, 1.5, 0.28), stoneMat);
+  wall.position.set(-2.2, 0.75, 0.8); wall.rotation.y = 0.5; wall.castShadow = true; slabGroup.add(wall);
+  const arch = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.3, 0.34, 16, 1, false, 0, Math.PI), stoneDark);
+  arch.rotation.z = Math.PI / 2; arch.rotation.y = Math.PI / 2;
+  arch.position.set(-2.2, 1.1, 0.8); arch.rotation.x = 0; arch.rotation.y = 0.5 + Math.PI / 2;
+  slabGroup.add(arch);
+}
+// half-buried head statue
+{
+  const head = new THREE.Mesh(new THREE.SphereGeometry(0.42, 12, 10), stoneMat);
+  head.position.set(2.2, 0.14, 1.8); head.rotation.z = 0.5; head.rotation.y = -0.6;
+  head.castShadow = true; slabGroup.add(head);
+  const nose = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.14, 0.12), stoneDark);
+  nose.position.set(2.45, 0.3, 1.62); nose.rotation.y = -0.6; slabGroup.add(nose);
+}
+// scattered blocks
+for (let i = 0; i < 8; i++) {
+  const b = new THREE.Mesh(new THREE.BoxGeometry(rand(0.2, 0.45), rand(0.15, 0.3), rand(0.2, 0.4)), i % 2 ? stoneMat : stoneDark);
+  b.position.set(rand(-2.8, 2.8), 0.1, rand(-2.8, 2.8));
+  b.rotation.y = rand(0, 3); b.castShadow = true; slabGroup.add(b);
+}
+
+// ---------- sand particles (ambient drift) ----------
+const grains = [];
+{
+  const tex = makeSoftTexture('rgba(246,222,180,0.9)', 'rgba(246,222,180,0)');
+  for (let i = 0; i < 60; i++) {
+    const mat = new THREE.SpriteMaterial({ map: tex, transparent: true, opacity: rand(0.25, 0.6), depthWrite: false });
+    const s = new THREE.Sprite(mat);
+    const sc = rand(0.05, 0.14); s.scale.set(sc, sc, 1);
+    s.position.set(rand(-4, 4), rand(0.2, 4.5), rand(-3.5, 3.5));
+    scene.add(s);
+    grains.push({ s, spd: rand(0.8, 1.8), wob: rand(0.5, 2), ph: rand(0, 6.3), baseOp: mat.opacity });
+  }
+}
+// ---------- sandstorm gust wall (interaction) ----------
+const gusts = [];
+const gustTex = makeSoftTexture('rgba(232,196,148,0.95)', 'rgba(232,196,148,0)');
+const hintIdle = 'Summon the sandstorm';
+const hintStorm = 'It howls';
+let hintOwner = 'idle';
+function setHint(text, owner) { hintEl.textContent = text; hintEl.classList.remove('faded'); hintOwner = owner; }
+function resetHintIf(owner) { if (hintOwner === owner) setHint(hintIdle, 'idle'); }
+setHint(hintIdle, 'idle');
+
+let storm = { active: false, t0: 0 };
+let lastTap = 0;
+function summonStorm(now) {
+  lastTap = now;
+  storm.active = true; storm.t0 = now;
+  setHint(hintStorm, 'user');
+  for (let i = 0; i < 26; i++) {
+    const mat = new THREE.SpriteMaterial({ map: gustTex, transparent: true, opacity: 0, depthWrite: false });
+    const s = new THREE.Sprite(mat);
+    const sc = rand(1.2, 2.6); s.scale.set(sc * 1.8, sc, 1);
+    s.position.set(-7 + rand(-1, 1), rand(0.3, 4.2), rand(-3.5, 3.5));
+    scene.add(s);
+    gusts.push({ s, t0: now + rand(0, 0.9), dur: rand(2.2, 3.4), x0: s.position.x, y0: s.position.y });
+  }
+  setTimeout(() => resetHintIf('user'), 5200);
+}
+
+// ---------- interaction ----------
+const ray = new THREE.Raycaster();
+const ptr = new THREE.Vector2();
+const stormProxy = new THREE.Mesh(new THREE.BoxGeometry(6.5, 5, 6.5),
+  new THREE.MeshBasicMaterial({ visible: false }));
+stormProxy.position.y = 1.2; scene.add(stormProxy);
+let downX = 0, downY = 0;
+renderer.domElement.addEventListener('pointerdown', e => { downX = e.clientX; downY = e.clientY; });
+renderer.domElement.addEventListener('pointerup', e => {
+  if (Math.hypot(e.clientX - downX, e.clientY - downY) > 8) return;
+  ptr.x = (e.clientX / innerWidth) * 2 - 1;
+  ptr.y = -(e.clientY / innerHeight) * 2 + 1;
+  ray.setFromCamera(ptr, camera);
+  if (ray.intersectObject(stormProxy, false).length) {
+    const now = performance.now() / 1000;
+    if (now - lastTap > 1.5) summonStorm(now);
+  }
+});
+
+// ---------- camera containment ----------
+const fitBox = new THREE.Box3(
+  new THREE.Vector3(-3.3, -2.35, -3.3),
+  new THREE.Vector3(3.3, 2.9, 3.3));
+function fitCamera() {
+  const center = fitBox.getCenter(new THREE.Vector3());
+  controls.target.copy(center);
+  const dir = new THREE.Vector3(0.16, 0.52, 1).normalize();
+  const corners = [];
+  for (const x of [fitBox.min.x, fitBox.max.x])
+    for (const y of [fitBox.min.y, fitBox.max.y])
+      for (const z of [fitBox.min.z, fitBox.max.z])
+        corners.push(new THREE.Vector3(x, y, z));
+  const probe = new THREE.PerspectiveCamera(camera.fov, camera.aspect, 0.1, 240);
+  probe.position.copy(center).addScaledVector(dir, 0.001); probe.lookAt(center); probe.updateMatrixWorld();
+  const inv = probe.matrixWorldInverse;
+  let need = 0;
+  const vFov = THREE.MathUtils.degToRad(camera.fov) / 2;
+  const hFov = Math.atan(Math.tan(vFov) * camera.aspect);
+  for (const c of corners) {
+    const p = c.clone().applyMatrix4(inv);
+    const d = -p.z;
+    need = Math.max(need, d + Math.abs(p.y) / Math.tan(vFov), d + Math.abs(p.x) / Math.tan(hFov));
+  }
+  const dist = need * 1.1 + 0.2;
+  const footerBias = -0.35; // aim lower so the slab clears the footer band
+  controls.target.y += footerBias;
+  camera.position.copy(center).addScaledVector(dir, dist);
+  camera.position.y += footerBias;
+  camera.lookAt(controls.target); controls.update();
+}
+fitCamera();
+addEventListener('resize', () => {
+  camera.aspect = innerWidth / innerHeight; pickFov();
+  renderer.setSize(innerWidth, innerHeight); fitCamera();
+});
+
+// ---------- animate ----------
+const clock = new THREE.Clock();
+const ndcV = new THREE.Vector3();
+function animate() {
+  requestAnimationFrame(animate);
+  const dt = Math.min(clock.getDelta(), 0.3);
+  const now = performance.now() / 1000;
+  const stormBoost = storm.active ? Math.max(0, 1 - (now - storm.t0) / 5.2) : 0;
+  if (storm.active && now - storm.t0 > 5.4) storm.active = false;
+  // ambient grains, sped up during storm
+  for (const g of grains) {
+    g.s.position.x += g.spd * (1 + stormBoost * 4) * dt;
+    g.s.position.y += Math.sin(now * g.wob + g.ph) * dt * 0.3;
+    if (g.s.position.x > 4.5) { g.s.position.x = -4.5; g.s.position.y = rand(0.2, 4.5); }
+    ndcV.copy(g.s.position).project(camera);
+    const inBand = ndcV.y > 0.45 && Math.abs(ndcV.x) < 0.62;
+    g.s.material.opacity = inBand ? 0.08 : g.baseOp * (1 + stormBoost * 0.6);
+  }
+  // gust wall sweeps across
+  for (const gu of gusts) {
+    const t = (now - gu.t0) / gu.dur;
+    if (t < 0) continue;
+    if (t >= 1) { gu.s.material.opacity = 0; continue; }
+    gu.s.position.x = gu.x0 + t * 11;
+    gu.s.position.y = gu.y0 + Math.sin(t * 9) * 0.2;
+    gu.s.material.opacity = Math.sin(Math.min(t * 1.2, 1) * Math.PI) * 0.55;
+  }
+  controls.update();
+  renderer.render(scene, camera);
+}
+animate();
+</script>
+</body>
+</html>
