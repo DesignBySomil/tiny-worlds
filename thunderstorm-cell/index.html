@@ -58,6 +58,7 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 //          per-frame required-distance fit against the live camera basis drives controls.minDistance
 // pass 15: fit TRUE physical boxes (slab + storm cluster, not inflated all-sky frameBox), responsive fov (38/46/58 by aspect)
 //          so portrait fit distance stays inside a usable range, fog far 120 and maxDistance 200 to match. TEMP __qa hook added.
+// pass 16b: restore glowTexture for mists (deleted with the flicker sprite block)
 // pass 16: cloud root rebuild - billboard puffs replaced by faceted jittered-icosa cumulonimbus (flat deck,
 //          mid body, bright tower), internal flicker now a point light (lights inner facets + strike flash),
 //          portrait fit goes square-on (fitDir by aspect, no diagonal width waste).
@@ -252,6 +253,14 @@ rain.frustumCulled = false; scene.add(rain);
 const WIND = { x: 1.6, z: 0.4 };
 
 // mist where rain hits ground
+function glowTexture(inner, outer) {
+  const c = document.createElement('canvas'); c.width = c.height = 128;
+  const g = c.getContext('2d');
+  const grad = g.createRadialGradient(64,64,4, 64,64,64);
+  grad.addColorStop(0, inner); grad.addColorStop(1, outer);
+  g.fillStyle = grad; g.fillRect(0,0,128,128);
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t;
+}
 const mistTex = glowTexture('rgba(190,205,215,0.5)', 'rgba(190,205,215,0)');
 const mists = [];
 for (let i = 0; i < 3; i++) {
