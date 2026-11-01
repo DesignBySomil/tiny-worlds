@@ -65,6 +65,8 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 // pass 13: mobile fit - same trap as thunderstorm (fitted distance ~90 silently clamped by maxDistance=60 at 320px,
 //          slab clipped left/right in main's pixels). Now: responsive fov 38/46/58, containment box covers the whole
 //          beam sweep disc, per-frame required-distance drives minDistance, maxDistance 200
+// pass 14: portrait composition - square-on azimuth below aspect 0.62 (diagonal wasted ~40% width) and the fit
+//          runs on a real containment POINT SET (slab corners + beam disc rim + tower top) instead of a tall box
 // pass 1: first lighthouse-night build - marine night palette, striped tower on rocky islet, drag beam sweep, tap fog, course-correcting ships, exact corner-fit camera
 
 const PAL = {
@@ -356,36 +358,46 @@ function ship(laneR, laneA, speed) {
 ship(6.1, 0.6, 0.05); ship(6.8, 2.7, -0.04); ship(5.6, 4.4, 0.06);
 
 // ---------- camera: exact corner-fit ----------
-// containment must cover the full beam sweep disc (radius ~9.4 incl. glow + pool), not just the slab
-const containBox = new THREE.Box3(
-  new THREE.Vector3(-9.6, -SLAB_H, -9.6),
-  new THREE.Vector3(9.6, BASE_Y + 7.6, 9.6));
+// containment point set: slab corners + beam sweep disc rim + tower top (the tall empty-sky box corners
+// of a bounding box would force the camera needlessly far)
+const containPts = [];
+for (const bx of [-8.8, 8.8]) for (const bz of [-8.8, 8.8]) {
+  containPts.push(new THREE.Vector3(bx, -SLAB_H, bz), new THREE.Vector3(bx, 0.6, bz));
+}
+for (const [px, pz] of [[9.4,0],[-9.4,0],[0,9.4],[0,-9.4],[6.6,6.6],[-6.6,6.6],[6.6,-6.6],[-6.6,-6.6]])
+  containPts.push(new THREE.Vector3(px, 6.6, pz));
+containPts.push(new THREE.Vector3(0, BASE_Y + 7.6, 0));
 const _rel = new THREE.Vector3();
-function requiredDistance(box, right, up, fwd, target) {
+function requiredDistance(pts, right, up, fwd, target) {
   const fovV = THREE.MathUtils.degToRad(camera.fov);
   const tanH = Math.tan(Math.atan(Math.tan(fovV/2) * camera.aspect));
   const tanV = Math.tan(fovV/2);
   let d = 4;
-  for (const bx of [box.min.x, box.max.x])
-    for (const by of [box.min.y, box.max.y])
-      for (const bz of [box.min.z, box.max.z]) {
-        _rel.set(bx, by, bz).sub(target);
-        const cf = _rel.dot(fwd);
-        d = Math.max(d,
-          Math.abs(_rel.dot(right)) / tanH - cf,
-          Math.abs(_rel.dot(up)) / tanV - cf);
-      }
+  for (const p of pts) {
+    _rel.copy(p).sub(target);
+    const cf = _rel.dot(fwd);
+    d = Math.max(d,
+      Math.abs(_rel.dot(right)) / tanH - cf,
+      Math.abs(_rel.dot(up)) / tanV - cf);
+  }
   return d;
 }
 const FIT_CENTER = new THREE.Vector3(0, 2.6, 0);
-const FIT_DIR = new THREE.Vector3(0.66, 0.4, 1).normalize();
+// portrait gets a square-on view: a diagonal azimuth projects the slab ~40% wider and shrinks the whole scene
+function fitDir() {
+  const a = innerWidth / innerHeight;
+  return (a < 0.62 ? new THREE.Vector3(0.02, 0.38, 1)
+       : a < 0.9  ? new THREE.Vector3(0.35, 0.4, 1)
+       : new THREE.Vector3(0.66, 0.4, 1)).normalize();
+}
 function frameInitialCamera() {
   pickFov();
-  const fwd = FIT_DIR.clone().negate();
+  const dir = fitDir();
+  const fwd = dir.clone().negate();
   const right = new THREE.Vector3().crossVectors(fwd, new THREE.Vector3(0,1,0)).normalize();
   const up = new THREE.Vector3().crossVectors(right, fwd).normalize();
-  const dist = requiredDistance(containBox, right, up, fwd, FIT_CENTER) * 1.05;
-  camera.position.copy(FIT_CENTER).addScaledVector(FIT_DIR, dist);
+  const dist = requiredDistance(containPts, right, up, fwd, FIT_CENTER) * 1.05;
+  camera.position.copy(FIT_CENTER).addScaledVector(dir, dist);
   controls.target.copy(FIT_CENTER);
   camera.updateProjectionMatrix(); controls.update();
 }
@@ -503,7 +515,7 @@ function animate() {
     const fwd = new THREE.Vector3(); camera.getWorldDirection(fwd);
     const rgt = new THREE.Vector3().crossVectors(fwd, camera.up).normalize();
     const up2 = new THREE.Vector3().crossVectors(rgt, fwd).normalize();
-    controls.minDistance = requiredDistance(containBox, rgt, up2, fwd, controls.target) * 1.04;
+    controls.minDistance = requiredDistance(containPts, rgt, up2, fwd, controls.target) * 1.04;
   }
   whitecaps.forEach((w, i) => {
     w.material.opacity = 0.05 + 0.22*Math.abs(Math.sin(t*0.7 + i*2.3));
