@@ -53,6 +53,7 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 // pass 10: crisper cores - denser texture falloff (was fog blob), extra mid puffs to close gaps
 // pass 11: portrait fit - wider bounds (cloud overhang at drag edges) + bigger fit margins (320px clipped slab left edge)
 // pass 12: drag clamp tightened to slab/2-2.5 so the whole cloud (incl. tower) stays in frame at 320px drag extremes
+// pass 13: exact corner-projection camera fit (pass 11 fitted box x-size only; diagonal view projects the slab wider and clipped at 320px)
 
 // ---------- palette (brooding storm day, distinct from volcano dusk / mushroom night) ----------
 const PAL = {
@@ -351,15 +352,25 @@ const frameBox = new THREE.Box3(
   new THREE.Vector3(-SLAB/2 - 2.5, -SLAB_H, -SLAB/2 - 2.5),
   new THREE.Vector3(SLAB/2 + 2.5, CLOUD_Y + 6.6, SLAB/2 + 2.5));
 function frameInitialCamera() {
-  const size = frameBox.getSize(new THREE.Vector3());
   const center = frameBox.getCenter(new THREE.Vector3());
   center.y = 2.5;
+  const dir = new THREE.Vector3(0.62, 0.42, 1).normalize();
+  const fwd = dir.clone().negate();
+  const right = new THREE.Vector3().crossVectors(fwd, new THREE.Vector3(0,1,0)).normalize();
+  const up = new THREE.Vector3().crossVectors(right, fwd).normalize();
   const fovV = THREE.MathUtils.degToRad(camera.fov);
   const fovH = 2 * Math.atan(Math.tan(fovV/2) * camera.aspect);
-  const distV = (size.y * 0.68) / Math.tan(fovV/2);
-  const distH = (size.x * 0.68) / Math.tan(fovH/2);
-  const dist = Math.max(distV, distH) * 1.12;
-  const dir = new THREE.Vector3(0.62, 0.42, 1).normalize();
+  let dist = 8;
+  for (const bx of [frameBox.min.x, frameBox.max.x])
+    for (const by of [frameBox.min.y, frameBox.max.y])
+      for (const bz of [frameBox.min.z, frameBox.max.z]) {
+        const rel = new THREE.Vector3(bx, by, bz).sub(center);
+        const cz = rel.dot(dir);
+        dist = Math.max(dist,
+          cz + Math.abs(rel.dot(right)) / Math.tan(fovH/2),
+          cz + Math.abs(rel.dot(up)) / Math.tan(fovV/2));
+      }
+  dist *= 1.05;
   camera.position.copy(center).addScaledVector(dir, dist);
   controls.target.copy(center);
   camera.updateProjectionMatrix(); controls.update();
