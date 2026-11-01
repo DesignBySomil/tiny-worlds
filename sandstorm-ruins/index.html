@@ -47,7 +47,7 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 
-// pass 3
+// pass 4
 const container = document.getElementById('app');
 const hintEl = document.getElementById('hint');
 const scene = new THREE.Scene();
@@ -177,7 +177,7 @@ makeColumn(1.6, -1.4, 1.2, -0.12, true);
 }
 // half-buried head statue
 {
-  const hg = new THREE.Group(); hg.position.set(2.15, 0.1, 1.75); hg.rotation.z = 0.42; hg.rotation.y = -0.55;
+  const hg = new THREE.Group(); hg.position.set(2.15, 0.16, 1.75); hg.rotation.z = 0.42; hg.rotation.y = 0.55;
   const head = new THREE.Mesh(new THREE.SphereGeometry(0.5, 14, 12), stoneDark);
   head.scale.set(0.9, 1.05, 0.95); head.castShadow = true; hg.add(head);
   // headdress band + side flaps
@@ -355,6 +355,13 @@ function animate() {
     gu.s.position.x = gu.x0 + t * 11;
     gu.s.position.y = gu.y0 + Math.sin(t * 9) * 0.2;
     gu.s.material.opacity = Math.sin(Math.min(t * 1.2, 1) * Math.PI) * 0.55;
+  }
+  // vultures circle high, faded in title band
+  for (const v of vultures) {
+    const a = now * v.spd + v.ph;
+    v.s.position.set(v.ax + Math.cos(a) * v.r, v.ay + Math.sin(now * 0.8 + v.ph) * 0.2, v.az + Math.sin(a) * v.r);
+    ndcV.copy(v.s.position).project(camera);
+    v.s.material.opacity = (ndcV.y > 0.45 && Math.abs(ndcV.x) < 0.62) ? 0.1 : 0.8;
   }
   controls.update();
   renderer.render(scene, camera);
