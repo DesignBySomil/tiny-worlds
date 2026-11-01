@@ -261,14 +261,14 @@ const tapTargets = [];
 let funnelMesh, funnelState = 'aloft', funnelT = 0, bottomY = 4.6;
 {
   // rotating cloud deck
-  const deck = new THREE.Group(); deck.position.set(0, 9.6, -1); storm.add(deck);
+  const deck = new THREE.Group(); deck.position.set(0, 9.1, -1); storm.add(deck);
   {
     const core = new THREE.Mesh(new THREE.IcosahedronGeometry(4.2, 1),
       new THREE.MeshStandardMaterial({ color: PAL.cloud, roughness: 1, flatShading: true }));
     core.scale.y = 0.5; core.position.y = 0.1; deck.add(core);
   }
   for (let i = 0; i < 24; i++) {
-    const a = rng() * Math.PI * 2, d = rand(1.8, 7.2);
+    const a = rng() * Math.PI * 2, d = rand(1.8, 6.6);
     const r = rand(1.7, 3.2);
     const blob = new THREE.Mesh(new THREE.IcosahedronGeometry(r, 1),
       new THREE.MeshStandardMaterial({ color: rng() < 0.6 ? PAL.cloud : PAL.cloudLight,
@@ -276,7 +276,7 @@ let funnelMesh, funnelState = 'aloft', funnelT = 0, bottomY = 4.6;
     blob.position.set(Math.cos(a) * d, rand(-0.5, 0.7), Math.sin(a) * d * 0.75);
     blob.scale.y = 0.42; blob.castShadow = false; deck.add(blob);
   }
-  const tapCloud = new THREE.Mesh(new THREE.CylinderGeometry(7.2, 7.2, 2.6, 12),
+  const tapCloud = new THREE.Mesh(new THREE.CylinderGeometry(6.8, 6.8, 2.6, 12),
     new THREE.MeshBasicMaterial({ visible: false }));
   tapCloud.position.copy(deck.position); tapCloud.userData.storm = true;
   storm.add(tapCloud); tapTargets.push(tapCloud);
@@ -301,9 +301,14 @@ let funnelMesh, funnelState = 'aloft', funnelT = 0, bottomY = 4.6;
   }
   fg.computeVertexNormals();
   funnelMesh = new THREE.Mesh(fg, new THREE.MeshStandardMaterial({
-    color: PAL.funnel, roughness: 1, flatShading: true, side: THREE.DoubleSide }));
+    color: PAL.funnel, roughness: 1, flatShading: true, side: THREE.DoubleSide,
+    transparent: true, opacity: 0.93 }));
   funnelMesh.userData.storm = true;
   storm.add(funnelMesh); tapTargets.push(funnelMesh);
+  const tapFunnel = new THREE.Mesh(new THREE.CylinderGeometry(1.25, 0.9, 1, 8),
+    new THREE.MeshBasicMaterial({ visible: false }));
+  tapFunnel.userData.storm = true; storm.add(tapFunnel); tapTargets.push(tapFunnel);
+  storm.userData.tapFunnel = tapFunnel;
 }
 // dust skirt + debris (live only at touchdown)
 const dustSprites = [];
@@ -354,6 +359,8 @@ function stormStep(dt, t) {
   funnelMesh.scale.y = topY - bottomY;
   funnelMesh.position.y = bottomY;
   funnelMesh.position.x = Math.sin(t * 0.8) * 0.35;
+  const tp = storm.userData.tapFunnel;
+  tp.scale.y = topY - bottomY + 1.2; tp.position.set(funnelMesh.position.x, (topY + bottomY) / 2, 0);
   // dust + debris while down
   const active = funnelState === 'down' || funnelState === 'dropping';
   const fx = storm.position.x + funnelMesh.position.x, fz = storm.position.z;
@@ -407,8 +414,8 @@ const FIT_CENTER = new THREE.Vector3(0, 2.6, 0);
 const FIT_PTS = [];
 for (const x of [-7.5, 7.5]) for (const y of [-SLAB_H, 0.6]) for (const z of [-7.5, 7.5])
   FIT_PTS.push(new THREE.Vector3(x, y, z));
-FIT_PTS.push(new THREE.Vector3(0, 10.6, -1));              // deck top
-for (const sx of [-1, 1]) FIT_PTS.push(new THREE.Vector3(sx * 6.6, 9.7, -1));  // deck width
+FIT_PTS.push(new THREE.Vector3(0, 10.1, -1));              // deck top
+for (const sx of [-1, 1]) FIT_PTS.push(new THREE.Vector3(sx * 6.2, 9.2, -1));  // deck width
 FIT_PTS.push(new THREE.Vector3(5.4, 4.2, -4.2));           // windmill rotor
 FIT_PTS.push(new THREE.Vector3(-2.3, 3.4, -4.6));          // silo cap
 function fitDir() {
@@ -502,6 +509,7 @@ function animate() {
   renderer.render(scene, camera);
 }
 animate();
+// pass 3: wide funnel tap proxy tracking sway, deck uncrowded from header, softened funnel
 // pass 2: ropey twisted funnel, solid cloud deck, 720 wheat tufts
 // pass 1: tornado-prairie initial build - wheat field + 260 swaying tufts, farm
 // cluster (house/barn/silo/windmill/fence/bales), rotating cloud deck, noise lathe
