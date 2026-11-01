@@ -56,6 +56,8 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 // pass 13: exact corner-projection camera fit (pass 11 fitted box x-size only; diagonal view projects the slab wider and clipped at 320px)
 // pass 14: dynamic containment - frameBox never covered the cloud cluster at drag clamps (visual half-extent ~5.5 beyond center);
 //          per-frame required-distance fit against the live camera basis drives controls.minDistance
+// pass 15: fit TRUE physical boxes (slab + storm cluster, not inflated all-sky frameBox), responsive fov (38/46/58 by aspect)
+//          so portrait fit distance stays inside a usable range, fog far 120 and maxDistance 200 to match. TEMP __qa hook added.
 
 // ---------- palette (brooding storm day, distinct from volcano dusk / mushroom night) ----------
 const PAL = {
@@ -80,7 +82,7 @@ app.appendChild(renderer.domElement);
 
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(PAL.skyTop);
-scene.fog = new THREE.Fog(0x55606c, 26, 60);
+scene.fog = new THREE.Fog(0x55606c, 30, 120);
 
 // vertical sky gradient dome
 {
@@ -98,9 +100,15 @@ scene.fog = new THREE.Fog(0x55606c, 26, 60);
 }
 
 const camera = new THREE.PerspectiveCamera(38, innerWidth/innerHeight, 0.1, 200);
+function pickFov() {
+  const a = innerWidth / innerHeight;
+  camera.fov = a >= 0.9 ? 38 : (a >= 0.62 ? 46 : 58);
+  camera.updateProjectionMatrix();
+}
+pickFov();
 const controls = new OrbitControls(camera, renderer.domElement);
 controls.enableDamping = true; controls.dampingFactor = 0.08;
-controls.minDistance = 6; controls.maxDistance = 40;
+controls.minDistance = 6; controls.maxDistance = 200;
 controls.maxPolarAngle = Math.PI * 0.52; controls.enablePan = false;
 
 // ---------- lights ----------
@@ -350,15 +358,15 @@ function strike() {
 }
 
 // ---------- camera framing (bounds-fit, portrait-aware) ----------
-const frameBox = new THREE.Box3(
-  new THREE.Vector3(-SLAB/2 - 2.5, -SLAB_H, -SLAB/2 - 2.5),
-  new THREE.Vector3(SLAB/2 + 2.5, CLOUD_Y + 6.6, SLAB/2 + 2.5));
-// dynamic containment box: static slab frame + wherever the storm (cloud, tower, rain, mist) currently sits
+const slabBox = new THREE.Box3(
+  new THREE.Vector3(-SLAB/2 - 0.8, -SLAB_H, -SLAB/2 - 0.8),
+  new THREE.Vector3(SLAB/2 + 0.8, 0.6, SLAB/2 + 0.8));
+// dynamic containment box: the slab + wherever the storm (cloud, tower, rain, mist) currently sits
 const dynBox = new THREE.Box3();
 function updateDynBox() {
-  dynBox.copy(frameBox);
-  dynBox.expandByPoint(new THREE.Vector3(cloud.position.x - 6, 0, cloud.position.z - 6));
-  dynBox.expandByPoint(new THREE.Vector3(cloud.position.x + 6, CLOUD_Y + 6.6, cloud.position.z + 6));
+  dynBox.copy(slabBox);
+  dynBox.expandByPoint(new THREE.Vector3(cloud.position.x - 6.2, 0, cloud.position.z - 6.2));
+  dynBox.expandByPoint(new THREE.Vector3(cloud.position.x + 6.2, CLOUD_Y + 6.6, cloud.position.z + 6.2));
   return dynBox;
 }
 const _rel = new THREE.Vector3();
@@ -382,6 +390,7 @@ function requiredDistance(box, right, up, fwd, target) {
 const FIT_CENTER = new THREE.Vector3(0, 2.5, 0);
 const FIT_DIR = new THREE.Vector3(0.62, 0.42, 1).normalize();
 function frameInitialCamera() {
+  pickFov();
   const box = updateDynBox();
   const fwd = FIT_DIR.clone().negate();
   const right = new THREE.Vector3().crossVectors(fwd, new THREE.Vector3(0,1,0)).normalize();
@@ -531,6 +540,8 @@ function animate() {
   renderer.render(scene, camera);
 }
 animate();
+// TEMP QA HOOK - removed before acceptance
+window.__qa = { THREE, camera, controls, cloud, scene, renderer };
 
 addEventListener('resize', () => {
   camera.aspect = innerWidth/innerHeight;
