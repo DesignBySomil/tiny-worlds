@@ -125,11 +125,11 @@ const fish = [];
   dctx.fillStyle = dg; dctx.fillRect(0, 0, 256, 256);
   const deep = new THREE.Mesh(new THREE.PlaneGeometry(11, 11),
     new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(dcv), fog: false }));
-  deep.rotation.x = -Math.PI/2; deep.position.y = -0.25; slabGroup.add(deep);
+  deep.rotation.x = -Math.PI/2; deep.position.y = 0.03; slabGroup.add(deep);
   const bubbleMat = new THREE.MeshBasicMaterial({ color: 0xeef8ff, transparent: true, opacity: 0.9, fog: false });
   for (let i = 0; i < 40; i++) {
     const b = new THREE.Mesh(new THREE.SphereGeometry(rand(0.03, 0.08), 5, 4), bubbleMat);
-    b.position.set(rand(-5, 5), rand(-0.3, -0.08), rand(-5, 5));
+    b.position.set(rand(-5, 5), rand(0.035, 0.08), rand(-5, 5));
     slabGroup.add(b);
   }
   const fishMat = new THREE.MeshBasicMaterial({ color: 0x2e5070, transparent: true, opacity: 0.95, fog: false });
@@ -139,7 +139,7 @@ const fish = [];
     body.rotation.z = Math.PI/2; f.add(body);
     const tail = new THREE.Mesh(new THREE.ConeGeometry(0.07, 0.16, 4), fishMat);
     tail.rotation.z = -Math.PI/2; tail.position.x = -0.37; tail.scale.setScalar(1.4); f.add(tail);
-    f.position.y = rand(-0.26, -0.12);
+    f.position.y = rand(0.045, 0.075);
     f.userData = { a: rand(0, 6.28), r: rand(1.5, 4.4), spd: rand(0.15, 0.4) * (rng() < 0.5 ? 1 : -1), wob: rng() * 6 };
     slabGroup.add(f); fish.push(f);
   }
@@ -466,7 +466,7 @@ function animate() {
     f.position.x = Math.cos(a) * u.r;
     f.position.z = Math.sin(a) * u.r * 0.8;
     f.rotation.y = -a + (u.spd > 0 ? 0 : Math.PI);
-    f.position.y = -0.2 + 0.08 * Math.sin(t * 0.9 + u.wob);
+    f.position.y = 0.06 + 0.012 * Math.sin(t * 0.9 + u.wob);
   }
 
   const fwd = new THREE.Vector3(); camera.getWorldDirection(fwd);
@@ -478,6 +478,7 @@ function animate() {
   renderer.render(scene, camera);
 }
 animate();
+// pass 6: raise deep water + fish above strata top (they were hidden inside the rock)
 // pass 5: unlit radial-gradient deep water (reads true blue)
 // pass 4: saturated blue ice, emissive deep water
 // pass 3b: fix dropped paren
