@@ -58,6 +58,8 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 //          per-frame required-distance fit against the live camera basis drives controls.minDistance
 // pass 15: fit TRUE physical boxes (slab + storm cluster, not inflated all-sky frameBox), responsive fov (38/46/58 by aspect)
 //          so portrait fit distance stays inside a usable range, fog far 120 and maxDistance 200 to match. TEMP __qa hook added.
+// pass 17: cloud smoothing - position-keyed low-frequency noise (no shard cracks), detail-2 icosa,
+//          lifted three-tone palette, no per-lump random rotation (deterministic silhouette)
 // pass 16b: restore glowTexture for mists (deleted with the flicker sprite block)
 // pass 16: cloud root rebuild - billboard puffs replaced by faceted jittered-icosa cumulonimbus (flat deck,
 //          mid body, bright tower), internal flicker now a point light (lights inner facets + strike flash),
@@ -185,20 +187,23 @@ pondWater.scale.setScalar(POND.minR); slabGroup.add(pondWater);
 const cloud = new THREE.Group(); scene.add(cloud);
 const CLOUD_Y = 6.1;
 // faceted cumulonimbus: low-poly jittered icosa lumps, three-tone flat shading
-function lumpGeo(r) {
-  const g = new THREE.IcosahedronGeometry(r, 1);
+function lumpGeo(r, seed) {
+  const g = new THREE.IcosahedronGeometry(r, 2);
   const p = g.attributes.position;
+  // smooth position-keyed noise: shared corners displace identically (no cracks/shards)
   for (let i = 0; i < p.count; i++) {
-    const j = 1 + Math.sin(i * 78.233) * 0.5 * 0.32;
-    p.setXYZ(i, p.getX(i) * j, p.getY(i) * j, p.getZ(i) * j);
+    const vx = p.getX(i), vy = p.getY(i), vz = p.getZ(i);
+    const j = 1 + 0.16 * Math.sin(2.6 * vy / r + seed) * Math.sin(2.1 * vx / r + seed * 1.7)
+              + 0.10 * Math.sin(4.3 * vz / r + seed * 2.3) * Math.sin(3.9 * vx / r + seed);
+    p.setXYZ(i, vx * j, vy * j, vz * j);
   }
   g.computeVertexNormals();
   return g;
 }
 const lumpMats = {
-  base: new THREE.MeshStandardMaterial({ color: 0x49505e, roughness: 0.95, flatShading: true }),
-  mid:  new THREE.MeshStandardMaterial({ color: 0x8b95a6, roughness: 0.92, flatShading: true }),
-  top:  new THREE.MeshStandardMaterial({ color: 0xc6cfdb, roughness: 0.88, flatShading: true }),
+  base: new THREE.MeshStandardMaterial({ color: 0x646c7c, roughness: 0.95, flatShading: true }),
+  mid:  new THREE.MeshStandardMaterial({ color: 0xa7b0bf, roughness: 0.92, flatShading: true }),
+  top:  new THREE.MeshStandardMaterial({ color: 0xdde4ec, roughness: 0.85, flatShading: true }),
 };
 // cumulonimbus layout: [x, y, z, size] - wide flat deck, mid cluster, billowing tower
 const CLOUD_LAYOUT = [
@@ -220,10 +225,9 @@ const CLOUD_LAYOUT = [
 const cloudLumps = [];
 CLOUD_LAYOUT.forEach(([x, y, z, s2], i) => {
   const mat = i < 8 ? lumpMats.base : (i < 13 ? lumpMats.mid : lumpMats.top);
-  const m = new THREE.Mesh(lumpGeo(s2 * 0.52), mat);
+  const m = new THREE.Mesh(lumpGeo(s2 * 0.52, i * 1.618), mat);
   m.position.set(x, y, z);
-  m.rotation.set(i * 1.7, i * 2.3, i * 0.9);
-  if (i < 8) m.scale.y = 0.62; // squash deck lumps into a flat base
+  if (i < 8) m.scale.y = 0.55; // squash deck lumps into a flat base
   m.userData.phase = i * 1.31;
   m.userData.baseY = y;
   cloud.add(m); cloudLumps.push(m);
