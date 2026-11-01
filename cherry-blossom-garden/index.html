@@ -360,7 +360,14 @@ frameInitialCamera();
 // ---------- tap handling ----------
 const ray = new THREE.Raycaster(); const ndc = new THREE.Vector2();
 let downX = 0, downY = 0, downT = 0;
-let burstN = 0, burstFrom = null, nextBreeze = 16;
+let burstT = -1, nextBreeze = 16;
+function burst(from, n) {
+  for (let i = 0; i < PETALS && n > 0; i++, n--) {
+    petalSpawn(i, from);
+    petDat[i].vy = rand(0.5, 0.9); petDat[i].drift = rand(0.4, 0.8);   // livelier shower
+  }
+  burstT = 0;
+}
 renderer.domElement.addEventListener('pointerdown', e => { downX = e.clientX; downY = e.clientY; downT = performance.now(); });
 renderer.domElement.addEventListener('pointerup', e => {
   if (Math.hypot(e.clientX - downX, e.clientY - downY) > 7 || performance.now() - downT > 450) return;
@@ -368,7 +375,7 @@ renderer.domElement.addEventListener('pointerup', e => {
   ray.setFromCamera(ndc, camera);
   const hits = ray.intersectObjects(tapTargets, false);
   if (!hits.length) return;
-  burstFrom = hits[0].object.userData.tree; burstN = 60;
+  burst(hits[0].object.userData.tree, 60);
   setHint('burst');
 });
 
@@ -390,20 +397,13 @@ function animate() {
   nextBreeze -= dt;
   if (nextBreeze <= 0) {
     nextBreeze = rand(16, 24);
-    if (!burstN) {
+    if (burstT < 0) {
       const c = canopies[Math.floor(rand(0, canopies.length))];
-      burstFrom = { x: c.center.x, y: c.center.y, z: c.center.z }; burstN = 26;
+      burst({ x: c.center.x, y: c.center.y, z: c.center.z }, 30);
       setHint('auto');
     }
   }
-  // burst spawning (tap shower or breeze flurry)
-  if (burstN > 0 && burstFrom) {
-    let spawned = 0;
-    for (let i = 0; i < PETALS && burstN > 0 && spawned < 4; i++) {
-      if (petDat[i].y <= GRASS_Y + 0.12) { petalSpawn(i, burstFrom); burstN--; spawned++; }
-    }
-    if (burstN <= 0) { burstFrom = null; setHint('idle'); }
-  }
+  if (burstT >= 0) { burstT += dt; if (burstT > 6) { burstT = -1; setHint('idle'); } }
 
   // canopy sway
   for (const c of canopies) {
@@ -424,7 +424,7 @@ function animate() {
     _v.set(d.x, Math.max(d.y, GRASS_Y + 0.06), d.z);
     _m4.compose(_v, _q, _sv);
     petMesh.setMatrixAt(i, _m4);
-    if (d.y <= GRASS_Y + 0.1 && burstN <= 0 && Math.random() < dt * 0.08) petalSpawn(i);
+    if (d.y <= GRASS_Y + 0.1 && Math.random() < dt * 0.08) petalSpawn(i);
   }
   petMesh.instanceMatrix.needsUpdate = true;
 
@@ -439,6 +439,8 @@ function animate() {
   renderer.render(scene, camera);
 }
 animate();
+// pass 3: petal shower is an instant 60-petal teleport flurry at the tapped canopy
+//         (trickle spawn was unphotogenic, hint reverted before the shower read)
 // pass 2: canopy mass - 17-20 overlapping blobs + underlayer (were separate balls on sticks),
 //         shorter trunks, bigger lantern
 // pass 1: first cherry-blossom-garden build - dense from the start (main: sparse schematics get
