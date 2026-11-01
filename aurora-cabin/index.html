@@ -409,9 +409,9 @@ const ribbons = [];
 let auroraBoost = 1, boostTarget = 1, boostHold = 0;
 {
   const RIBS = [
-    { y: 16, z: -38, op: 0.80, spd: 0.55, ph: 0.0, hue: [0.30, 0.85] },  // green -> violet
-    { y: 19, z: -46, op: 0.65, spd: 0.38, ph: 2.1, hue: [0.45, 0.72] },  // teal -> violet
-    { y: 22, z: -55, op: 0.55, spd: 0.27, ph: 4.4, hue: [0.28, 0.55] }   // green -> teal
+    { y: 16, z: -38, op: 0.68, spd: 0.55, ph: 0.0, hue: [0.30, 0.85] },  // green -> violet
+    { y: 19, z: -46, op: 0.55, spd: 0.38, ph: 2.1, hue: [0.45, 0.72] },  // teal -> violet
+    { y: 22, z: -55, op: 0.46, spd: 0.27, ph: 4.4, hue: [0.28, 0.55] }   // green -> teal
   ];
   const W = 160, H = 17, SX = 130, SY = 12;
   for (const R of RIBS) {
@@ -447,6 +447,7 @@ let auroraBoost = 1, boostTarget = 1, boostHold = 0;
 }
 function auroraStep(t) {
   const amp = 1 + (auroraBoost - 1) * 0.8;
+  const aspK = camera.aspect < 0.62 ? 0.6 : (camera.aspect < 0.9 ? 0.85 : 1);
   for (const rb of ribbons) {
     const p = rb.mesh.geometry.attributes.position;
     const { base, R } = rb;
@@ -459,7 +460,7 @@ function auroraStep(t) {
       p.setZ(i, base[i*3+2] + Math.sin(x * 0.05 + t * 0.33 + R.ph) * 2.1 * taper);
     }
     p.needsUpdate = true;
-    rb.mesh.material.opacity = Math.min(0.85, R.op * (0.72 + 0.28 * Math.sin(t * 0.4 + R.ph)) * auroraBoost);
+    rb.mesh.material.opacity = Math.min(0.8, R.op * (0.72 + 0.28 * Math.sin(t * 0.4 + R.ph)) * auroraBoost * aspK);
   }
 }
 
@@ -589,6 +590,7 @@ function animate() {
   renderer.render(scene, camera);
 }
 animate();
+// pass 10: aspect-scaled aurora opacity (portrait blowout fix), trimmed base op
 // pass 9: brighter moonlit plain (read vs sky)
 // pass 8: moonlit undulating plain grounds the far pines
 // pass 7: far pines smaller/farther/bluer (pass 6 oversized monoliths)
