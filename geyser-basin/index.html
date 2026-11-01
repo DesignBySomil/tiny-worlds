@@ -323,7 +323,9 @@ function pine(h, seed) {
   return g;
 }
 for (const [x, z, h] of [[-7.1, -6.8, 2.6], [-6.4, 6.2, 2.2], [7.0, -5.9, 2.9],
-                          [7.2, 6.6, 2.4], [3.2, -7.1, 2.0], [-3.3, 7.0, 1.8]]) {
+                          [7.2, 6.6, 2.4], [3.2, -7.1, 2.0], [-3.3, 7.0, 1.8],
+                          [-6.8, 0.5, 2.1], [6.6, 1.2, 1.7], [0.4, -6.9, 1.5],
+                          [-6.9, -2.9, 1.4], [5.9, 6.9, 1.9]]) {
   const t = pine(h, x * 1.3);
   t.position.set(x, 0.03, z); t.rotation.y = rand(0, 6.28);
   slabGroup.add(t);
@@ -332,11 +334,51 @@ for (const [x, z, h] of [[-7.1, -6.8, 2.6], [-6.4, 6.2, 2.2], [7.0, -5.9, 2.9],
 // fallen sinter chunks + pebbles
 {
   const rockMat = new THREE.MeshStandardMaterial({ color: PAL.sinterDark, roughness: 1, flatShading: true });
-  for (let i = 0; i < 16; i++) {
-    const r = new THREE.Mesh(new THREE.DodecahedronGeometry(rand(0.07, 0.2), 0), rockMat);
+  for (let i = 0; i < 34; i++) {
+    const r = new THREE.Mesh(new THREE.DodecahedronGeometry(rand(0.07, 0.26), 0), rockMat);
     r.position.set(rand(-7.2, 7.2), 0.06, rand(-7.2, 7.2));
     r.rotation.set(rand(0, 3), rand(0, 3), rand(0, 3)); r.castShadow = true;
     slabGroup.add(r);
+  }
+}
+
+// sinter boulders + grass tufts + runoff rivulets (density pass 6)
+{
+  const bouldMat = new THREE.MeshStandardMaterial({ color: PAL.sinterMid, roughness: 1, flatShading: true });
+  for (const [bx, bz, br] of [[-5.2, 5.1, 0.5], [6.1, -2.2, 0.62], [-1.9, 6.3, 0.44], [2.8, 0.8, 0.38], [-6.0, -5.4, 0.4]]) {
+    const b = new THREE.Mesh(new THREE.DodecahedronGeometry(br, 0), bouldMat);
+    b.position.set(bx, br * 0.45, bz); b.scale.y = 0.7;
+    b.rotation.set(rand(0,3), rand(0,3), rand(0,3)); b.castShadow = true; slabGroup.add(b);
+  }
+  const grassMats = [0x7a8a52, 0x8a9458, 0x6a7a48].map(c => new THREE.MeshStandardMaterial({ color: c, roughness: 1 }));
+  for (let i = 0; i < 34; i++) {
+    const tuft = new THREE.Group();
+    for (let k = 0; k < 4; k++) {
+      const b = new THREE.Mesh(new THREE.ConeGeometry(0.035, rand(0.16, 0.3), 4), grassMats[(i + k) % 3]);
+      b.position.set(rand(-0.07, 0.07), 0.1, rand(-0.07, 0.07));
+      b.rotation.set(rand(-0.25, 0.25), rand(0, 6.28), rand(-0.25, 0.25));
+      tuft.add(b);
+    }
+    tuft.position.set(rand(-7.3, 7.3), 0.04, rand(-7.3, 7.3));
+    slabGroup.add(tuft);
+  }
+  // pale mineral runoff rivulets from geyser cones toward the nearest pools
+  const rivMat = new THREE.MeshStandardMaterial({ color: 0xefe8d8, roughness: 0.9 });
+  const RIVULETS = [
+    [[-1.6, -1.4], [0.6, 4.6]],
+    [[5.6, 2.8], [4.4, -3.4]],
+    [[-5.8, -4.2], [-4.9, 2.2]],
+  ];
+  for (const [[x0, z0], [x1, z1]] of RIVULETS) {
+    const pts = [];
+    for (let k = 0; k <= 8; k++) {
+      const u = k / 8;
+      pts.push(new THREE.Vector3(
+        x0 + (x1 - x0) * u + Math.sin(u * 9 + x0) * 0.4 * (1 - Math.abs(u - 0.5) * 2),
+        0.045, z0 + (z1 - z0) * u + Math.cos(u * 7 + z0) * 0.35 * (1 - Math.abs(u - 0.5) * 2)));
+    }
+    const tube = new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 24, 0.09, 5), rivMat);
+    tube.scale.y = 0.35; tube.receiveShadow = true; slabGroup.add(tube);
   }
 }
 
@@ -487,6 +529,8 @@ function animate() {
   renderer.render(scene, camera);
 }
 animate();
+// pass 6: density per main (sparse/simple note) - 11 pines, 34 rocks + 5 boulders,
+//         34 grass tufts, 3 winding mineral runoff rivulets to the pools
 // pass 5: spawn vy capped at modeled power (rand max 1.15 overshot the fit apex), calmer jet heights
 // pass 4: fit covers true ballistic apex (power^2/2g + margin) - grand's peak no longer exits frame
 // pass 3: eruption density - bigger droplets, tighter spread, 220-particle burst + 16/frame sustained jet
