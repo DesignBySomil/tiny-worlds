@@ -47,7 +47,7 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 
-// pass 4
+// pass 5
 const container = document.getElementById('app');
 const hintEl = document.getElementById('hint');
 const scene = new THREE.Scene();
@@ -108,7 +108,7 @@ const SNOW_BLUE = new THREE.MeshStandardMaterial({ color: 0xd8e8f4, roughness: 0
 }
 const slopeGroup = new THREE.Group(); slopeGroup.rotation.y = -0.32; slabGroup.add(slopeGroup);
 // mountain wedge: triangular prism, ridge along x, slope facing +z (front)
-const SLOPE = { ridgeY: 5.2, backZ: -4.9, frontZ: 3.4, halfW: 5.2 };
+const SLOPE = { ridgeY: 5.2, backZ: -4.2, frontZ: 2.8, halfW: 4.2 };
 let wedgeMesh;
 {
   const shape = new THREE.Shape();
@@ -128,8 +128,16 @@ let wedgeMesh;
   quad([-W, 0, zB], [-W, 0, zF], [-W, yR, zR], [-W, yR, zR]);         // left cap (degenerate ok)
   quad([W, 0, zF], [W, 0, zB], [W, yR, zR], [W, yR, zR]);             // right cap
   g.setAttribute('position', new THREE.Float32BufferAttribute(v, 3));
+  const cols = [];
+  const low = new THREE.Color(0xa9c4dc), high = new THREE.Color(0xffffff), tmp = new THREE.Color();
+  for (let i = 0; i < v.length; i += 3) {
+    const k = Math.max(0, Math.min(1, v[i+1] / SLOPE.ridgeY));
+    tmp.copy(low).lerp(high, Math.pow(k, 0.65));
+    cols.push(tmp.r, tmp.g, tmp.b);
+  }
+  g.setAttribute('color', new THREE.Float32BufferAttribute(cols, 3));
   g.computeVertexNormals();
-  wedgeMesh = new THREE.Mesh(g, SNOW);
+  wedgeMesh = new THREE.Mesh(g, new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.85, vertexColors: true }));
   wedgeMesh.castShadow = true; wedgeMesh.receiveShadow = true;
   slopeGroup.add(wedgeMesh);
 }
@@ -160,7 +168,7 @@ function slopeY(z) {
   const ang = Math.atan2(SLOPE.ridgeY, SLOPE.frontZ - zR);
   for (let i = 1; i <= 4; i++) {
     const z = zR + (SLOPE.frontZ - zR) * (i / 4.6);
-    const stripe = new THREE.Mesh(new THREE.BoxGeometry(10.2, 0.05, 0.4), new THREE.MeshStandardMaterial({ color: 0xe4eef7, roughness: 0.9 }));
+    const stripe = new THREE.Mesh(new THREE.BoxGeometry(8.2, 0.05, 0.4), new THREE.MeshStandardMaterial({ color: 0xe4eef7, roughness: 0.9 }));
     stripe.position.set(0, slopeY(z) + 0.06, z);
     stripe.rotation.x = -ang;
     slopeGroup.add(stripe);
@@ -258,7 +266,7 @@ function avalanche(now) {
 // ---------- interaction ----------
 const ray = new THREE.Raycaster();
 const ptr = new THREE.Vector2();
-const slopeProxy = new THREE.Mesh(new THREE.BoxGeometry(11, 6.5, 9.5),
+const slopeProxy = new THREE.Mesh(new THREE.BoxGeometry(9, 6.5, 8),
   new THREE.MeshBasicMaterial({ visible: false }));
 slopeProxy.position.set(0, 2.6, -0.7); slopeProxy.rotation.y = -0.32;
 scene.add(slopeProxy);
