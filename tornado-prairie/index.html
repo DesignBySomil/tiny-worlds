@@ -1,0 +1,501 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Tornado Prairie - a tiny world</title>
+<style>
+  html, body { margin:0; padding:0; height:100%; background:#6b7a63; overflow:hidden;
+    font-family: Georgia, 'Times New Roman', serif; }
+  #app { position:fixed; inset:0; }
+  header { position:fixed; top:0; left:0; right:0; text-align:center; pointer-events:none;
+    padding: max(18px, env(safe-area-inset-top)) 16px 18px; z-index:5;
+    background: linear-gradient(rgba(30,36,28,.55), rgba(30,36,28,0)); }
+  header h1 { margin:0; font-size:15px; letter-spacing:.42em; font-weight:400;
+    color:#f2f0e4; text-transform:uppercase; text-shadow:0 1px 8px rgba(25,30,22,.8); }
+  header .rule { width:44px; height:1px; background:rgba(242,240,228,.5); margin:9px auto; }
+  #hint { display:inline-block; font-size:11.5px; letter-spacing:.24em; text-transform:uppercase;
+    color:#faf8ec; transition:opacity 1.2s ease; text-shadow:0 1px 2px rgba(25,30,22,.9), 0 0 12px rgba(25,30,22,.7); }
+  #hint.faded { opacity:.45; }
+  footer { position:fixed; bottom:0; left:0; right:0; text-align:center; pointer-events:none;
+    padding:0 16px max(14px, env(safe-area-inset-bottom)); z-index:5;
+    font-size:10px; letter-spacing:.34em; text-transform:uppercase; color:rgba(242,240,228,.5); }
+  canvas { display:block; touch-action:none; }
+</style>
+</head>
+<body>
+<div id="app"></div>
+<header>
+  <h1>Tornado Prairie</h1>
+  <div class="rule"></div>
+  <span id="hint"></span>
+</header>
+<footer>A tiny world</footer>
+<script type="importmap">
+{ "imports": {
+  "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+  "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+} }
+</script>
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+const container = document.getElementById('app');
+const hintEl = document.getElementById('hint');
+const scene = new THREE.Scene();
+const SKY_CALM = new THREE.Color(0x6b7a63), SKY_ANGRY = new THREE.Color(0x4c5847);
+scene.background = SKY_CALM.clone();
+scene.fog = new THREE.Fog(SKY_CALM.getHex(), 55, 130);
+
+const camera = new THREE.PerspectiveCamera(38, innerWidth/innerHeight, 0.1, 240);
+function pickFov() {
+  const a = innerWidth / innerHeight;
+  camera.fov = a >= 0.9 ? 38 : (a >= 0.62 ? 46 : 58);
+  camera.updateProjectionMatrix();
+}
+pickFov();
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setSize(innerWidth, innerHeight);
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.12;
+container.appendChild(renderer.domElement);
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true; controls.dampingFactor = 0.08;
+controls.minDistance = 6; controls.maxDistance = 220;
+controls.maxPolarAngle = Math.PI * 0.52; controls.enablePan = false;
+
+// ---------- lights (storm-filtered daylight) ----------
+const sun = new THREE.DirectionalLight(0xf0ead0, 1.9);
+sun.position.set(12, 20, 10); sun.castShadow = true;
+sun.shadow.mapSize.set(2048, 2048);
+sun.shadow.camera.left = -13; sun.shadow.camera.right = 13;
+sun.shadow.camera.top = 13; sun.shadow.camera.bottom = -13;
+sun.shadow.camera.near = 4; sun.shadow.camera.far = 60;
+sun.shadow.bias = -0.0012;
+scene.add(sun);
+scene.add(new THREE.HemisphereLight(0x9aa88e, 0x5a4c36, 1.05));
+const lightning = new THREE.PointLight(0xcfe0ff, 0, 60, 1.6);
+lightning.position.set(0, 9, -3); scene.add(lightning);
+
+// ---------- seeded rng + noise ----------
+function mulberry32(a) {
+  return function() {
+    a |= 0; a = a + 0x6D2B79F5 | 0;
+    let t = Math.imul(a ^ a >>> 15, 1 | a);
+    t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+    return ((t ^ t >>> 14) >>> 0) / 4294967296;
+  };
+}
+const rng = mulberry32(20261101);
+const rand = (a, b) => a + rng() * (b - a);
+function n2(x, z, s) {
+  return Math.sin(x * 1.9 + s) * Math.sin(z * 2.2 + s * 0.4)
+       + 0.5 * Math.sin(x * 4.3 + z * 2.8 + s + 2.2)
+       + 0.25 * Math.sin(x * 7.1 - z * 5.9 + s + 4.1);
+}
+
+// ---------- palette ----------
+const PAL = {
+  wheat: 0xb99a45, wheatLight: 0xd0b45e, dirt: 0x6e5638, strata1: 0x7a6240,
+  strata2: 0x5e4a30, strata3: 0x42341f, funnel: 0x6a6156, cloud: 0x3d434c,
+  cloudLight: 0x565e68, house: 0xe8e2d2, roof: 0x5a4a42, barn: 0x9c3d32,
+  silo: 0xb8bcc0, fence: 0x6b5638, bale: 0xc8a94e
+};
+
+const SLAB_HALF = 7.5, SLAB_H = 1.5;
+const slabGroup = new THREE.Group(); scene.add(slabGroup);
+
+// ---------- strata ----------
+{
+  const layers = [[PAL.strata1, 0.42, -0.21], [PAL.strata2, 0.52, -0.68], [PAL.strata3, 0.56, -1.22]];
+  for (const [color, h, cy] of layers) {
+    const m = new THREE.Mesh(new THREE.BoxGeometry(SLAB_HALF*2, h, SLAB_HALF*2),
+      new THREE.MeshStandardMaterial({ color, roughness: 0.95, flatShading: true }));
+    m.position.y = cy; m.receiveShadow = true; slabGroup.add(m);
+  }
+}
+
+// ---------- wheat ground (low-freq grain, lifted) ----------
+{
+  const g = new THREE.PlaneGeometry(SLAB_HALF*2 - 0.24, SLAB_HALF*2 - 0.24, 52, 52);
+  g.rotateX(-Math.PI/2);
+  const p = g.attributes.position;
+  for (let i = 0; i < p.count; i++) {
+    const x = p.getX(i), z = p.getZ(i);
+    const edge = Math.max(Math.abs(x), Math.abs(z)) / (SLAB_HALF - 0.12);
+    let y = 0.10 + 0.05 * n2(x * 0.5, z * 0.5, 5.1);
+    y -= Math.max(0, edge - 0.86) * 1.4;
+    p.setY(i, y);
+  }
+  g.computeVertexNormals();
+  const ground = new THREE.Mesh(g, new THREE.MeshStandardMaterial({
+    color: PAL.wheat, roughness: 0.92, flatShading: true }));
+  ground.receiveShadow = true; slabGroup.add(ground);
+}
+
+// ---------- wheat tufts (instanced, wind-swayed) ----------
+let wheatMesh; const wheatData = [];
+{
+  const tg = new THREE.ConeGeometry(0.075, 0.42, 4);
+  tg.translate(0, 0.21, 0);
+  wheatMesh = new THREE.InstancedMesh(tg,
+    new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.9, flatShading: true }), 260);
+  const dummy = new THREE.Object3D(); const col = new THREE.Color();
+  for (let i = 0; i < 260; i++) {
+    const a = rng() * Math.PI * 2, d = Math.sqrt(rng()) * 6.9;
+    const x = Math.cos(a) * d, z = Math.sin(a) * d;
+    const s = rand(0.7, 1.5);
+    dummy.position.set(x, 0.1, z);
+    dummy.scale.setScalar(s);
+    dummy.rotation.set(0, rng() * 3, 0);
+    dummy.updateMatrix();
+    wheatMesh.setMatrixAt(i, dummy.matrix);
+    wheatMesh.setColorAt(i, col.setHex(rng() < 0.5 ? PAL.wheatLight : PAL.wheat).offsetHSL(0, 0, rand(-0.04, 0.04)));
+    wheatData.push({ x, z, s, ph: rng() * 6.28 });
+  }
+  wheatMesh.castShadow = true; slabGroup.add(wheatMesh);
+}
+const _dummy = new THREE.Object3D();
+let windK = 1;
+function wheatStep(t) {
+  for (let i = 0; i < wheatData.length; i++) {
+    const w = wheatData[i];
+    const lean = (0.10 + 0.13 * windK) * Math.sin(t * (1.6 + windK) + w.ph + (w.x + w.z) * 0.35);
+    _dummy.position.set(w.x, 0.1, w.z);
+    _dummy.scale.setScalar(w.s);
+    _dummy.rotation.set(lean, w.ph, lean * 0.6);
+    _dummy.updateMatrix();
+    wheatMesh.setMatrixAt(i, _dummy.matrix);
+  }
+  wheatMesh.instanceMatrix.needsUpdate = true;
+}
+
+// ---------- farm cluster: house, barn, silo, windmill, fence, bales ----------
+const farmWindows = [];
+{
+  const houseMat = new THREE.MeshStandardMaterial({ color: PAL.house, roughness: 0.9, flatShading: true });
+  const roofMat = new THREE.MeshStandardMaterial({ color: PAL.roof, roughness: 0.92, flatShading: true });
+  // farmhouse
+  const house = new THREE.Group(); house.position.set(-4.3, 0.08, -3.4); house.rotation.y = 0.35;
+  const hb = new THREE.Mesh(new THREE.BoxGeometry(2.4, 1.5, 1.9), houseMat);
+  hb.position.y = 0.75; hb.castShadow = hb.receiveShadow = true; house.add(hb);
+  const tri = new THREE.Shape(); tri.moveTo(-1.45, 0); tri.lineTo(1.45, 0); tri.lineTo(0, 0.95); tri.closePath();
+  const hr = new THREE.Mesh(new THREE.ExtrudeGeometry(tri, { depth: 2.1, bevelEnabled: false }), roofMat);
+  hr.geometry.translate(0, 0, -1.05); hr.position.y = 1.5; hr.castShadow = true; house.add(hr);
+  const winMat = new THREE.MeshStandardMaterial({ color: 0x403828, emissive: 0xffc878, emissiveIntensity: 0.9 });
+  farmWindows.push(winMat);
+  for (const wx of [-0.7, 0.7]) {
+    const w = new THREE.Mesh(new THREE.PlaneGeometry(0.34, 0.4), winMat);
+    w.position.set(wx, 0.85, 0.96); house.add(w);
+  }
+  const door = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.85, 0.06), roofMat);
+  door.position.set(0, 0.43, 0.96); house.add(door);
+  slabGroup.add(house);
+  // barn
+  const barn = new THREE.Group(); barn.position.set(-5.6, 0.08, 0.6); barn.rotation.y = -0.2;
+  const bb = new THREE.Mesh(new THREE.BoxGeometry(2.0, 1.4, 2.4),
+    new THREE.MeshStandardMaterial({ color: PAL.barn, roughness: 0.92, flatShading: true }));
+  bb.position.y = 0.7; bb.castShadow = bb.receiveShadow = true; barn.add(bb);
+  const btri = new THREE.Shape(); btri.moveTo(-1.2, 0); btri.lineTo(1.2, 0); btri.lineTo(0, 0.85); btri.closePath();
+  const br = new THREE.Mesh(new THREE.ExtrudeGeometry(btri, { depth: 2.5, bevelEnabled: false }), roofMat);
+  br.geometry.translate(0, 0, -1.25); br.position.y = 1.4; br.castShadow = true; barn.add(br);
+  const bdoor = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.9, 0.06),
+    new THREE.MeshStandardMaterial({ color: 0x4a2a24, roughness: 0.95, flatShading: true }));
+  bdoor.position.set(0, 0.45, 1.21); barn.add(bdoor);
+  slabGroup.add(barn);
+  // silo
+  const silo = new THREE.Group(); silo.position.set(-2.3, 0.08, -4.6);
+  const sc = new THREE.Mesh(new THREE.CylinderGeometry(0.55, 0.55, 2.6, 10),
+    new THREE.MeshStandardMaterial({ color: PAL.silo, roughness: 0.55, metalness: 0.35, flatShading: true }));
+  sc.position.y = 1.3; sc.castShadow = sc.receiveShadow = true; silo.add(sc);
+  const scap = new THREE.Mesh(new THREE.SphereGeometry(0.55, 10, 6, 0, Math.PI*2, 0, Math.PI/2),
+    sc.material);
+  scap.position.y = 2.6; scap.castShadow = true; silo.add(scap);
+  slabGroup.add(silo);
+  // fence line along the front
+  const fenceMat = new THREE.MeshStandardMaterial({ color: PAL.fence, roughness: 0.95, flatShading: true });
+  for (let i = 0; i < 9; i++) {
+    const post = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.06, 0.62, 5), fenceMat);
+    post.position.set(-6.2 + i * 1.1, 0.38, 4.1 + Math.sin(i * 0.8) * 0.3);
+    post.castShadow = true; slabGroup.add(post);
+  }
+  for (const ry of [0.3, 0.52]) {
+    const rail = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.035, 9.6, 5), fenceMat);
+    rail.rotation.z = Math.PI/2; rail.rotation.y = 0.03;
+    rail.position.set(-1.8, ry + 0.08, 4.1); slabGroup.add(rail);
+  }
+  // hay bales
+  for (let i = 0; i < 7; i++) {
+    const bale = new THREE.Mesh(new THREE.CylinderGeometry(0.34, 0.34, 0.55, 9),
+      new THREE.MeshStandardMaterial({ color: PAL.bale, roughness: 0.92, flatShading: true }));
+    bale.rotation.z = Math.PI/2; bale.rotation.y = rng() * 3;
+    const a = rng() * 6.28, d = rand(2.5, 6.4);
+    bale.position.set(Math.cos(a) * d + 1.5, 0.42, Math.sin(a) * d + 1.2);
+    bale.castShadow = bale.receiveShadow = true; slabGroup.add(bale);
+  }
+}
+// windmill (animated rotor)
+const rotor = new THREE.Group();
+{
+  const wmMat = new THREE.MeshStandardMaterial({ color: 0x8a8f96, roughness: 0.6, metalness: 0.4, flatShading: true });
+  const wm = new THREE.Group(); wm.position.set(5.4, 0.08, -4.2);
+  const tower = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.22, 3.1, 4), wmMat);
+  tower.position.y = 1.55; tower.castShadow = true; wm.add(tower);
+  for (let i = 0; i < 4; i++) {
+    const blade = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.95, 0.03), wmMat);
+    blade.position.y = 0.55;
+    const pivot = new THREE.Group(); pivot.rotation.z = i * Math.PI / 2;
+    pivot.add(blade); rotor.add(pivot);
+  }
+  rotor.position.set(0, 3.15, 0.18); wm.add(rotor);
+  slabGroup.add(wm);
+}
+
+// ---------- storm: cloud deck + funnel + dust + debris ----------
+const storm = new THREE.Group(); scene.add(storm);
+const tapTargets = [];
+let funnelMesh, funnelState = 'aloft', funnelT = 0, bottomY = 4.6;
+{
+  // rotating cloud deck
+  const deck = new THREE.Group(); deck.position.set(0, 9.6, -1); storm.add(deck);
+  for (let i = 0; i < 15; i++) {
+    const a = rng() * Math.PI * 2, d = rand(0, 6.4);
+    const r = rand(1.6, 3.1);
+    const blob = new THREE.Mesh(new THREE.IcosahedronGeometry(r, 1),
+      new THREE.MeshStandardMaterial({ color: rng() < 0.6 ? PAL.cloud : PAL.cloudLight,
+        roughness: 1, flatShading: true }));
+    blob.position.set(Math.cos(a) * d, rand(-0.5, 0.7), Math.sin(a) * d * 0.75);
+    blob.scale.y = 0.42; blob.castShadow = false; deck.add(blob);
+  }
+  const tapCloud = new THREE.Mesh(new THREE.CylinderGeometry(7.2, 7.2, 2.6, 12),
+    new THREE.MeshBasicMaterial({ visible: false }));
+  tapCloud.position.copy(deck.position); tapCloud.userData.storm = true;
+  storm.add(tapCloud); tapTargets.push(tapCloud);
+  storm.userData.deck = deck;
+  // funnel: lathe with noise, hangs from deck
+  const prof = [];
+  for (let i = 0; i <= 14; i++) {
+    const k = i / 14;                       // 0 top .. 1 bottom
+    prof.push(new THREE.Vector2(0.28 + (1 - k) * (1 - k) * 2.0 + 0.05, k));
+  }
+  const fg = new THREE.LatheGeometry(prof, 18);
+  const fp = fg.attributes.position;
+  for (let i = 0; i < fp.count; i++) {
+    const x = fp.getX(i), y = fp.getY(i), z = fp.getZ(i);
+    const n = 0.16 * n2(x * 2.4 + y * 5, z * 2.4, 9.7);
+    fp.setX(i, x * (1 + n)); fp.setZ(i, z * (1 + n));
+  }
+  fg.computeVertexNormals();
+  funnelMesh = new THREE.Mesh(fg, new THREE.MeshStandardMaterial({
+    color: PAL.funnel, roughness: 1, flatShading: true, side: THREE.DoubleSide }));
+  funnelMesh.userData.storm = true;
+  storm.add(funnelMesh); tapTargets.push(funnelMesh);
+}
+// dust skirt + debris (live only at touchdown)
+const dustSprites = [];
+{
+  const cv = document.createElement('canvas'); cv.width = cv.height = 64;
+  const cx = cv.getContext('2d');
+  const grad = cx.createRadialGradient(32, 32, 2, 32, 32, 30);
+  grad.addColorStop(0, 'rgba(168,148,112,0.9)'); grad.addColorStop(1, 'rgba(168,148,112,0)');
+  cx.fillStyle = grad; cx.fillRect(0, 0, 64, 64);
+  const tex = new THREE.CanvasTexture(cv);
+  for (let i = 0; i < 42; i++) {
+    const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true, opacity: 0, depthWrite: false }));
+    sp.userData = { a: rand(0, 6.28), r: rand(0.6, 2.6), h: rand(0, 1.2), spd: rand(2.2, 4.2), s: rand(0.7, 1.6) };
+    scene.add(sp); dustSprites.push(sp);
+  }
+}
+const debris = [];
+{
+  const dMat = new THREE.MeshStandardMaterial({ color: 0x7a6240, roughness: 0.95, flatShading: true });
+  const dMat2 = new THREE.MeshStandardMaterial({ color: PAL.bale, roughness: 0.95, flatShading: true });
+  for (let i = 0; i < 14; i++) {
+    const m = new THREE.Mesh(new THREE.BoxGeometry(rand(0.1, 0.28), rand(0.05, 0.12), rand(0.3, 0.6)),
+      i % 3 ? dMat : dMat2);
+    m.userData = { a: rand(0, 6.28), r: rand(0.8, 2.4), h: rand(0.2, 2.8), spd: rand(3, 5.5), spin: rand(2, 6) };
+    m.visible = false; scene.add(m); debris.push(m);
+  }
+}
+function stormStep(dt, t) {
+  const deck = storm.userData.deck;
+  deck.rotation.y = t * 0.09;
+  // funnel sway + spin
+  storm.position.x = Math.sin(t * 0.21) * 1.4;
+  storm.position.z = Math.cos(t * 0.16) * 1.1 - 0.5;
+  funnelMesh.rotation.y = t * 3.1;
+  // touchdown lifecycle
+  if (funnelState === 'dropping') {
+    funnelT += dt; bottomY = Math.max(0.12, 4.6 - funnelT * 3.6);
+    if (bottomY <= 0.13) { funnelState = 'down'; funnelT = 0; }
+  } else if (funnelState === 'down') {
+    funnelT += dt;
+    if (funnelT > 7) { funnelState = 'lifting'; funnelT = 0; }
+  } else if (funnelState === 'lifting') {
+    funnelT += dt; bottomY = Math.min(4.6, 0.12 + funnelT * 3.0);
+    if (bottomY >= 4.6) { funnelState = 'aloft'; setHint('idle'); windK = 1; skyK = 0; }
+  }
+  // funnel geometry spans from deck base down to bottomY
+  const topY = 8.6;
+  funnelMesh.scale.y = topY - bottomY;
+  funnelMesh.position.y = bottomY;
+  funnelMesh.position.x = Math.sin(t * 0.8) * 0.35;
+  // dust + debris while down
+  const active = funnelState === 'down' || funnelState === 'dropping';
+  const fx = storm.position.x + funnelMesh.position.x, fz = storm.position.z;
+  for (const sp of dustSprites) {
+    const u = sp.userData;
+    if (active) {
+      const a = u.a + t * u.spd;
+      sp.position.set(fx + Math.cos(a) * u.r, 0.12 + u.h * (0.5 + 0.5 * Math.sin(t * 2 + u.a)), fz + Math.sin(a) * u.r);
+      const sc = u.s * (funnelState === 'down' ? 1 : 0.6); sp.scale.set(sc, sc, 1);
+      sp.material.opacity = funnelState === 'down' ? 0.65 : 0.35;
+    } else sp.material.opacity = Math.max(0, sp.material.opacity - dt * 1.5);
+  }
+  for (const m of debris) {
+    const u = m.userData;
+    m.visible = funnelState === 'down';
+    if (m.visible) {
+      const a = u.a + t * u.spd;
+      m.position.set(fx + Math.cos(a) * u.r, 0.3 + u.h * (0.5 + 0.5 * Math.sin(t * 1.7 + u.a)), fz + Math.sin(a) * u.r);
+      m.rotation.set(t * u.spin, t * u.spin * 0.7, 0);
+    }
+  }
+}
+// lightning flashes
+let nextFlash = rand(5, 9), flashT = -1;
+function flashStep(dt) {
+  nextFlash -= dt;
+  if (nextFlash <= 0) { nextFlash = rand(5, 12); flashT = 0; }
+  if (flashT >= 0) {
+    flashT += dt;
+    const k = flashT;
+    lightning.intensity = (k < 0.09 || (k > 0.16 && k < 0.24)) ? 26 : 0;
+    if (k > 0.3) { flashT = -1; lightning.intensity = 0; }
+  }
+}
+
+// ---------- hints ----------
+const HINTS = {
+  idle: 'Tap the storm to touch down',
+  drop: 'The twister touches down - hold on',
+  angry: 'The sky grows angry'
+};
+function setHint(s) {
+  hintEl.textContent = HINTS[s]; hintEl.classList.remove('faded');
+  clearTimeout(setHint._t);
+  setHint._t = setTimeout(() => hintEl.classList.add('faded'), 6000);
+}
+setHint('idle');
+
+// ---------- camera framing ----------
+const FIT_CENTER = new THREE.Vector3(0, 2.6, 0);
+const FIT_PTS = [];
+for (const x of [-7.5, 7.5]) for (const y of [-SLAB_H, 0.6]) for (const z of [-7.5, 7.5])
+  FIT_PTS.push(new THREE.Vector3(x, y, z));
+FIT_PTS.push(new THREE.Vector3(0, 10.6, -1));              // deck top
+for (const sx of [-1, 1]) FIT_PTS.push(new THREE.Vector3(sx * 6.6, 9.7, -1));  // deck width
+FIT_PTS.push(new THREE.Vector3(5.4, 4.2, -4.2));           // windmill rotor
+FIT_PTS.push(new THREE.Vector3(-2.3, 3.4, -4.6));          // silo cap
+function fitDir() {
+  const a = innerWidth / innerHeight;
+  if (a < 0.62) return new THREE.Vector3(0.1, 0.42, 1).normalize();
+  if (a < 0.9) return new THREE.Vector3(0.42, 0.4, 1).normalize();
+  return new THREE.Vector3(0.62, 0.42, 1).normalize();
+}
+const _rel = new THREE.Vector3();
+function requiredDistance(right, up, fwd, target) {
+  const fovV = THREE.MathUtils.degToRad(camera.fov);
+  const tanH = Math.tan(Math.atan(Math.tan(fovV/2) * camera.aspect));
+  const tanV = Math.tan(fovV/2);
+  let d = 4;
+  for (const c of FIT_PTS) {
+    _rel.copy(c).sub(target);
+    const cf = _rel.dot(fwd);
+    d = Math.max(d, Math.abs(_rel.dot(right)) / tanH - cf, Math.abs(_rel.dot(up)) / tanV - cf);
+  }
+  return d;
+}
+function frameInitialCamera() {
+  pickFov();
+  const fd = fitDir();
+  const fwd = fd.clone().negate();
+  const right = new THREE.Vector3().crossVectors(fwd, new THREE.Vector3(0,1,0)).normalize();
+  const up = new THREE.Vector3().crossVectors(right, fwd).normalize();
+  const dist = requiredDistance(right, up, fwd, FIT_CENTER) * 1.06;
+  camera.position.copy(FIT_CENTER).addScaledVector(fd, dist);
+  controls.target.copy(FIT_CENTER);
+  camera.updateProjectionMatrix(); controls.update();
+}
+frameInitialCamera();
+
+// ---------- tap ----------
+const ray = new THREE.Raycaster(); const ndc = new THREE.Vector2();
+let downX = 0, downY = 0, downT = 0;
+renderer.domElement.addEventListener('pointerdown', e => { downX = e.clientX; downY = e.clientY; downT = performance.now(); });
+renderer.domElement.addEventListener('pointerup', e => {
+  if (Math.hypot(e.clientX - downX, e.clientY - downY) > 7 || performance.now() - downT > 450) return;
+  ndc.set((e.clientX / innerWidth) * 2 - 1, -(e.clientY / innerHeight) * 2 + 1);
+  ray.setFromCamera(ndc, camera);
+  const hits = ray.intersectObjects(tapTargets, false);
+  if (!hits.length) return;
+  if (funnelState === 'aloft') {
+    funnelState = 'dropping'; funnelT = 0;
+    windK = 2.2; skyK = 1;
+    setHint('drop');
+  }
+});
+
+addEventListener('resize', () => {
+  camera.aspect = innerWidth/innerHeight;
+  renderer.setSize(innerWidth, innerHeight);
+  renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+  frameInitialCamera();
+});
+
+// ---------- animate ----------
+const clock = new THREE.Clock();
+let skyK = 0, nextAngry = rand(14, 20);
+const _sky = new THREE.Color();
+function animate() {
+  requestAnimationFrame(animate);
+  const dt = Math.min(clock.getDelta(), 0.05);
+  const t = clock.elapsedTime;
+
+  nextAngry -= dt;
+  if (nextAngry <= 0) {
+    nextAngry = rand(16, 26);
+    if (funnelState === 'aloft') { setHint('angry'); flashT = 0; windK = 1.6; setTimeout(() => { if (funnelState === 'aloft') windK = 1; }, 6000); }
+  }
+
+  const targetSky = (funnelState === 'aloft' && windK <= 1) ? 0 : 1;
+  skyK += (targetSky - skyK) * Math.min(1, dt * 1.1);
+  _sky.copy(SKY_CALM).lerp(SKY_ANGRY, skyK * 0.85);
+  scene.background.copy(_sky); scene.fog.color.copy(_sky);
+
+  wheatStep(t);
+  stormStep(dt, t);
+  flashStep(dt);
+  rotor.rotation.z = t * (1.2 + windK * 1.6);
+  for (const w of farmWindows) w.emissiveIntensity = 0.9 + 0.25 * Math.sin(t * 3.1);
+
+  const fwd = new THREE.Vector3(); camera.getWorldDirection(fwd);
+  const right = new THREE.Vector3().crossVectors(fwd, new THREE.Vector3(0,1,0)).normalize();
+  const up2 = new THREE.Vector3().crossVectors(right, fwd).normalize();
+  controls.minDistance = Math.min(requiredDistance(right, up2, fwd, controls.target) * 1.04, 30);
+
+  controls.update();
+  renderer.render(scene, camera);
+}
+animate();
+// pass 1: tornado-prairie initial build - wheat field + 260 swaying tufts, farm
+// cluster (house/barn/silo/windmill/fence/bales), rotating cloud deck, noise lathe
+// funnel (tap to touch down: dust skirt + debris + wind surge + darkening sky),
+// lightning flashes, auto 'sky grows angry', seeded mulberry32(20261101)
+</script>
+</body>
+</html>
