@@ -121,7 +121,7 @@ const fish = [];
   const dcv = document.createElement('canvas'); dcv.width = dcv.height = 256;
   const dctx = dcv.getContext('2d');
   const dg = dctx.createRadialGradient(128, 128, 8, 128, 128, 128);
-  dg.addColorStop(0, '#0b2b52'); dg.addColorStop(0.55, '#16477e'); dg.addColorStop(1, '#3d7ab3');
+  dg.addColorStop(0, '#071e3e'); dg.addColorStop(0.55, '#123c6e'); dg.addColorStop(1, '#2f6ea8');
   dctx.fillStyle = dg; dctx.fillRect(0, 0, 256, 256);
   const deep = new THREE.Mesh(new THREE.PlaneGeometry(11, 11),
     new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(dcv), fog: false }));
@@ -196,20 +196,20 @@ let iceMesh;
 // ---------- crack burst (tap interaction) ----------
 const cracks = [];
 {
-  const crackMat = new THREE.MeshBasicMaterial({ color: 0xf8fcff, transparent: true, opacity: 0 });
+  const crackMat = new THREE.MeshBasicMaterial({ color: 0x16344e, transparent: true, opacity: 0 });
   for (let c = 0; c < 3; c++) {
     const grp = new THREE.Group(); grp.visible = false;
     const segs = [];
     for (let arm = 0; arm < 7; arm++) {
       const a = arm / 7 * Math.PI * 2 + rand(-0.3, 0.3);
       const len = rand(1.2, 2.6);
-      const m = new THREE.Mesh(new THREE.PlaneGeometry(1, 0.05), crackMat.clone());
+      const m = new THREE.Mesh(new THREE.PlaneGeometry(1, 0.085), crackMat.clone());
       m.rotation.x = -Math.PI/2;
       m.userData = { a, len };
       grp.add(m); segs.push(m);
       // branch
       if (arm % 2 === 0) {
-        const b = new THREE.Mesh(new THREE.PlaneGeometry(1, 0.035), m.material);
+        const b = new THREE.Mesh(new THREE.PlaneGeometry(1, 0.06), m.material);
         b.rotation.x = -Math.PI/2;
         b.userData = { a: a + rand(0.5, 0.9) * (rng() < 0.5 ? 1 : -1), len: len * 0.5, from: len * 0.55 };
         grp.add(b); segs.push(b);
@@ -248,15 +248,25 @@ const skaters = [];
 {
   function skater(coat, cx, cz, rx, rz, spd, ph) {
     const g = new THREE.Group();
-    const body = new THREE.Mesh(new THREE.ConeGeometry(0.23, 0.78, 6),
-      new THREE.MeshStandardMaterial({ color: coat, roughness: 0.85, flatShading: true }));
-    body.position.y = 0.6; body.castShadow = true; g.add(body);
+    const coatMat = new THREE.MeshStandardMaterial({ color: coat, roughness: 0.85, flatShading: true });
+    const torso = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.26, 0.62, 7), coatMat);
+    torso.position.y = 0.62; torso.castShadow = true; g.add(torso);
+    const hips = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.2, 0.28, 7),
+      new THREE.MeshStandardMaterial({ color: 0x2c3540, roughness: 0.9, flatShading: true }));
+    hips.position.y = 0.24; hips.castShadow = true; g.add(hips);
+    for (const side of [-1, 1]) {
+      const arm = new THREE.Mesh(new THREE.CylinderGeometry(0.055, 0.05, 0.5, 5), coatMat);
+      arm.position.set(side * 0.3, 0.72, 0); arm.rotation.z = side * 0.9; arm.castShadow = true; g.add(arm);
+    }
+    const scarf = new THREE.Mesh(new THREE.TorusGeometry(0.13, 0.05, 5, 8),
+      new THREE.MeshStandardMaterial({ color: coat === PAL.red ? PAL.blue : PAL.red, roughness: 0.85, flatShading: true }));
+    scarf.position.y = 0.98; scarf.rotation.x = Math.PI/2; g.add(scarf);
     const head = new THREE.Mesh(new THREE.SphereGeometry(0.15, 7, 6),
       new THREE.MeshStandardMaterial({ color: 0xe8c39a, roughness: 0.8, flatShading: true }));
-    head.position.y = 1.1; head.castShadow = true; g.add(head);
+    head.position.y = 1.16; head.castShadow = true; g.add(head);
     const hat = new THREE.Mesh(new THREE.ConeGeometry(0.14, 0.22, 6),
       new THREE.MeshStandardMaterial({ color: coat === PAL.red ? PAL.blue : PAL.red, roughness: 0.85, flatShading: true }));
-    hat.position.y = 1.27; g.add(hat);
+    hat.position.y = 1.34; g.add(hat);
     g.userData = { cx, cz, rx, rz, spd, ph, scatter: 0 };
     slabGroup.add(g); skaters.push(g);
   }
@@ -386,7 +396,7 @@ FIT_PTS.push(new THREE.Vector3(6.6, 3.2, -0.6));
 FIT_PTS.push(new THREE.Vector3(5.4, 1.6, 4.4));     // signpost
 function fitDir() {
   const a = innerWidth / innerHeight;
-  if (a < 0.62) return new THREE.Vector3(0.1, 0.42, 1).normalize();
+  if (a < 0.62) return new THREE.Vector3(0.08, 0.33, 1).normalize();
   if (a < 0.9) return new THREE.Vector3(0.42, 0.4, 1).normalize();
   return new THREE.Vector3(0.62, 0.42, 1).normalize();
 }
@@ -409,7 +419,7 @@ function frameInitialCamera() {
   const fwd = fd.clone().negate();
   const right = new THREE.Vector3().crossVectors(fwd, new THREE.Vector3(0,1,0)).normalize();
   const up = new THREE.Vector3().crossVectors(right, fwd).normalize();
-  const dist = requiredDistance(right, up, fwd, FIT_CENTER) * 1.06;
+  const dist = requiredDistance(right, up, fwd, FIT_CENTER) * (innerWidth / innerHeight < 0.62 ? 0.97 : 1.06);
   camera.position.copy(FIT_CENTER).addScaledVector(fd, dist);
   controls.target.copy(FIT_CENTER);
   camera.updateProjectionMatrix(); controls.update();
@@ -478,6 +488,7 @@ function animate() {
   renderer.render(scene, camera);
 }
 animate();
+// pass 7: dark contrast cracks, humanoid skaters, deeper ice, tighter portrait fit
 // pass 6: raise deep water + fish above strata top (they were hidden inside the rock)
 // pass 5: unlit radial-gradient deep water (reads true blue)
 // pass 4: saturated blue ice, emissive deep water
