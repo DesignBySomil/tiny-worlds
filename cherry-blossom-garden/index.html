@@ -1,0 +1,448 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Cherry Blossom Garden - a tiny world</title>
+<style>
+  html, body { margin:0; padding:0; height:100%; background:#a8cfe0; overflow:hidden;
+    font-family: Georgia, 'Times New Roman', serif; }
+  #app { position:fixed; inset:0; }
+  header { position:fixed; top:0; left:0; right:0; text-align:center; pointer-events:none;
+    padding: max(18px, env(safe-area-inset-top)) 16px 0; z-index:5; }
+  header h1 { margin:0; font-size:15px; letter-spacing:.42em; font-weight:400;
+    color:#5c4a56; text-transform:uppercase; text-shadow:0 1px 8px rgba(255,250,252,.65); }
+  header .rule { width:44px; height:1px; background:rgba(92,74,86,.45); margin:9px auto; }
+  #hint { display:inline-block; font-size:11.5px; letter-spacing:.24em; text-transform:uppercase;
+    color:#6a5563; transition:opacity 1.2s ease; text-shadow:0 1px 2px rgba(255,250,252,.9), 0 0 12px rgba(255,250,252,.7); }
+  #hint.faded { opacity:.45; }
+  footer { position:fixed; bottom:0; left:0; right:0; text-align:center; pointer-events:none;
+    padding:0 16px max(14px, env(safe-area-inset-bottom)); z-index:5;
+    font-size:10px; letter-spacing:.34em; text-transform:uppercase; color:rgba(92,74,86,.5); }
+  canvas { display:block; touch-action:none; }
+</style>
+</head>
+<body>
+<div id="app"></div>
+<header>
+  <h1>Cherry Blossom Garden</h1>
+  <div class="rule"></div>
+  <span id="hint"></span>
+</header>
+<footer>A tiny world</footer>
+<script type="importmap">
+{ "imports": {
+  "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+  "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+} }
+</script>
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+const container = document.getElementById('app');
+const hintEl = document.getElementById('hint');
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0xa8cfe0);
+scene.fog = new THREE.Fog(0xb8d8e6, 48, 110);
+
+const camera = new THREE.PerspectiveCamera(38, innerWidth/innerHeight, 0.1, 200);
+function pickFov() {
+  const a = innerWidth / innerHeight;
+  camera.fov = a >= 0.9 ? 38 : (a >= 0.62 ? 46 : 58);
+  camera.updateProjectionMatrix();
+}
+pickFov();
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setSize(innerWidth, innerHeight);
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.1;
+container.appendChild(renderer.domElement);
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true; controls.dampingFactor = 0.08;
+controls.minDistance = 6; controls.maxDistance = 200;
+controls.maxPolarAngle = Math.PI * 0.52; controls.enablePan = false;
+
+// ---------- lights (soft spring morning) ----------
+const sun = new THREE.DirectionalLight(0xfff0e0, 2.4);
+sun.position.set(12, 20, 8); sun.castShadow = true;
+sun.shadow.mapSize.set(2048, 2048);
+sun.shadow.camera.left = -13; sun.shadow.camera.right = 13;
+sun.shadow.camera.top = 13; sun.shadow.camera.bottom = -13;
+sun.shadow.camera.near = 4; sun.shadow.camera.far = 60;
+sun.shadow.bias = -0.0012;
+scene.add(sun);
+scene.add(new THREE.HemisphereLight(0xcfe4f0, 0x7a9a62, 1.2));
+const fill = new THREE.DirectionalLight(0xf0e0e8, 0.4);
+fill.position.set(-10, 7, -8); scene.add(fill);
+
+const rand = (a, b) => a + Math.random() * (b - a);
+
+// ---------- palette ----------
+const PAL = {
+  grass: 0x7aa85e, earthA: 0x9a7a58, earthB: 0x77604a, earthC: 0x534435,
+  trunk: 0x4a3830, trunkLight: 0x5c483c,
+  blossomA: 0xf2b8c8, blossomB: 0xeaa4bc, blossomC: 0xf7cfda, blossomDeep: 0xe08aa8,
+  stone: 0x9a9a98, stoneDark: 0x76766f, moss: 0x5c7a4a,
+  petal: 0xf6c9d6, petalDeep: 0xeeb2c4
+};
+
+// ---------- slab (garden earth cutaway) ----------
+const SLAB = 16, SLAB_H = 3.0;
+const slabGroup = new THREE.Group(); scene.add(slabGroup);
+function strataLayer(h, y, color) {
+  const m = new THREE.Mesh(new THREE.BoxGeometry(SLAB, h, SLAB),
+    new THREE.MeshStandardMaterial({ color, roughness: 0.95 }));
+  m.position.y = y; m.receiveShadow = true; slabGroup.add(m); return m;
+}
+strataLayer(0.9, -SLAB_H + 0.45, PAL.earthC);
+strataLayer(1.0, -SLAB_H + 1.4, PAL.earthB);
+strataLayer(1.1, -SLAB_H + 2.45, PAL.earthA);
+
+// ---------- grass top: uniform fresh green, fine grain (surface LIFTED clear of strata top) ----------
+const GRASS_Y = 0.1;
+const grassGeo = new THREE.PlaneGeometry(SLAB, SLAB, 48, 48);
+grassGeo.rotateX(-Math.PI / 2);
+{
+  const p = grassGeo.attributes.position, cols = [];
+  const grass = new THREE.Color(PAL.grass);
+  for (let i = 0; i < p.count; i++) {
+    const x = p.getX(i), z = p.getZ(i);
+    const e = Math.max(Math.abs(x), Math.abs(z)) / 8;
+    p.setY(i, (Math.sin(x*2.2)*Math.sin(z*1.9+0.8)) * 0.06 * (e > 0.94 ? 0.2 : 1));
+    const g = 0.5 + 0.5 * Math.sin(x * 1.8 + Math.sin(z * 1.3) * 1.5);
+    const c = grass.clone();
+    c.offsetHSL(rand(-0.004, 0.004), rand(-0.012, 0.012), g * 0.018 + rand(-0.007, 0.007));
+    cols.push(c.r, c.g, c.b);
+  }
+  grassGeo.setAttribute('color', new THREE.Float32BufferAttribute(cols, 3));
+  grassGeo.computeVertexNormals();
+}
+const grass = new THREE.Mesh(grassGeo, new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 1 }));
+grass.position.y = GRASS_Y;
+grass.receiveShadow = true; slabGroup.add(grass);
+
+// ---------- cherry trees: bent trunk segments + multi-blob faceted canopies ----------
+const tapTargets = [];
+const canopies = [];
+function blobMat(color) {
+  return new THREE.MeshStandardMaterial({ color, roughness: 0.85, flatShading: true });
+}
+function canopyBlob(parent, x, y, z, r, color) {
+  const geo = new THREE.IcosahedronGeometry(r, 1);
+  const p = geo.attributes.position;
+  for (let i = 0; i < p.count; i++) {
+    const vx = p.getX(i), vy = p.getY(i), vz = p.getZ(i);
+    const w = 1 + 0.14 * Math.sin(vx * 3.1 + y) * Math.sin(vz * 2.7 + x) * Math.sin(vy * 3.7 + z);
+    p.setXYZ(i, vx * w, vy * w * 0.82, vz * w);
+  }
+  geo.computeVertexNormals();
+  const m = new THREE.Mesh(geo, blobMat(color));
+  m.position.set(x, y, z); m.castShadow = true;
+  parent.add(m); return m;
+}
+function cherryTree(x, z, s, lean) {
+  const g = new THREE.Group();
+  const trunkMat = new THREE.MeshStandardMaterial({ color: PAL.trunk, roughness: 0.9 });
+  // segmented bending trunk
+  let px = x, pz = z, py = GRASS_Y, dir = new THREE.Vector3(lean, 1, rand(-0.1, 0.1)).normalize();
+  const segs = 4;
+  let trunkTop = new THREE.Vector3();
+  for (let i = 0; i < segs; i++) {
+    const len = (0.85 - i * 0.12) * s, rad = (0.22 - i * 0.045) * s;
+    const m = new THREE.Mesh(new THREE.CylinderGeometry(rad * 0.8, rad, len, 6), trunkMat);
+    m.position.set(px + dir.x * len/2, py + dir.y * len/2, pz + dir.z * len/2);
+    m.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0), dir.clone().normalize());
+    m.castShadow = true; g.add(m);
+    px += dir.x * len; py += dir.y * len; pz += dir.z * len;
+    dir = dir.clone().add(new THREE.Vector3(rand(-0.3, 0.3), 0.35, rand(-0.3, 0.3))).normalize();
+  }
+  trunkTop.set(px, py, pz);
+  // two side branches
+  for (let b = 0; b < 2; b++) {
+    const bd = new THREE.Vector3(rand(-1, 1), rand(0.4, 0.8), rand(-1, 1)).normalize();
+    const bl = 0.8 * s;
+    const m = new THREE.Mesh(new THREE.CylinderGeometry(0.05 * s, 0.09 * s, bl, 5), trunkMat);
+    const sy = py - rand(0.3, 0.8) * s;
+    m.position.set(px + bd.x * bl/2, sy + bd.y * bl/2, pz + bd.z * bl/2);
+    m.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0), bd);
+    m.castShadow = true; g.add(m);
+  }
+  // dense multi-blob canopy
+  const tones = [PAL.blossomA, PAL.blossomB, PAL.blossomC, PAL.blossomDeep];
+  const canopy = new THREE.Group();
+  const nBlobs = 10 + Math.floor(rand(0, 3));
+  for (let i = 0; i < nBlobs; i++) {
+    const a = rand(0, Math.PI * 2), rr = rand(0.3, 1.35) * s, yy = rand(-0.35, 0.6) * s;
+    const r = rand(0.55, 0.95) * s;
+    canopyBlob(canopy, Math.cos(a) * rr, yy, Math.sin(a) * rr, r, tones[i % 4]);
+  }
+  canopyBlob(canopy, 0, 0.55 * s, 0, 1.0 * s, tones[Math.floor(rand(0, 2))]);  // crown
+  canopy.position.copy(trunkTop);
+  g.add(canopy);
+  canopies.push({ grp: canopy, ph: rand(0, 6.28), center: trunkTop.clone(), s });
+  scene.add(g);
+  const proxy = new THREE.Mesh(new THREE.SphereGeometry(1.9 * s, 8, 6),
+    new THREE.MeshBasicMaterial({ visible: false }));
+  proxy.position.set(trunkTop.x, trunkTop.y, trunkTop.z);
+  proxy.userData.tree = { x: trunkTop.x, y: trunkTop.y, z: trunkTop.z, s };
+  scene.add(proxy); tapTargets.push(proxy);
+  return g;
+}
+cherryTree(-4.4, -3.0, 1.5, 0.12);
+cherryTree(3.6, -4.2, 1.25, -0.1);
+cherryTree(4.6, 3.4, 1.4, 0.08);
+cherryTree(-3.4, 4.2, 1.0, -0.14);
+
+// ---------- stone lantern ----------
+{
+  const g = new THREE.Group();
+  const st = new THREE.MeshStandardMaterial({ color: PAL.stone, roughness: 0.9, flatShading: true });
+  const stD = new THREE.MeshStandardMaterial({ color: PAL.stoneDark, roughness: 0.9, flatShading: true });
+  const base = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.22, 0.7), stD); base.position.y = 0.11; g.add(base);
+  const post = new THREE.Mesh(new THREE.CylinderGeometry(0.11, 0.14, 0.75, 6), st); post.position.y = 0.6; g.add(post);
+  const box = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.38, 0.5), st); box.position.y = 1.16; g.add(box);
+  const win = new THREE.Mesh(new THREE.BoxGeometry(0.54, 0.16, 0.3),
+    new THREE.MeshStandardMaterial({ color: 0xffe8b0, emissive: 0xffd98a, emissiveIntensity: 0.9 }));
+  win.position.y = 1.16; g.add(win);
+  const roof = new THREE.Mesh(new THREE.ConeGeometry(0.48, 0.32, 4), stD); roof.position.y = 1.52; roof.rotation.y = Math.PI/4; g.add(roof);
+  const knob = new THREE.Mesh(new THREE.SphereGeometry(0.09, 6, 5), st); knob.position.y = 1.74; g.add(knob);
+  g.position.set(0.8, GRASS_Y, 1.2);
+  g.traverse(o => { if (o.isMesh) { o.castShadow = true; } });
+  scene.add(g);
+}
+
+// ---------- stepping-stone path ----------
+{
+  const stMat = new THREE.MeshStandardMaterial({ color: PAL.stoneDark, roughness: 0.95, flatShading: true });
+  const path = [[-6.5, 6.2], [-4.8, 5.0], [-3.1, 3.9], [-1.4, 2.9], [0.3, 2.0], [1.9, 1.0], [3.3, -0.1], [4.6, -1.3]];
+  for (const [x, z] of path) {
+    const s = new THREE.Mesh(new THREE.CylinderGeometry(rand(0.42, 0.55), rand(0.5, 0.62), 0.14, 7), stMat);
+    s.position.set(x + rand(-0.15, 0.15), GRASS_Y + 0.05, z + rand(-0.15, 0.15));
+    s.rotation.y = rand(0, 3); s.receiveShadow = true; s.castShadow = true;
+    slabGroup.add(s);
+  }
+}
+
+// ---------- rocks + azaleas + grass tufts (density pass built-in) ----------
+{
+  const rockMats = [0x8a8a84, 0x76766f, 0x9a9a98].map(c =>
+    new THREE.MeshStandardMaterial({ color: c, roughness: 0.95, flatShading: true }));
+  for (let i = 0; i < 9; i++) {
+    const r = new THREE.Mesh(new THREE.DodecahedronGeometry(rand(0.18, 0.5), 0), rockMats[i % 3]);
+    r.position.set(rand(-7, 7), GRASS_Y + 0.08, rand(-7, 7));
+    r.scale.y = rand(0.5, 0.8); r.rotation.set(rand(0,3), rand(0,3), rand(0,3));
+    r.castShadow = true; r.receiveShadow = true; slabGroup.add(r);
+  }
+  const azMats = [0x5c7a4a, 0x6a8a52].map(c => new THREE.MeshStandardMaterial({ color: c, roughness: 0.9, flatShading: true }));
+  const azFlower = new THREE.MeshStandardMaterial({ color: 0xe08aa8, roughness: 0.85, flatShading: true });
+  for (let i = 0; i < 6; i++) {
+    const bx = rand(-7, 7), bz = rand(-7, 7), br = rand(0.5, 0.85);
+    const bush = new THREE.Mesh(new THREE.IcosahedronGeometry(br, 1), azMats[i % 2]);
+    bush.position.set(bx, GRASS_Y + br * 0.55, bz); bush.scale.y = 0.75; bush.castShadow = true;
+    slabGroup.add(bush);
+    for (let k = 0; k < 7; k++) {
+      const f = new THREE.Mesh(new THREE.IcosahedronGeometry(0.09, 0), azFlower);
+      const a = rand(0, 6.28);
+      f.position.set(bx + Math.cos(a) * br * 0.85, GRASS_Y + br * rand(0.6, 1.05), bz + Math.sin(a) * br * 0.85);
+      slabGroup.add(f);
+    }
+  }
+  const tuftMats = [0x6a9a52, 0x7aa85e, 0x5c8a4a].map(c => new THREE.MeshStandardMaterial({ color: c, roughness: 1 }));
+  for (let i = 0; i < 60; i++) {
+    const tuft = new THREE.Group();
+    for (let k = 0; k < 4; k++) {
+      const b = new THREE.Mesh(new THREE.ConeGeometry(0.035, rand(0.18, 0.3), 4), tuftMats[(i + k) % 3]);
+      b.position.set(rand(-0.07, 0.07), 0.1, rand(-0.07, 0.07));
+      b.rotation.set(rand(-0.25, 0.25), rand(0, 6.28), rand(-0.25, 0.25));
+      tuft.add(b);
+    }
+    tuft.position.set(rand(-7.4, 7.4), GRASS_Y, rand(-7.4, 7.4));
+    slabGroup.add(tuft);
+  }
+}
+
+// ---------- fallen petal drifts on the grass (dense under trees) ----------
+{
+  const petalMats = [PAL.petal, PAL.petalDeep, PAL.blossomC].map(c =>
+    new THREE.MeshStandardMaterial({ color: c, roughness: 1, side: THREE.DoubleSide }));
+  const spots = [[-4.4, -3.0, 2.6, 70], [3.6, -4.2, 2.2, 50], [4.6, 3.4, 2.4, 55], [-3.4, 4.2, 1.9, 40], [0, 0, 7, 60]];
+  for (const [cx, cz, cr, n] of spots) {
+    for (let i = 0; i < n; i++) {
+      const p = new THREE.Mesh(new THREE.CircleGeometry(rand(0.045, 0.075), 4), petalMats[i % 3]);
+      const a = rand(0, 6.28), rr = Math.sqrt(Math.random()) * cr;
+      p.position.set(cx + Math.cos(a) * rr, GRASS_Y + 0.06 + rand(0, 0.02), cz + Math.sin(a) * rr);
+      p.rotation.set(-Math.PI / 2 + rand(-0.35, 0.35), rand(0, 6.28), 0);
+      slabGroup.add(p);
+    }
+  }
+}
+
+// ---------- falling petals (pooled, always drifting) ----------
+const PETALS = 150;
+const petGeo = new THREE.PlaneGeometry(0.11, 0.075);
+const petMat = new THREE.MeshStandardMaterial({ color: PAL.petal, roughness: 1, side: THREE.DoubleSide });
+const petMesh = new THREE.InstancedMesh(petGeo, petMat, PETALS);
+petMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+scene.add(petMesh);
+const petDat = [];
+const _m4 = new THREE.Matrix4(), _q = new THREE.Quaternion(), _e = new THREE.Euler(), _v = new THREE.Vector3(), _sv = new THREE.Vector3(1,1,1);
+function petalSpawn(i, burstFrom) {
+  if (burstFrom) {
+    petDat[i] = { x: burstFrom.x + rand(-1.2, 1.2), y: burstFrom.y + rand(-0.3, 0.8), z: burstFrom.z + rand(-1.2, 1.2),
+      vy: rand(0.25, 0.5), ph: rand(0, 6.28), spin: rand(1.5, 3.5), drift: rand(0.2, 0.5) };
+  } else {
+    const c = canopies[Math.floor(rand(0, canopies.length))];
+    petDat[i] = { x: c.center.x + rand(-1.6, 1.6), y: c.center.y + rand(-0.5, 1.0), z: c.center.z + rand(-1.6, 1.6),
+      vy: rand(0.22, 0.42), ph: rand(0, 6.28), spin: rand(1.5, 3.5), drift: rand(0.15, 0.45) };
+  }
+}
+for (let i = 0; i < PETALS; i++) { petalSpawn(i); petDat[i].y = rand(GRASS_Y + 0.2, 5.5); }
+
+// ---------- hints ----------
+const HINTS = {
+  idle: 'Tap a cherry tree for a petal shower',
+  burst: 'A shower of petals',
+  auto: 'A spring breeze rolls through'
+};
+function setHint(s) {
+  hintEl.textContent = HINTS[s]; hintEl.classList.remove('faded');
+  clearTimeout(setHint._t);
+  setHint._t = setTimeout(() => hintEl.classList.add('faded'), 6000);
+}
+setHint('idle');
+
+// ---------- camera framing (point-set fit, portrait-aware) ----------
+const FIT_CENTER = new THREE.Vector3(0, 1.7, 0);
+const FIT_PTS = [];
+for (const x of [-8.4, 8.4]) for (const y of [-SLAB_H, 1.2]) for (const z of [-8.4, 8.4])
+  FIT_PTS.push(new THREE.Vector3(x, y, z));
+for (const c of canopies)
+  FIT_PTS.push(new THREE.Vector3(c.center.x, c.center.y + 1.9 * c.s, c.center.z));
+function fitDir() {
+  const a = innerWidth / innerHeight;
+  if (a < 0.62) return new THREE.Vector3(0.1, 0.4, 1).normalize();
+  if (a < 0.9) return new THREE.Vector3(0.42, 0.38, 1).normalize();
+  return new THREE.Vector3(0.62, 0.4, 1).normalize();
+}
+const _rel = new THREE.Vector3();
+function requiredDistance(right, up, fwd, target) {
+  const fovV = THREE.MathUtils.degToRad(camera.fov);
+  const tanH = Math.tan(Math.atan(Math.tan(fovV/2) * camera.aspect));
+  const tanV = Math.tan(fovV/2);
+  let d = 4;
+  for (const c of FIT_PTS) {
+    _rel.copy(c).sub(target);
+    const cf = _rel.dot(fwd);
+    d = Math.max(d,
+      Math.abs(_rel.dot(right)) / tanH - cf,
+      Math.abs(_rel.dot(up)) / tanV - cf);
+  }
+  return d;
+}
+function frameInitialCamera() {
+  pickFov();
+  const fd = fitDir();
+  const fwd = fd.clone().negate();
+  const right = new THREE.Vector3().crossVectors(fwd, new THREE.Vector3(0,1,0)).normalize();
+  const up = new THREE.Vector3().crossVectors(right, fwd).normalize();
+  const dist = requiredDistance(right, up, fwd, FIT_CENTER) * 1.06;
+  camera.position.copy(FIT_CENTER).addScaledVector(fd, dist);
+  controls.target.copy(FIT_CENTER);
+  camera.updateProjectionMatrix(); controls.update();
+}
+frameInitialCamera();
+
+// ---------- tap handling ----------
+const ray = new THREE.Raycaster(); const ndc = new THREE.Vector2();
+let downX = 0, downY = 0, downT = 0;
+let burstN = 0, burstFrom = null, nextBreeze = 16;
+renderer.domElement.addEventListener('pointerdown', e => { downX = e.clientX; downY = e.clientY; downT = performance.now(); });
+renderer.domElement.addEventListener('pointerup', e => {
+  if (Math.hypot(e.clientX - downX, e.clientY - downY) > 7 || performance.now() - downT > 450) return;
+  ndc.set((e.clientX / innerWidth) * 2 - 1, -(e.clientY / innerHeight) * 2 + 1);
+  ray.setFromCamera(ndc, camera);
+  const hits = ray.intersectObjects(tapTargets, false);
+  if (!hits.length) return;
+  burstFrom = hits[0].object.userData.tree; burstN = 60;
+  setHint('burst');
+});
+
+addEventListener('resize', () => {
+  camera.aspect = innerWidth/innerHeight;
+  renderer.setSize(innerWidth, innerHeight);
+  renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+  frameInitialCamera();
+});
+
+// ---------- animate ----------
+const clock = new THREE.Clock();
+function animate() {
+  requestAnimationFrame(animate);
+  const dt = Math.min(clock.getDelta(), 0.05);
+  const t = clock.elapsedTime;
+
+  // breeze auto event: every tree sheds a small flurry
+  nextBreeze -= dt;
+  if (nextBreeze <= 0) {
+    nextBreeze = rand(16, 24);
+    if (!burstN) {
+      const c = canopies[Math.floor(rand(0, canopies.length))];
+      burstFrom = { x: c.center.x, y: c.center.y, z: c.center.z }; burstN = 26;
+      setHint('auto');
+    }
+  }
+  // burst spawning (tap shower or breeze flurry)
+  if (burstN > 0 && burstFrom) {
+    let spawned = 0;
+    for (let i = 0; i < PETALS && burstN > 0 && spawned < 4; i++) {
+      if (petDat[i].y <= GRASS_Y + 0.12) { petalSpawn(i, burstFrom); burstN--; spawned++; }
+    }
+    if (burstN <= 0) { burstFrom = null; setHint('idle'); }
+  }
+
+  // canopy sway
+  for (const c of canopies) {
+    c.grp.rotation.z = Math.sin(t * 0.7 + c.ph) * 0.02;
+    c.grp.rotation.x = Math.cos(t * 0.55 + c.ph) * 0.015;
+  }
+
+  // falling petals: flutter down, respawn at canopies on landing
+  for (let i = 0; i < PETALS; i++) {
+    const d = petDat[i];
+    if (d.y > GRASS_Y + 0.1) {
+      d.y -= d.vy * dt;
+      d.x += Math.sin(t * 1.6 + d.ph) * d.drift * dt;
+      d.z += Math.cos(t * 1.3 + d.ph) * d.drift * dt * 0.7;
+    }
+    _e.set(t * d.spin + d.ph, d.ph, Math.sin(t * 1.8 + d.ph) * 0.7);
+    _q.setFromEuler(_e);
+    _v.set(d.x, Math.max(d.y, GRASS_Y + 0.06), d.z);
+    _m4.compose(_v, _q, _sv);
+    petMesh.setMatrixAt(i, _m4);
+    if (d.y <= GRASS_Y + 0.1 && burstN <= 0 && Math.random() < dt * 0.08) petalSpawn(i);
+  }
+  petMesh.instanceMatrix.needsUpdate = true;
+
+  // containment floor (keep orbit from clipping inside)
+  {
+    const fwd = new THREE.Vector3(); camera.getWorldDirection(fwd);
+    const rgt = new THREE.Vector3().crossVectors(fwd, camera.up).normalize();
+    const up2 = new THREE.Vector3().crossVectors(rgt, fwd).normalize();
+    controls.minDistance = Math.min(requiredDistance(rgt, up2, fwd, controls.target) * 1.04, 26);
+  }
+  controls.update();
+  renderer.render(scene, camera);
+}
+animate();
+// pass 1: first cherry-blossom-garden build - dense from the start (main: sparse schematics get
+//         rejected): 4 bent-trunk cherry trees with 10-13 blob faceted canopies, 150 pooled falling
+//         petals + ~275 ground drift petals, tap tree = 60-petal shower, breeze auto flurries,
+//         stone lantern (warm window), stepping-stone path, 9 rocks, 6 flowering azaleas, 60 grass
+//         tufts, uniform fine-grain grass LIFTED above strata top (no coplanar z-fight)
+</script>
+</body>
+</html>
