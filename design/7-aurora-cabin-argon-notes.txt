@@ -1,0 +1,8 @@
+Aurora Cabin Argon rework, November 1 2026
+Source: https://gemini.google.com/app/1224e08f5aabc51e
+Argon picker checked before sending full original source and replacement brief; Argon remained selected through completed response.
+Detailed cabin, compact layered snow island, pine slopes, frozen pond, bounded aurora curtain, warm lights, woodpile and lantern details.
+Local adjustment: increase tap-flare light multipliers so the warm pool on snow is clearly distinct at 320px.
+Orbit refinement: narrow and move star canopy forward so sampled portrait orbit keeps stars in-frame without shrinking the whole scene. Default view tap/reset/retrigger rechecked at all three sizes.
+Not yet published or live-tested.
+Recovered Nov 2 ~03:00 IST from the Gemini conversation after the prior workspace expired; identical extraction (50,615 chars), repairs reapplied, re-QA pending.
