@@ -58,6 +58,8 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 //          per-frame required-distance fit against the live camera basis drives controls.minDistance
 // pass 15: fit TRUE physical boxes (slab + storm cluster, not inflated all-sky frameBox), responsive fov (38/46/58 by aspect)
 //          so portrait fit distance stays inside a usable range, fog far 120 and maxDistance 200 to match. TEMP __qa hook added.
+// pass 18: z-fight root fix - plain top face was coplanar with strataTop top face (both y=0.0,
+//          whole-surface striping); decal stack raised with real separations + polygonOffset on patches
 // pass 17: cloud smoothing - position-keyed low-frequency noise (no shard cracks), detail-2 icosa,
 //          lifted three-tone palette, no per-lump random rotation (deterministic silhouette)
 // pass 16b: restore glowTexture for mists (deleted with the flicker sprite block)
@@ -146,18 +148,19 @@ strataLayer(1.2, -SLAB_H + 2.0 + 0.6, PAL.strataTop);
 // plain top: subtle two-tone grass patches (hand-placed circles, not noise camo)
 const plainMat = new THREE.MeshStandardMaterial({ color: PAL.grassBase, roughness: 1 });
 const plain = new THREE.Mesh(new THREE.BoxGeometry(SLAB, 0.28, SLAB), plainMat);
-plain.position.y = -0.14; plain.receiveShadow = true;
+plain.position.y = -0.11; // top at 0.03 (was 0.0, coplanar with strata top face) plain.receiveShadow = true;
 slabGroup.add(plain);
 
 const patchMats = [PAL.grassDark, PAL.grassBlade].map(c =>
-  new THREE.MeshStandardMaterial({ color: c, roughness: 1 }));
+  new THREE.MeshStandardMaterial({ color: c, roughness: 1,
+    polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -2 }));
 const patches = [
   [-5.5,-4.5,2.6,0], [3.5,-6,2.2,1], [6,1.5,2.8,0], [-3,4.5,2.4,1],
   [0.5,-1.5,3.0,1], [-6.5,2.5,1.8,0], [5.5,5.5,2.0,1]
 ];
 for (const [x,z,r,mi] of patches) {
   const p = new THREE.Mesh(new THREE.CircleGeometry(r, 20), patchMats[mi]);
-  p.rotation.x = -Math.PI/2; p.position.set(x, 0.005, z);
+  p.rotation.x = -Math.PI/2; p.position.set(x, 0.05, z);
   p.receiveShadow = true; slabGroup.add(p);
 }
 
@@ -174,13 +177,13 @@ for (let i = 0; i <= 26; i++) {
 }
 const pondBed = new THREE.Mesh(new THREE.ShapeGeometry(bedShape),
   new THREE.MeshStandardMaterial({ color: 0x6f6450, roughness: 1 }));
-pondBed.rotation.x = -Math.PI/2; pondBed.position.set(POND.x, 0.012, POND.z);
+pondBed.rotation.x = -Math.PI/2; pondBed.position.set(POND.x, 0.065, POND.z);
 pondBed.receiveShadow = true; slabGroup.add(pondBed);
 const pondWaterMat = new THREE.MeshStandardMaterial({
   color: PAL.pondWater, roughness: 0.12, metalness: 0.05,
   transparent: true, opacity: 0.92 });
 const pondWater = new THREE.Mesh(new THREE.CircleGeometry(1, 28), pondWaterMat);
-pondWater.rotation.x = -Math.PI/2; pondWater.position.set(POND.x, 0.03, POND.z);
+pondWater.rotation.x = -Math.PI/2; pondWater.position.set(POND.x, 0.08, POND.z);
 pondWater.scale.setScalar(POND.minR); slabGroup.add(pondWater);
 
 // ---------- hero cloud: layered cumulonimbus ----------
@@ -365,7 +368,7 @@ function strike() {
   if (scorch) { scene.remove(scorch); scorch.geometry.dispose(); }
   scorch = new THREE.Mesh(new THREE.CircleGeometry(0.55, 14),
     new THREE.MeshBasicMaterial({ color: PAL.scorch, transparent: true, opacity: 0.85 }));
-  scorch.rotation.x = -Math.PI/2; scorch.position.copy(to).y = 0.045;
+  scorch.rotation.x = -Math.PI/2; scorch.position.copy(to).y = 0.1;
   scene.add(scorch); scorchLife = 1;
 }
 
@@ -517,7 +520,7 @@ function animate() {
   POND.fill = THREE.MathUtils.clamp(POND.fill + (overPond ? dt/90 : -dt/240), 0, 1);
   const r = THREE.MathUtils.lerp(POND.minR, POND.maxR, POND.fill);
   pondWater.scale.setScalar(r);
-  pondWater.position.y = 0.03 + POND.fill * 0.045;
+  pondWater.position.y = 0.08 + POND.fill * 0.045;
   pondWaterMat.opacity = 0.85 + Math.sin(t*2.2) * 0.04 * POND.fill;
   if (POND.fill >= 0.999 && hintEl.textContent !== HINTS.full) setHint('full');
 
