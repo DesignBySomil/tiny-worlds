@@ -14,7 +14,7 @@
     color:#cfd8e2; text-transform:uppercase; text-shadow:0 1px 8px rgba(10,14,20,.7); }
   header .rule { width:44px; height:1px; background:rgba(207,216,226,.5); margin:9px auto; }
   #hint { display:inline-block; font-size:11.5px; letter-spacing:.24em; text-transform:uppercase;
-    color:#c7d2de; transition:opacity 1.2s ease; text-shadow:0 1px 3px rgba(10,14,20,.9), 0 0 10px rgba(10,14,20,.6); }
+    color:#dbe4ee; transition:opacity 1.2s ease; text-shadow:0 1px 2px rgba(10,14,20,1), 0 0 12px rgba(10,14,20,.85); }
   #hint.faded { opacity:.42; }
   footer { position:fixed; bottom:0; left:0; right:0; text-align:center; pointer-events:none;
     padding:0 16px max(14px, env(safe-area-inset-bottom)); z-index:5;
@@ -44,6 +44,7 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 // pass 1: first thunderstorm-cell build - storm day palette, hero cumulonimbus, drag-to-steer, tap lightning, rain-fed pond
 // pass 2: legibility + form - lifted storm light, lighter greys, wider lower cloud, clearer header, lighter pond bed/canopy
 // pass 3: root form pass - cloud rebuilt as interpenetrating wide-base cumulonimbus (no coil stack), irregular mud-ring pond with visible water from start, hint contrast lifted
+// pass 4: coherent form - cloud is ONE sculpted lathe+value-noise volume with vertical vertex-color gradient (no ball seams), pond gets sandy mud shore + wider visible water, cloud shadow off (was blacking out the pond), lower cloud altitude, stronger hint contrast
 
 // ---------- palette (brooding storm day, distinct from volcano dusk / mushroom night) ----------
 const PAL = {
@@ -51,7 +52,7 @@ const PAL = {
   grassBase: 0x5d7048, grassDark: 0x46573a, grassBlade: 0x6d8053,
   strataTop: 0x5a4f3d, strataMid: 0x4a3f33, strataRock: 0x3a3a40,
   cloudDark: 0x4a515e, cloudMid: 0x646e7c, cloudRim: 0xa9b3c2,
-  pondBed: 0x4a453a, pondWater: 0x51707e,
+  pondBed: 0x8a7d63, pondWater: 0x6b8a99,
   rain: 0xaab8c8, bolt: 0xeaf2ff, scorch: 0x141210
 };
 
@@ -136,13 +137,13 @@ for (const [x,z,r,mi] of patches) {
 }
 
 // ---------- pond (off-center dip, fills with rain) ----------
-const POND = { x: 3.2, z: -2.6, maxR: 2.9, minR: 0.95, fill: 0.1 };
+const POND = { x: 3.2, z: -2.6, maxR: 2.6, minR: 1.5, fill: 0.15 };
 // irregular muddy shore ring (hand-wobbled outline, not a perfect disc)
 const bedShape = new THREE.Shape();
 for (let i = 0; i <= 26; i++) {
   const a = (i / 26) * Math.PI * 2;
   const wob = 1 + 0.14 * Math.sin(a*3 + 1.2) + 0.09 * Math.sin(a*5 + 0.4);
-  const r = (POND.maxR + 0.45) * wob;
+  const r = (POND.maxR + 0.55) * wob;
   const px = Math.cos(a) * r, py = Math.sin(a) * r;
   if (i === 0) bedShape.moveTo(px, py); else bedShape.lineTo(px, py);
 }
@@ -159,32 +160,46 @@ pondWater.scale.setScalar(POND.minR); slabGroup.add(pondWater);
 
 // ---------- hero cloud: layered cumulonimbus ----------
 const cloud = new THREE.Group(); scene.add(cloud);
-const CLOUD_Y = 6.6;
-function puff(x, y, z, sx, sy, sz, color) {
-  const m = new THREE.Mesh(new THREE.SphereGeometry(1, 20, 16),
-    new THREE.MeshStandardMaterial({ color, roughness: 1, emissive: color, emissiveIntensity: 0.22 }));
-  m.position.set(x, y, z); m.scale.set(sx, sy, sz);
-  m.castShadow = true; cloud.add(m); return m;
+const CLOUD_Y = 6.1;
+// deterministic 3D value noise (no texture deps)
+function hash3(x, y, z) { const s = Math.sin(x*127.1 + y*311.7 + z*74.7) * 43758.5453; return s - Math.floor(s); }
+function vnoise(x, y, z) {
+  const xi=Math.floor(x), yi=Math.floor(y), zi=Math.floor(z);
+  const xf=x-xi, yf=y-yi, zf=z-zi;
+  const u=xf*xf*(3-2*xf), v=yf*yf*(3-2*yf), w=zf*zf*(3-2*zf);
+  const l=(a,b,t)=>a+(b-a)*t;
+  return l(
+    l(l(hash3(xi,yi,zi),hash3(xi+1,yi,zi),u), l(hash3(xi,yi+1,zi),hash3(xi+1,yi+1,zi),u), v),
+    l(l(hash3(xi,yi,zi+1),hash3(xi+1,yi,zi+1),u), l(hash3(xi,yi+1,zi+1),hash3(xi+1,yi+1,zi+1),u), v), w)*2-1;
 }
-// wide flat base (dark), puffs interpenetrate so seams disappear
-puff(-2.6,-0.30, 0.3, 2.0,0.85,1.7, PAL.cloudDark);
-puff(-1.2,-0.34,-0.9, 2.2,0.9,1.9,  PAL.cloudDark);
-puff( 0.4,-0.30, 0.2, 2.4,0.95,2.0, PAL.cloudDark);
-puff( 2.2,-0.32,-0.4, 2.1,0.85,1.8, PAL.cloudDark);
-puff( 1.2,-0.28, 1.2, 1.8,0.8,1.5,  PAL.cloudDark);
-puff(-0.8,-0.30, 1.3, 1.9,0.8,1.5,  PAL.cloudDark);
-// mid body, broader than tall
-puff(-1.6, 0.65, 0.2, 1.9,1.25,1.6, PAL.cloudMid);
-puff( 0.1, 0.8, -0.5, 2.1,1.35,1.8, PAL.cloudMid);
-puff( 1.7, 0.7, 0.3, 1.8,1.2,1.5,  PAL.cloudMid);
-puff( 0.4, 0.75, 1.1, 1.6,1.1,1.3,  PAL.cloudMid);
-puff(-0.6, 0.85,-1.2, 1.6,1.15,1.3, PAL.cloudMid);
-// upper mass + one asymmetric rising tower, rim-lit tops
-puff(-0.9, 1.75, 0.1, 1.5,1.15,1.3, PAL.cloudMid);
-puff( 0.8, 1.85,-0.3, 1.4,1.1,1.2,  PAL.cloudMid);
-puff(-0.2, 2.6, 0.2,  1.05,0.95,0.95, PAL.cloudRim);
-puff( 0.7, 2.75,-0.4, 0.9,0.85,0.8,  PAL.cloudRim);
-puff( 0.2, 3.35,-0.1, 0.62,0.6,0.58, PAL.cloudRim);
+// single closed volume: cumulonimbus lathe profile, noise-displaced, flat base
+const cProfile = [[0.001,0],[1.9,0.02],[2.75,0.18],[3.15,0.55],[3.0,1.0],[2.55,1.5],[2.0,1.95],[1.55,2.4],[1.2,2.85],[0.95,3.25],[0.62,3.6],[0.001,3.85]];
+const cGeo = new THREE.LatheGeometry(cProfile.map(([r,y]) => new THREE.Vector2(r,y)), 44);
+{
+  const pos = cGeo.attributes.position;
+  const cols = [];
+  const cBase = new THREE.Color(0x454c5a), cMid = new THREE.Color(0x6d7684), cTop = new THREE.Color(0xbcc6d3);
+  for (let i = 0; i < pos.count; i++) {
+    const x = pos.getX(i), y = pos.getY(i), z = pos.getZ(i);
+    const flat = THREE.MathUtils.smoothstep(y, 0.05, 1.1); // keep underside flat
+    const radial = Math.hypot(x, z) || 1;
+    const n = vnoise(x*0.55+7, y*0.55, z*0.55) * 0.62 + vnoise(x*1.35, y*1.35, z*1.35) * 0.26;
+    const amp = 0.44 * flat;
+    pos.setXYZ(i,
+      x + (x/radial) * n * amp,
+      y + vnoise(x*0.8+31, y*0.8, z*0.8) * 0.26 * flat,
+      z + (z/radial) * n * amp);
+    const t = THREE.MathUtils.clamp(y / 3.85, 0, 1);
+    const c = t < 0.5 ? cBase.clone().lerp(cMid, t*2) : cMid.clone().lerp(cTop, (t-0.5)*2);
+    cols.push(c.r, c.g, c.b);
+  }
+  cGeo.setAttribute('color', new THREE.Float32BufferAttribute(cols, 3));
+  cGeo.computeVertexNormals();
+}
+const cloudBody = new THREE.Mesh(cGeo, new THREE.MeshStandardMaterial({
+  vertexColors: true, roughness: 1, metalness: 0, side: THREE.DoubleSide }));
+cloudBody.castShadow = false; // a real cell darkens the ground diffusely; hard shadow was blacking out the pond
+cloud.add(cloudBody);
 cloud.position.set(-2.5, CLOUD_Y, 1.0);
 
 // soft glow sprite inside cloud for idle flicker
