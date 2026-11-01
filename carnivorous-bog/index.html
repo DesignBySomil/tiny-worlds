@@ -47,7 +47,7 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 
-// pass 7
+// pass 8
 const container = document.getElementById('app');
 const hintEl = document.getElementById('hint');
 const scene = new THREE.Scene();
@@ -453,9 +453,11 @@ function fitCamera() {
     const d = -p.z;
     need = Math.max(need, d + Math.abs(p.y) / Math.tan(vFov), d + Math.abs(p.x) / Math.tan(hFov));
   }
-  const dist = need * 1.06 + 0.2;
+  const dist = need * 1.1 + 0.2;
   camera.position.copy(center).addScaledVector(dir, dist);
-  camera.lookAt(center); controls.update();
+  controls.target.y += -0.35;
+  camera.position.y += -0.35;
+  camera.lookAt(controls.target); controls.update();
 }
 fitCamera();
 addEventListener('resize', () => {
