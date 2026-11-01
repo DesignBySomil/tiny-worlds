@@ -492,10 +492,20 @@ renderer.domElement.addEventListener('pointerup', e => {
   if (Math.hypot(e.clientX - downX, e.clientY - downY) > 7 || performance.now() - downT > 450) return;
   ndc.set((e.clientX / innerWidth) * 2 - 1, -(e.clientY / innerHeight) * 2 + 1);
   ray.setFromCamera(ndc, camera);
-  const hits = ray.intersectObjects(tapTargets, false);
-  if (hits.length) {
-    const m = hits[0].object.userData.msh;
-    if (m && !m.lit) lightMushroom(m);
+  const hits = ray.intersectObjects([...tapTargets, floor], false);
+  if (!hits.length) return;
+  const m = hits[0].object.userData.msh;
+  if (m) { if (!m.lit) lightMushroom(m); return; }
+  // pass 13: tapped near a mushroom's base on the floor -> light the nearest one
+  // (fingertips land where the eye sees the mushroom, not on exact geometry)
+  if (hits[0].object === floor) {
+    const p = hits[0].point;
+    let best = null, bd = 1.1;
+    for (const q of MSH) {
+      const d = Math.hypot(p.x - q.x, p.z - q.z);
+      if (d < bd) { bd = d; best = q; }
+    }
+    if (best && !best.lit) lightMushroom(best);
   }
 });
 
@@ -546,6 +556,7 @@ Promise.all(['BirchTree_Dead_1.glb', 'BirchTree_Dead_3.glb', 'Rock_Moss_1.glb',
   });
 
 // pass markers for deploy verification
+// pass 13: floor-tap nearest-mushroom fallback (forgiving targeting, phone-first)
 // pass 12: proxies repositioned to cap tops with tighter radius (were blanketing neighbours)
 // pass 11: QA lit-state probe for deterministic retest
 // pass 10: invisible forgiving hit proxies per mushroom (phone tap usability)
