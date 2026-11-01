@@ -43,7 +43,7 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 
-// pass 1
+// pass 2
 const container = document.getElementById('app');
 const hintEl = document.getElementById('hint');
 const scene = new THREE.Scene();
@@ -67,7 +67,7 @@ const controls = new OrbitControls(camera, renderer.domElement);
 controls.enableDamping = true; controls.dampingFactor = 0.06;
 controls.enablePan = false; controls.maxPolarAngle = Math.PI * 0.52;
 
-const sun = new THREE.DirectionalLight(0xffd9b0, 1.6);
+const sun = new THREE.DirectionalLight(0xffd9b0, 2.1);
 sun.position.set(7, 11, 5); sun.castShadow = true;
 sun.shadow.mapSize.set(1024, 1024);
 sun.shadow.camera.left = -14; sun.shadow.camera.right = 14;
@@ -76,7 +76,7 @@ sun.shadow.camera.far = 60; sun.shadow.bias = -0.0006;
 scene.add(sun);
 const emberGlow = new THREE.PointLight(0xff6a26, 0.9, 22);
 emberGlow.position.set(0, 2.2, 0); scene.add(emberGlow);
-scene.add(new THREE.HemisphereLight(0x6a5648, 0x1a1310, 0.9));
+scene.add(new THREE.HemisphereLight(0x8a7462, 0x241a14, 1.3));
 
 function mulberry32(a) {
   return function() {
@@ -93,7 +93,7 @@ function rand(a, b) { return a + rng() * (b - a); }
 const SLAB_H = 1.4;
 const slabGroup = new THREE.Group(); scene.add(slabGroup);
 {
-  const ashMat = new THREE.MeshStandardMaterial({ color: 0x4a4038, roughness: 1 });
+  const ashMat = new THREE.MeshStandardMaterial({ color: 0x5f5347, roughness: 1 });
   const top = new THREE.Mesh(new THREE.BoxGeometry(12, 0.22, 12), ashMat);
   top.position.y = -0.11; top.receiveShadow = true; slabGroup.add(top);
   const charMat = new THREE.MeshStandardMaterial({ color: 0x241d18, roughness: 1 });
@@ -103,13 +103,13 @@ const slabGroup = new THREE.Group(); scene.add(slabGroup);
   const base = new THREE.Mesh(new THREE.BoxGeometry(12.4, 0.5, 12.4), baseMat);
   base.position.y = -SLAB_H - 0.45; slabGroup.add(base);
   // ash mounds + scorch patches
-  const patchMat = new THREE.MeshStandardMaterial({ color: 0x372e26, roughness: 1 });
+  const patchMat = new THREE.MeshStandardMaterial({ color: 0x4a3f34, roughness: 1 });
   for (let i = 0; i < 16; i++) {
     const p = new THREE.Mesh(new THREE.CircleGeometry(rand(0.5, 1.4), 9), patchMat);
     p.rotation.x = -Math.PI/2; p.position.set(rand(-5.4, 5.4), 0.011, rand(-5.4, 5.4));
     p.receiveShadow = true; slabGroup.add(p);
   }
-  const moundMat = new THREE.MeshStandardMaterial({ color: 0x55483c, roughness: 1 });
+  const moundMat = new THREE.MeshStandardMaterial({ color: 0x6e5f4e, roughness: 1 });
   for (let i = 0; i < 9; i++) {
     const m = new THREE.Mesh(new THREE.SphereGeometry(rand(0.25, 0.55), 8, 6), moundMat);
     m.scale.y = 0.35; m.position.set(rand(-5.2, 5.2), 0.02, rand(-5.2, 5.2));
@@ -120,11 +120,11 @@ const slabGroup = new THREE.Group(); scene.add(slabGroup);
 // ---------- charred trunks with ember cracks ----------
 const embers = [];
 {
-  const trunkMat = new THREE.MeshStandardMaterial({ color: 0x191310, roughness: 1 });
+  const trunkMat = new THREE.MeshStandardMaterial({ color: 0x2b211a, roughness: 1 });
   const crackMat = new THREE.MeshStandardMaterial({ color: 0xff5a1a, emissive: 0xff4a10, emissiveIntensity: 1.4, roughness: 0.6 });
   const spots = [
-    [-3.6,-2.6,2.4],[-1.8,-3.6,1.6],[1.2,-3.0,2.8],[3.8,-2.2,1.9],[4.4,0.8,2.6],
-    [2.6,3.0,1.5],[-0.6,3.4,2.2],[-3.2,2.2,1.7],[-4.4,0.2,2.9],[0.8,0.6,1.3],[4.2,-4.2,1.4],[-4.6,-4.0,1.2]
+    [-3.6,-2.6,3.4],[-1.8,-3.6,1.6],[1.2,-3.0,3.8],[3.8,-2.2,1.9],[4.4,0.8,3.2],
+    [2.6,3.0,1.5],[-0.6,3.4,2.2],[-3.2,2.2,1.7],[-4.4,0.2,3.6],[0.8,0.6,1.3],[4.2,-4.2,1.4],[-4.6,-4.0,2.2]
   ];
   for (const [x, z, h] of spots) {
     const t = new THREE.Mesh(new THREE.CylinderGeometry(rand(0.09, 0.14), rand(0.16, 0.24), h, 7), trunkMat);
@@ -155,7 +155,7 @@ const embers = [];
     }
   }
   // scattered stones
-  const stoneMat = new THREE.MeshStandardMaterial({ color: 0x5e544a, roughness: 1 });
+  const stoneMat = new THREE.MeshStandardMaterial({ color: 0x77695c, roughness: 1 });
   for (let i = 0; i < 14; i++) {
     const s = new THREE.Mesh(new THREE.DodecahedronGeometry(rand(0.07, 0.16), 0), stoneMat);
     s.position.set(rand(-5.4, 5.4), 0.05, rand(-5.4, 5.4));
@@ -266,7 +266,7 @@ renderer.domElement.addEventListener('pointerup', e => {
 // ---------- camera containment ----------
 function collectFit() {
   const b = new THREE.Box3().setFromObject(slabGroup);
-  b.expandByPoint(new THREE.Vector3(0, 4.2, 0));
+  b.expandByPoint(new THREE.Vector3(0, 4.6, 0));
   return b;
 }
 const fitBox = collectFit();
