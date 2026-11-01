@@ -49,6 +49,7 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 // pass 6: cauliflower lobes - mid-frequency dominant displacement for real lobe shading separation, stronger base->top value contrast
 // pass 7: apex fix - radial displacement attenuated near the axis (pass 6 tore the top ring into an open cone)
 // pass 8: material change - solid mesh abandoned (read as rock); cloud is now a soft billboard-puff cluster (cumulonimbus layout, height-tinted), invisible sphere proxy for tap/drag raycast
+// pass 9: puff cluster scaled to hero size (pass 8 read tiny), deeper base tints
 
 // ---------- palette (brooding storm day, distinct from volcano dusk / mushroom night) ----------
 const PAL = {
@@ -181,18 +182,18 @@ const cloudPuffs = [];
 // cumulonimbus layout: [x, y, z, scale, tintHex] - wide flat base, mid cluster, one tower
 const CLOUD_LAYOUT = [
   // flat dark base layer
-  [-2.4,-0.15, 0.2, 2.3, 0x454c5a], [-1.1,-0.22,-0.8, 2.5, 0x3f4653],
-  [ 0.3,-0.18, 0.3, 2.7, 0x454c5a], [ 1.9,-0.15,-0.3, 2.4, 0x3f4653],
-  [ 1.0,-0.2,  1.2, 2.0, 0x454c5a], [-1.0,-0.2,  1.1, 2.1, 0x4a5160],
-  [-2.0,-0.12, 1.0, 1.8, 0x4a5160], [ 2.6,-0.18, 0.8, 1.7, 0x454c5a],
+  [-2.4,-0.15,0.2, 4.37, 0x323845], [-1.1,-0.22,-0.8, 4.75, 0x2e3440],
+  [ 0.3,-0.18,0.3, 5.13, 0x323845], [ 1.9,-0.15,-0.3, 4.56, 0x2e3440],
+  [ 1.0,-0.2,1.2, 3.8, 0x323845], [-1.0,-0.2,1.1, 3.99, 0x39404d],
+  [-2.0,-0.12,1.0, 3.42, 0x39404d], [ 2.6,-0.18,0.8, 3.23, 0x323845],
   // mid body
-  [-1.6, 0.8, 0.1, 2.2, 0x6d7684], [ 0.0, 1.0,-0.4, 2.4, 0x717b8a],
-  [ 1.5, 0.9, 0.3, 2.1, 0x6d7684], [ 0.5, 0.85, 1.0, 1.9, 0x77808e],
-  [-0.6, 0.95,-1.0, 1.9, 0x6d7684],
+  [-1.6,0.8,0.1, 4.18, 0x6d7684], [ 0.0,1.0,-0.4, 4.56, 0x717b8a],
+  [ 1.5,0.9,0.3, 3.99, 0x6d7684], [ 0.5,0.85,1.0, 3.61, 0x77808e],
+  [-0.6,0.95,-1.0, 3.61, 0x6d7684],
   // upper mass
-  [-0.8, 1.9, 0.1, 1.8, 0x9aa4b2], [ 0.7, 2.0,-0.3, 1.7, 0xa4aebb],
+  [-0.8,1.9,0.1, 3.42, 0x9aa4b2], [ 0.7,2.0,-0.3, 3.23, 0xa4aebb],
   // tower, brightest tops
-  [-0.1, 2.8, 0.1, 1.4, 0xc3ccd8], [ 0.6, 3.3,-0.2, 1.0, 0xd0d9e3],
+  [-0.1,2.8,0.1, 2.66, 0xc3ccd8], [ 0.6,3.3,-0.2, 1.9, 0xd0d9e3],
 ];
 for (const [x, y, z, s, tint] of CLOUD_LAYOUT) {
   const sp = new THREE.Sprite(new THREE.SpriteMaterial({
@@ -202,9 +203,9 @@ for (const [x, y, z, s, tint] of CLOUD_LAYOUT) {
   cloud.add(sp); cloudPuffs.push(sp);
 }
 // invisible raycast proxy so tap/drag hit-testing stays cheap and generous
-const cloudProxy = new THREE.Mesh(new THREE.SphereGeometry(3.2, 8, 8),
+const cloudProxy = new THREE.Mesh(new THREE.SphereGeometry(5.5, 8, 8),
   new THREE.MeshBasicMaterial({ visible: false }));
-cloudProxy.position.y = 1.2; cloud.add(cloudProxy);
+cloudProxy.position.y = 1.8; cloud.add(cloudProxy);
 cloud.position.set(-2.5, CLOUD_Y, 1.0);
 
 // soft glow sprite inside cloud for idle flicker
