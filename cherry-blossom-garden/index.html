@@ -79,7 +79,18 @@ scene.add(new THREE.HemisphereLight(0xcfe4f0, 0x7a9a62, 1.2));
 const fill = new THREE.DirectionalLight(0xf0e0e8, 0.4);
 fill.position.set(-10, 7, -8); scene.add(fill);
 
-const rand = (a, b) => a + Math.random() * (b - a);
+// pass 5: seeded RNG - deterministic composition so QA before/after pixels are comparable (main)
+function mulberry32(seed) {
+  let a = seed >>> 0;
+  return function() {
+    a |= 0; a = (a + 0x6D2B79F5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+const rng = mulberry32(20261101);
+const rand = (a, b) => a + rng() * (b - a);
 
 // ---------- palette ----------
 const PAL = {
@@ -425,7 +436,7 @@ function animate() {
     _v.set(d.x, Math.max(d.y, GRASS_Y + 0.06), d.z);
     _sv.setScalar(d.scale || 1); _m4.compose(_v, _q, _sv); _sv.set(1,1,1);
     petMesh.setMatrixAt(i, _m4);
-    if (d.y <= GRASS_Y + 0.1 && Math.random() < dt * 0.08) petalSpawn(i);
+    if (d.y <= GRASS_Y + 0.1 && rng() < dt * 0.08) petalSpawn(i);
   }
   petMesh.instanceMatrix.needsUpdate = true;
 
@@ -440,6 +451,7 @@ function animate() {
   renderer.render(scene, camera);
 }
 animate();
+// pass 5: seeded composition (mulberry32) - identical trees/layout every load for QA
 // pass 4: burst petals at 1.7x scale - the flurry reads on phone-size viewports
 // pass 3: petal shower is an instant 60-petal teleport flurry at the tapped canopy
 //         (trickle spawn was unphotogenic, hint reverted before the shower read)

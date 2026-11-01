@@ -158,10 +158,10 @@ function staghorn(x, z, color, scale = 1) {
       const nd = dir.clone()
         .add(new THREE.Vector3(rand(-0.75, 0.75), rand(0.25, 0.7), rand(-0.75, 0.75)))
         .normalize();
-      branch(end.x, end.y, end.z, nd, len * rand(0.6, 0.78), rad * 0.66, depth - 1);
+      branch(end.x, end.y, end.z, nd, len * rand(0.62, 0.8), rad * 0.72, depth - 1);
     }
   }
-  branch(x, 0, z, new THREE.Vector3(rand(-0.15,0.15), 1, rand(-0.15,0.15)).normalize(), 1.3 * scale, 0.19 * scale, 3);
+  branch(x, 0, z, new THREE.Vector3(rand(-0.15,0.15), 1, rand(-0.15,0.15)).normalize(), 1.45 * scale, 0.26 * scale, 3);
   scene.add(g);
   regTap(g, x, 1.7 * scale, z, 2.0 * scale, { name: 'staghorn', x, z });
   return g;
@@ -248,26 +248,30 @@ staghorn(-4.6, -3.2, PAL.stagOrange, 1.3);
 staghorn(3.8, 2.4, PAL.stagPink, 1.15);
 staghorn(5.2, -3.8, PAL.stagPurple, 1.0);
 staghorn(-2.2, 4.4, PAL.stagPink, 0.85);
+staghorn(-0.8, -4.9, PAL.stagOrange, 0.95);
+staghorn(6.4, 3.9, PAL.stagPink, 0.8);
 brain(-1.2, 1.6, PAL.brainGreen, 1.55);
 brain(2.2, -1.8, PAL.brainGold, 1.15);
 brain(-6.2, -0.6, PAL.brainGold, 0.9);
+brain(0.4, 3.2, PAL.brainGreen, 1.0);
 seaFan(-5.6, 1.8, PAL.fanRed, 1.9, 0.5);
 seaFan(0.6, -4.6, PAL.fanMagenta, 1.6, -0.4);
 seaFan(5.8, 0.4, PAL.fanRed, 1.45, 2.2);
-sponges(-2.8, -4.4, 6);
-sponges(1.4, 4.6, 5);
+sponges(-2.8, -4.4, 8);
+sponges(1.4, 4.6, 7);
+sponges(6.6, -0.9, 5);
 anemone(-0.4, -0.6);
 
 // sand scatter: shells, starfish, pebbles
 {
   const shellMat = new THREE.MeshStandardMaterial({ color: 0xf0e4d0, roughness: 0.9 });
-  for (let i = 0; i < 22; i++) {
+  for (let i = 0; i < 40; i++) {
     const s = new THREE.Mesh(new THREE.SphereGeometry(rand(0.07, 0.14), 7, 5), shellMat);
     s.scale.y = 0.45; s.position.set(rand(-7.2, 7.2), 0.05, rand(-7.2, 7.2));
     s.castShadow = true; slabGroup.add(s);
   }
   const starMat = new THREE.MeshStandardMaterial({ color: 0xe87a5a, roughness: 0.85 });
-  for (let i = 0; i < 4; i++) {
+  for (let i = 0; i < 7; i++) {
     const star = new THREE.Group();
     const armGeo = new THREE.ConeGeometry(0.1, 0.46, 4);
     armGeo.rotateX(Math.PI / 2); armGeo.translate(0, 0, 0.2);   // axis -> +Z, base at origin
@@ -281,10 +285,28 @@ anemone(-0.4, -0.6);
     slabGroup.add(star);
   }
   const pebMat = new THREE.MeshStandardMaterial({ color: 0x8a7a64, roughness: 0.95 });
-  for (let i = 0; i < 18; i++) {
+  for (let i = 0; i < 32; i++) {
     const p = new THREE.Mesh(new THREE.DodecahedronGeometry(rand(0.06, 0.16), 0), pebMat);
     p.position.set(rand(-7.2, 7.2), 0.05, rand(-7.2, 7.2));
     p.rotation.set(rand(0,3), rand(0,3), rand(0,3)); p.castShadow = true; slabGroup.add(p);
+  }
+}
+
+// seaweed tufts (fill the sand, sway with the current)
+const weeds = [];
+{
+  const weedMats = [0x3a7a4a, 0x2e6a52, 0x4a8a52].map(c => new THREE.MeshStandardMaterial({ color: c, roughness: 0.9 }));
+  for (let i = 0; i < 26; i++) {
+    const w = new THREE.Group();
+    const blades = 3 + Math.floor(rand(0, 3));
+    for (let k = 0; k < blades; k++) {
+      const b = new THREE.Mesh(new THREE.ConeGeometry(0.05, rand(0.5, 1.0), 4), weedMats[(i + k) % 3]);
+      b.position.set(rand(-0.09, 0.09), 0.35, rand(-0.09, 0.09));
+      b.rotation.set(rand(-0.2, 0.2), rand(0, 6.28), rand(-0.2, 0.2));
+      w.add(b);
+    }
+    w.position.set(rand(-7.3, 7.3), 0.12, rand(-7.3, 7.3));
+    slabGroup.add(w); weeds.push({ grp: w, ph: rand(0, 6.28) });
   }
 }
 
@@ -491,6 +513,7 @@ function animate() {
     c.mesh.userData.tail.rotation.y = Math.sin(t * 9 + c.ph) * 0.55;
   }
 
+  for (const w of weeds) w.grp.rotation.z = Math.sin(t * 1.1 + w.ph) * 0.09;
   // sea fans sway, anemone tentacles wave
   for (const fn of fans) fn.mesh.rotation.y = fn.base + Math.sin(t * 0.9 + fn.ph) * 0.14;
   for (const tn of tentacles) {
@@ -534,6 +557,8 @@ function animate() {
   renderer.render(scene, camera);
 }
 animate();
+// pass 4: density per main (blank sand, stick corals) - thicker/lusher staghorn, 2 more
+//         staghorn + 1 brain + 1 sponge cluster, 26 swaying seaweed tufts, scatter doubled
 // pass 3: checkerboard was z-fight (sand plane coplanar with strata top y=0), not grain -
 //         sand lifted to y=0.12
 // pass 2: sand checkerboard killed (high-freq grain aliased at 56x56; now dune ripple
