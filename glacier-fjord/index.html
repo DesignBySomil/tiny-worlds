@@ -1,0 +1,421 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Glacier Fjord - a tiny world</title>
+<style>
+  html, body { margin:0; padding:0; height:100%; background:#cfe4ec; overflow:hidden;
+    font-family: Georgia, 'Times New Roman', serif; }
+  #app { position:fixed; inset:0; }
+  header { position:fixed; top:0; left:0; right:0; text-align:center; pointer-events:none;
+    padding: max(18px, env(safe-area-inset-top)) 16px 18px; z-index:5;
+    background: linear-gradient(rgba(10,32,44,.62), rgba(10,32,44,.30) 55%, rgba(10,32,44,0)); }
+  header h1 { margin:0; font-size:15px; letter-spacing:.42em; font-weight:400;
+    color:#f4fafc; text-transform:uppercase; text-shadow:0 1px 8px rgba(6,24,34,.75); }
+  header .rule { width:44px; height:1px; background:rgba(244,250,252,.55); margin:9px auto; }
+  #hint { display:inline-block; font-size:11.5px; letter-spacing:.24em; text-transform:uppercase;
+    color:#f8fcfe; transition:opacity 1.2s ease; padding:5px 12px; border-radius:3px;
+    background:rgba(8,28,40,.45);
+    text-shadow:0 1px 3px rgba(4,18,28,.98), 0 0 8px rgba(4,18,28,.95), 0 0 18px rgba(4,18,28,.85); }
+  #hint.faded { opacity:.45; }
+  footer { position:fixed; bottom:0; left:0; right:0; text-align:center; pointer-events:none;
+    padding:0 16px max(14px, env(safe-area-inset-bottom)); z-index:5;
+    font-size:10px; letter-spacing:.34em; text-transform:uppercase; color:rgba(244,250,252,.62); }
+  canvas { display:block; touch-action:none; }
+</style>
+</head>
+<body>
+<div id="app"></div>
+<header>
+  <h1>Glacier Fjord</h1>
+  <div class="rule"></div>
+  <span id="hint"></span>
+</header>
+<footer>A tiny world</footer>
+<script type="importmap">
+{ "imports": {
+  "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+  "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+} }
+</script>
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+// pass 1
+const container = document.getElementById('app');
+const hintEl = document.getElementById('hint');
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0xcfe4ec);
+scene.fog = new THREE.Fog(0xcfe4ec, 60, 140);
+
+const camera = new THREE.PerspectiveCamera(38, innerWidth/innerHeight, 0.1, 240);
+function pickFov() {
+  const a = innerWidth / innerHeight;
+  camera.fov = a >= 0.9 ? 38 : (a >= 0.62 ? 46 : 58);
+  camera.updateProjectionMatrix();
+}
+pickFov();
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setSize(innerWidth, innerHeight);
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+container.appendChild(renderer.domElement);
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true; controls.dampingFactor = 0.06;
+controls.enablePan = false; controls.maxPolarAngle = Math.PI * 0.52;
+
+const sun = new THREE.DirectionalLight(0xfff4e0, 2.0);
+sun.position.set(-8, 12, 7); sun.castShadow = true;
+sun.shadow.mapSize.set(1024, 1024);
+sun.shadow.camera.left = -14; sun.shadow.camera.right = 14;
+sun.shadow.camera.top = 14; sun.shadow.camera.bottom = -14;
+sun.shadow.camera.far = 60; sun.shadow.bias = -0.0006;
+scene.add(sun);
+scene.add(new THREE.HemisphereLight(0xdceef6, 0x36525e, 1.0));
+
+function mulberry32(a) {
+  return function() {
+    a |= 0; a = a + 0x6D2B79F5 | 0;
+    let t = Math.imul(a ^ a >>> 15, 1 | a);
+    t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+    return ((t ^ t >>> 14) >>> 0) / 4294967296;
+  };
+}
+const rng = mulberry32(20261101);
+function rand(a, b) { return a + rng() * (b - a); }
+
+// ---------- slab: rocky base + water ----------
+const SLAB_H = 1.5;
+const slabGroup = new THREE.Group(); scene.add(slabGroup);
+const WATER_Y = 0.0;
+{
+  const rockMat = new THREE.MeshStandardMaterial({ color: 0x4a5a63, roughness: 1 });
+  const rock = new THREE.Mesh(new THREE.BoxGeometry(12, SLAB_H, 12), rockMat);
+  rock.position.y = -SLAB_H/2 - 0.05; slabGroup.add(rock);
+  const baseMat = new THREE.MeshStandardMaterial({ color: 0x2e3c44, roughness: 1 });
+  const base = new THREE.Mesh(new THREE.BoxGeometry(12.4, 0.5, 12.4), baseMat);
+  base.position.y = -SLAB_H - 0.4; slabGroup.add(base);
+  const waterMat = new THREE.MeshStandardMaterial({ color: 0x2e7f96, roughness: 0.25,
+    metalness: 0.05, transparent: true, opacity: 0.92 });
+  const water = new THREE.Mesh(new THREE.BoxGeometry(11.9, 0.12, 11.9), waterMat);
+  water.position.y = WATER_Y - 0.06; water.receiveShadow = true; slabGroup.add(water);
+  // darker depth patches in the water
+  const deepMat = new THREE.MeshStandardMaterial({ color: 0x1d5d70, roughness: 0.4 });
+  for (let i = 0; i < 8; i++) {
+    const p = new THREE.Mesh(new THREE.CircleGeometry(rand(0.5, 1.2), 9), deepMat);
+    p.rotation.x = -Math.PI/2;
+    p.position.set(rand(-5.2, 5.2), WATER_Y + 0.012, rand(-5.2, 5.2));
+    slabGroup.add(p);
+  }
+}
+
+// ---------- glacier wall (back of the slab) ----------
+const glacierGroup = new THREE.Group(); glacierGroup.position.set(0, WATER_Y, -4.6); slabGroup.add(glacierGroup);
+const ICE = new THREE.MeshStandardMaterial({ color: 0x9fd4e6, roughness: 0.55 });
+const ICE_DEEP = new THREE.MeshStandardMaterial({ color: 0x5fa8c8, roughness: 0.45 });
+const SNOW = new THREE.MeshStandardMaterial({ color: 0xf4fafc, roughness: 0.9 });
+const wallBlocks = [];
+{
+  const W = 9.6;
+  // main wall in stepped blocks with slight offsets
+  const rows = [
+    { y: 0.55, h: 1.1, n: 5, d: 1.6 },
+    { y: 1.55, h: 1.0, n: 5, d: 1.5 },
+    { y: 2.5, h: 0.95, n: 4, d: 1.4 },
+    { y: 3.4, h: 0.9, n: 4, d: 1.3 }
+  ];
+  for (const row of rows) {
+    for (let i = 0; i < row.n; i++) {
+      const w = W / row.n * rand(0.82, 1.05);
+      const b = new THREE.Mesh(new THREE.BoxGeometry(w, row.h, row.d), (rng() < 0.4 ? ICE_DEEP : ICE));
+      b.position.set(-W/2 + (i + 0.5) * (W / row.n) + rand(-0.08, 0.08), row.y, rand(-0.12, 0.12));
+      b.castShadow = true; b.receiveShadow = true;
+      glacierGroup.add(b); wallBlocks.push(b);
+    }
+  }
+  // snow caps on the top row
+  for (let i = 0; i < 4; i++) {
+    const cap = new THREE.Mesh(new THREE.SphereGeometry(rand(0.85, 1.25), 10, 8), SNOW);
+    cap.scale.y = 0.38;
+    cap.position.set(-W/2 + (i + 0.5) * (W / 4), 3.95, rand(-0.2, 0.2));
+    cap.castShadow = true; glacierGroup.add(cap);
+  }
+  // vertical crevasse lines (thin deep-blue boxes on the face)
+  for (let i = 0; i < 9; i++) {
+    const c = new THREE.Mesh(new THREE.BoxGeometry(0.09, rand(1.2, 3.4), 0.05), ICE_DEEP);
+    c.position.set(rand(-4.4, 4.4), rand(1.0, 2.6), 0.84);
+    glacierGroup.add(c);
+  }
+  // snow patches on the face
+  for (let i = 0; i < 7; i++) {
+    const s = new THREE.Mesh(new THREE.SphereGeometry(rand(0.25, 0.5), 8, 6), SNOW);
+    s.scale.set(1, rand(0.5, 0.8), 0.3);
+    s.position.set(rand(-4.4, 4.4), rand(0.8, 3.4), 0.8);
+    glacierGroup.add(s);
+  }
+}
+
+// ---------- side cliffs ----------
+function cliff(px, rotY) {
+  const g = new THREE.Group(); g.position.set(px, WATER_Y, 0); g.rotation.y = rotY; slabGroup.add(g);
+  const mat = new THREE.MeshStandardMaterial({ color: 0x5c6e76, roughness: 1 });
+  for (let i = 0; i < 4; i++) {
+    const w = rand(1.6, 2.6), h = rand(1.4, 2.6), d = rand(1.6, 2.8);
+    const b = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat);
+    b.position.set(rand(-0.5, 0.5), h/2 - 0.2, -4.4 + i * 2.6 + rand(-0.4, 0.4));
+    b.castShadow = true; b.receiveShadow = true; g.add(b);
+    const cap = new THREE.Mesh(new THREE.SphereGeometry(Math.min(w, d) * 0.55, 9, 7), SNOW);
+    cap.scale.y = 0.35; cap.position.set(b.position.x, h - 0.15, b.position.z);
+    g.add(cap);
+  }
+}
+cliff(-5.9, 0); cliff(5.9, 0);
+
+// ---------- floating icebergs ----------
+const bergs = [];
+const BERG_DEFS = [
+  { x: -2.6, z: -1.2, s: 1.05 }, { x: 2.2, z: 0.4, s: 0.8 },
+  { x: -0.4, z: 2.4, s: 0.6 }, { x: 3.4, z: -2.4, s: 0.55 },
+  { x: -3.6, z: 1.8, s: 0.5 }
+];
+{
+  const bergMat = new THREE.MeshStandardMaterial({ color: 0xe8f4f8, roughness: 0.5 });
+  const tipMat = new THREE.MeshStandardMaterial({ color: 0xbfe2ee, roughness: 0.4 });
+  for (const d of BERG_DEFS) {
+    const g = new THREE.Group(); g.position.set(d.x, WATER_Y, d.z);
+    const body = new THREE.Mesh(new THREE.DodecahedronGeometry(d.s, 0), bergMat);
+    body.scale.y = 0.55; body.position.y = 0.1; body.castShadow = true; g.add(body);
+    const peak = new THREE.Mesh(new THREE.ConeGeometry(d.s * 0.45, d.s * 0.9, 7), tipMat);
+    peak.position.set(rand(-0.15, 0.15), d.s * 0.55, rand(-0.15, 0.15));
+    peak.castShadow = true; g.add(peak);
+    slabGroup.add(g);
+    bergs.push({ g, baseY: WATER_Y, phase: rand(0, Math.PI * 2), bobAmp: rand(0.04, 0.08), bobSpd: rand(0.5, 0.9) });
+  }
+}
+
+// ---------- penguins on one floe ----------
+{
+  const bodyMat = new THREE.MeshStandardMaterial({ color: 0x222c34, roughness: 0.8 });
+  const bellyMat = new THREE.MeshStandardMaterial({ color: 0xf4fafc, roughness: 0.8 });
+  const beakMat = new THREE.MeshStandardMaterial({ color: 0xe8912a, roughness: 0.6 });
+  const spots = [ {x:-0.28, z:0.05, r:0.5}, {x:0.18, z:-0.2, r:-0.4}, {x:0.32, z:0.28, r:2.4} ];
+  for (const p of spots) {
+    const g = new THREE.Group(); g.position.set(BERG_DEFS[0].x + p.x, 0.62, BERG_DEFS[0].z + p.z);
+    g.rotation.y = p.r;
+    const body = new THREE.Mesh(new THREE.SphereGeometry(0.16, 10, 8), bodyMat);
+    body.scale.y = 1.35; body.castShadow = true; g.add(body);
+    const belly = new THREE.Mesh(new THREE.SphereGeometry(0.11, 8, 6), bellyMat);
+    belly.scale.y = 1.25; belly.position.set(0, -0.02, 0.08); g.add(belly);
+    const head = new THREE.Mesh(new THREE.SphereGeometry(0.09, 8, 6), bodyMat);
+    head.position.y = 0.26; g.add(head);
+    const beak = new THREE.Mesh(new THREE.ConeGeometry(0.028, 0.09, 6), beakMat);
+    beak.rotation.x = Math.PI/2; beak.position.set(0, 0.26, 0.1); g.add(beak);
+    slabGroup.add(g);
+  }
+}
+
+// ---------- drifting mist sprites (fills the upper band; fades in title band) ----------
+const mists = [];
+function makeMistTexture() {
+  const c = document.createElement('canvas'); c.width = c.height = 64;
+  const ctx = c.getContext('2d');
+  const g = ctx.createRadialGradient(32, 32, 4, 32, 32, 30);
+  g.addColorStop(0, 'rgba(255,255,255,0.85)'); g.addColorStop(1, 'rgba(255,255,255,0)');
+  ctx.fillStyle = g; ctx.fillRect(0, 0, 64, 64);
+  const tex = new THREE.CanvasTexture(c); return tex;
+}
+{
+  const tex = makeMistTexture();
+  for (let i = 0; i < 8; i++) {
+    const mat = new THREE.SpriteMaterial({ map: tex, transparent: true, opacity: rand(0.35, 0.6), depthWrite: false });
+    const s = new THREE.Sprite(mat);
+    const sc = rand(1.6, 3.2); s.scale.set(sc, sc * 0.7, 1);
+    s.position.set(rand(-6, 6), rand(2.2, 5.4), rand(-5, 4));
+    scene.add(s);
+    mists.push({ s, spd: rand(0.12, 0.3), baseOp: mat.opacity });
+  }
+}
+
+// ---------- calving event ----------
+const hintIdle = 'Tap the glacier';
+const hintCalve = 'Watch it calve';
+let hintOwner = 'idle';
+function setHint(text, owner) { hintEl.textContent = text; hintEl.classList.remove('faded'); hintOwner = owner; }
+function resetHintIf(owner) { if (hintOwner === owner) setHint(hintIdle, 'idle'); }
+setHint(hintIdle, 'idle');
+
+const chunks = []; // falling calved chunks
+const splashes = []; // splash rings
+const floaters = []; // new mini-bergs from calves
+const splashMat = new THREE.MeshBasicMaterial({ color: 0xeaf6fa, transparent: true, opacity: 0.85, side: THREE.DoubleSide });
+let lastCalve = 0;
+function calve(now) {
+  lastCalve = now;
+  setHint(hintCalve, 'user');
+  const bx = rand(-3.6, 3.6);
+  // crack flash on the face
+  const chunk = new THREE.Mesh(new THREE.DodecahedronGeometry(rand(0.3, 0.42), 0),
+    new THREE.MeshStandardMaterial({ color: 0xbfe2ee, roughness: 0.4 }));
+  const startY = rand(1.6, 2.6);
+  chunk.position.set(glacierGroup.position.x + bx, WATER_Y + startY, glacierGroup.position.z + 1.1);
+  chunk.castShadow = true; scene.add(chunk);
+  chunks.push({ m: chunk, x: chunk.position.x, y0: WATER_Y + startY, z: chunk.position.z, t0: now, fall: 0.9, spin: rand(-3, 3), done: false });
+  setTimeout(() => resetHintIf('user'), 5200);
+}
+function splashAt(x, z, now) {
+  for (let i = 0; i < 3; i++) {
+    const ring = new THREE.Mesh(new THREE.RingGeometry(0.1, 0.16, 24), splashMat.clone());
+    ring.rotation.x = -Math.PI/2; ring.position.set(x, WATER_Y + 0.02 + i * 0.004, z);
+    scene.add(ring);
+    splashes.push({ m: ring, t0: now + i * 0.14, dur: 1.6 });
+  }
+  // spray droplets
+  for (let i = 0; i < 10; i++) {
+    const d = new THREE.Mesh(new THREE.SphereGeometry(0.035, 6, 5), splashMat.clone());
+    d.position.set(x, WATER_Y + 0.05, z);
+    scene.add(d);
+    const a = rand(0, Math.PI * 2), v = rand(0.8, 1.8);
+    splashes.push({ m: d, t0: now, dur: rand(0.5, 0.8), vx: Math.cos(a) * v * 0.5, vz: Math.sin(a) * v * 0.5, vy: rand(1.6, 2.6), drop: true });
+  }
+  // new mini floe
+  const floe = new THREE.Mesh(new THREE.DodecahedronGeometry(rand(0.24, 0.34), 0),
+    new THREE.MeshStandardMaterial({ color: 0xe8f4f8, roughness: 0.5 }));
+  floe.scale.y = 0.5; floe.position.set(x + rand(-0.3, 0.3), WATER_Y + 0.08, z + rand(0.5, 0.9));
+  floe.castShadow = true; scene.add(floe);
+  floaters.push({ m: floe, t0: now, phase: rand(0, Math.PI * 2), born: now });
+  if (floaters.length > 6) { const old = floaters.shift(); scene.remove(old.m); }
+}
+
+// ---------- interaction ----------
+const ray = new THREE.Raycaster();
+const ptr = new THREE.Vector2();
+const wallProxy = new THREE.Mesh(new THREE.BoxGeometry(10, 4.4, 2.4),
+  new THREE.MeshBasicMaterial({ visible: false }));
+wallProxy.position.set(glacierGroup.position.x, WATER_Y + 2.0, glacierGroup.position.z + 0.4);
+scene.add(wallProxy);
+let downX = 0, downY = 0;
+renderer.domElement.addEventListener('pointerdown', e => { downX = e.clientX; downY = e.clientY; });
+renderer.domElement.addEventListener('pointerup', e => {
+  if (Math.hypot(e.clientX - downX, e.clientY - downY) > 8) return;
+  ptr.x = (e.clientX / innerWidth) * 2 - 1;
+  ptr.y = -(e.clientY / innerHeight) * 2 + 1;
+  ray.setFromCamera(ptr, camera);
+  if (ray.intersectObject(wallProxy, false).length) {
+    const now = performance.now() / 1000;
+    if (now - lastCalve > 0.8) calve(now);
+  }
+});
+
+// ---------- camera containment ----------
+const fitTargets = [];
+function collectFit() {
+  const pts = [];
+  const v = new THREE.Vector3();
+  for (const o of [slabGroup]) {
+    new THREE.Box3().setFromObject(o); // warm-up
+  }
+  const box = new THREE.Box3().setFromObject(scene);
+  // limit to slab + glacier + bergs (exclude mists)
+  const b2 = new THREE.Box3().setFromObject(slabGroup);
+  b2.expandByPoint(new THREE.Vector3(0, WATER_Y + 4.6, -6));
+  return b2;
+}
+let fitBox = collectFit();
+function fitCamera() {
+  const center = fitBox.getCenter(new THREE.Vector3());
+  controls.target.copy(center);
+  const dir = new THREE.Vector3(0.35, 0.62, 1).normalize();
+  // fit through live camera basis
+  const corners = [];
+  for (const x of [fitBox.min.x, fitBox.max.x])
+    for (const y of [fitBox.min.y, fitBox.max.y])
+      for (const z of [fitBox.min.z, fitBox.max.z])
+        corners.push(new THREE.Vector3(x, y, z));
+  const probe = new THREE.PerspectiveCamera(camera.fov, camera.aspect, 0.1, 240);
+  probe.position.copy(center).addScaledVector(dir, 10); probe.lookAt(center); probe.updateMatrixWorld();
+  const inv = probe.matrixWorldInverse;
+  let need = 0;
+  const vFov = THREE.MathUtils.degToRad(camera.fov) / 2;
+  const hFov = Math.atan(Math.tan(vFov) * camera.aspect);
+  for (const c of corners) {
+    const p = c.clone().applyMatrix4(inv);
+    const d = -p.z;
+    need = Math.max(need, d + Math.abs(p.y) / Math.tan(vFov), d + Math.abs(p.x) / Math.tan(hFov));
+  }
+  const dist = need * 1.04 + 0.4;
+  camera.position.copy(center).addScaledVector(dir, dist);
+  camera.lookAt(center); controls.update();
+}
+fitCamera();
+addEventListener('resize', () => {
+  camera.aspect = innerWidth / innerHeight; pickFov();
+  renderer.setSize(innerWidth, innerHeight); fitCamera();
+});
+
+// ---------- animate ----------
+const clock = new THREE.Clock();
+const ndcV = new THREE.Vector3();
+function animate() {
+  requestAnimationFrame(animate);
+  const dt = Math.min(clock.getDelta(), 0.3);
+  const now = performance.now() / 1000;
+  // bobbing bergs + floaters
+  for (const b of bergs) {
+    b.g.position.y = b.baseY + Math.sin(now * b.bobSpd + b.phase) * b.bobAmp;
+    b.g.rotation.z = Math.sin(now * b.bobSpd * 0.7 + b.phase) * 0.03;
+  }
+  for (const f of floaters) {
+    const age = now - f.born;
+    f.m.position.y = WATER_Y + 0.08 + Math.sin(now * 0.9 + f.phase) * 0.05;
+    f.m.rotation.y += dt * 0.25;
+    f.m.scale.setScalar(Math.min(1, age * 2));
+    f.m.scale.y *= 0.5;
+  }
+  // calving chunks fall, then splash
+  for (const c of chunks) {
+    if (c.done) continue;
+    const t = (now - c.t0) / c.fall;
+    if (t >= 1) {
+      c.done = true; scene.remove(c.m);
+      splashAt(c.x, c.z, now);
+      continue;
+    }
+    c.m.position.y = c.y0 - (c.y0 - WATER_Y) * t * t;
+    c.m.rotation.x += c.spin * dt; c.m.rotation.z += c.spin * 0.7 * dt;
+  }
+  // splashes / droplets
+  for (let i = splashes.length - 1; i >= 0; i--) {
+    const s = splashes[i];
+    const t = (now - s.t0) / s.dur;
+    if (t < 0) continue;
+    if (t >= 1) { scene.remove(s.m); splashes.splice(i, 1); continue; }
+    if (s.drop) {
+      s.m.position.x += s.vx * dt; s.m.position.z += s.vz * dt;
+      s.m.position.y += s.vy * dt; s.vy -= 9.8 * dt * 0.35;
+      if (s.m.position.y < WATER_Y + 0.02) s.m.position.y = WATER_Y + 0.02;
+      s.m.material.opacity = 0.85 * (1 - t);
+    } else {
+      const sc = 0.2 + t * 3.2;
+      s.m.scale.setScalar(sc);
+      s.m.material.opacity = 0.85 * (1 - t);
+    }
+  }
+  // mist drift + NDC fade in title band
+  for (const m of mists) {
+    m.s.position.x += m.spd * dt;
+    if (m.s.position.x > 7.5) m.s.position.x = -7.5;
+    ndcV.copy(m.s.position).project(camera);
+    const inBand = ndcV.y > 0.45 && Math.abs(ndcV.x) < 0.62;
+    const target = inBand ? 0.1 : m.baseOp;
+    m.s.material.opacity += (target - m.s.material.opacity) * Math.min(1, dt * 3);
+  }
+  controls.update();
+  renderer.render(scene, camera);
+}
+animate();
+</script>
+</body>
+</html>
