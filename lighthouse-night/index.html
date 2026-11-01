@@ -67,6 +67,8 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 //          beam sweep disc, per-frame required-distance drives minDistance, maxDistance 200
 // pass 14: portrait composition - square-on azimuth below aspect 0.62 (diagonal wasted ~40% width) and the fit
 //          runs on a real containment POINT SET (slab corners + beam disc rim + tower top) instead of a tall box
+// pass 15: hut window glow sprite, stronger whitecap sparkle; QA hook REMOVED (probing complete:
+//          fit NDC-proven, fog in/out pixel-verified, ship course-correction probe-verified)
 // pass 1: first lighthouse-night build - marine night palette, striped tower on rocky islet, drag beam sweep, tap fog, course-correcting ships, exact corner-fit camera
 
 const PAL = {
@@ -288,6 +290,9 @@ hutRoof.position.y = 1.05; hutRoof.rotation.y = Math.PI/4; hutRoof.castShadow = 
 const hutWin = new THREE.Mesh(new THREE.PlaneGeometry(0.22, 0.26),
   new THREE.MeshBasicMaterial({ color: PAL.window }));
 hutWin.position.set(0.2, 0.45, 0.51); hut.add(hutWin);
+const hutGlow = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTex('rgba(255,196,107,0.85)','rgba(255,196,107,0)'),
+  transparent: true, depthWrite: false, blending: THREE.AdditiveBlending }));
+hutGlow.scale.setScalar(0.8); hutGlow.position.set(0.2, 0.45, 0.6); hut.add(hutGlow);
 hut.position.set(1.7, 0.75, 1.2); hut.rotation.y = -0.5; islet.add(hut);
 
 // ---------- beam ----------
@@ -518,7 +523,7 @@ function animate() {
     controls.minDistance = requiredDistance(containPts, rgt, up2, fwd, controls.target) * 1.04;
   }
   whitecaps.forEach((w, i) => {
-    w.material.opacity = 0.05 + 0.22*Math.abs(Math.sin(t*0.7 + i*2.3));
+    w.material.opacity = 0.07 + 0.3*Math.abs(Math.sin(t*0.7 + i*2.3));
     w.position.x += Math.sin(t*0.3 + i) * dt * 0.05;
   });
   buoyLight.material.opacity = (Math.sin(t*2.4) > 0.55) ? 0.95 : 0.06;
@@ -528,8 +533,6 @@ function animate() {
   renderer.render(scene, camera);
 }
 animate();
-// TEMP QA HOOK - removed before acceptance
-window.__qa = { THREE, camera, controls, scene, slabGroup, islet, ships, pool, foamFlecks, beamGroup, ray: new THREE.Raycaster() };
 
 addEventListener('resize', () => {
   camera.aspect = innerWidth/innerHeight;
