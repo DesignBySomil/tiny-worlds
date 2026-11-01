@@ -214,8 +214,8 @@ const clouds = [];
       m.position.set(b * rand(0.55, 0.8) - 1, rand(-0.1, 0.25), rand(-0.2, 0.2));
       m.scale.y = 0.6; g.add(m);
     }
-    const lane = i % 2 === 0 ? [-11, -4.2] : [4.2, 11];   // side lanes: never drift across the centered hint/header
-    g.position.set(rand(lane[0], lane[1]), rand(6.5, 8), rand(-9, -5.5));
+    const lane = i % 2 === 0 ? [-13, -7] : [7, 13];   // wide side lanes: projected x stays clear of centered title/hint
+    g.position.set(rand(lane[0], lane[1]), rand(6, 7.5), rand(-6, -4.5));
     g.userData.v = rand(0.08, 0.2);
     g.userData.lane = lane;
     scene.add(g); clouds.push(g);
@@ -479,6 +479,7 @@ function animate() {
 }
 animate();
 
+// pass 4: wider cloud lanes + nearer z - p3 still let one cloud reach the title zone
 // pass 3: clouds confined to side lanes (never cross centered hint/header), pushed further back
 // pass 2: fuller canopy, taller hero tree, bigger blossoms/petals/butterflies, one-line replant hint
 // pass 1: initial build - wall-clock growth (9s), tap soil to plant, tap mature tree to replant,
