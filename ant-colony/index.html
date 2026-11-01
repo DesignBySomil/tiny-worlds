@@ -5,23 +5,25 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Ant Colony - a tiny world</title>
 <style>
-  html, body { margin:0; padding:0; height:100%; background:#e8d9b8; overflow:hidden;
-    font-family: Georgia, 'Times New Roman', serif; }
-  #app { position:fixed; inset:0; }
+  html, body { margin:0; padding:0; height:100%; background:#d9c49d; overflow:hidden;
+    font-family: Georgia, 'Times New Roman', serif; user-select:none; -webkit-user-select:none; }
+  #app { position:fixed; inset:0; background: radial-gradient(circle at 50% 35%, #f5ebd4 0%, #dec79e 58%, #b8986b 100%); }
   header { position:fixed; top:0; left:0; right:0; text-align:center; pointer-events:none;
-    padding: max(18px, env(safe-area-inset-top)) 16px 18px; z-index:5;
-    background: linear-gradient(rgba(52,36,18,.60), rgba(52,36,18,.28) 55%, rgba(52,36,18,0)); }
+    padding: max(18px, env(safe-area-inset-top)) 16px 20px; z-index:5;
+    background: linear-gradient(rgba(38,24,11,.68), rgba(38,24,11,.32) 58%, rgba(38,24,11,0)); }
   header h1 { margin:0; font-size:15px; letter-spacing:.42em; font-weight:400;
-    color:#fdf8ee; text-transform:uppercase; text-shadow:0 1px 8px rgba(46,32,16,.7); }
-  header .rule { width:44px; height:1px; background:rgba(253,248,238,.55); margin:9px auto; }
+    color:#fdf8ee; text-transform:uppercase; text-shadow:0 1px 10px rgba(32,19,8,.85); }
+  header .rule { width:44px; height:1px; background:rgba(253,248,238,.6); margin:9px auto; }
   #hint { display:inline-block; font-size:11.5px; letter-spacing:.24em; text-transform:uppercase;
-    color:#fffdf6; transition:opacity 1.2s ease; padding:5px 12px; border-radius:3px;
-    background:rgba(46,32,16,.40);
-    text-shadow:0 1px 3px rgba(26,17,8,.98), 0 0 8px rgba(26,17,8,.95), 0 0 18px rgba(26,17,8,.85); }
-  #hint.faded { opacity:.45; }
+    color:#fffdf6; transition:opacity 1.2s ease, transform 0.4s ease; padding:5px 14px; border-radius:4px;
+    background:rgba(38,24,11,.50); border:1px solid rgba(253,248,238,.18);
+    text-shadow:0 1px 3px rgba(20,12,5,.98), 0 0 10px rgba(20,12,5,.9); }
+  #hint.faded { opacity:.42; }
   footer { position:fixed; bottom:0; left:0; right:0; text-align:center; pointer-events:none;
-    padding:0 16px max(14px, env(safe-area-inset-bottom)); z-index:5;
-    font-size:10px; letter-spacing:.34em; text-transform:uppercase; color:rgba(253,248,238,.6); }
+    padding:14px 16px max(14px, env(safe-area-inset-bottom)); z-index:5;
+    background: linear-gradient(rgba(38,24,11,0), rgba(38,24,11,.45));
+    font-size:10px; letter-spacing:.34em; text-transform:uppercase; color:rgba(253,248,238,.75);
+    text-shadow:0 1px 4px rgba(20,12,5,.8); }
   canvas { display:block; touch-action:none; }
 </style>
 </head>
@@ -40,41 +42,11 @@
 } }
 </script>
 <script type="module">
+// argon p1 (Gemini 4 Argon rework)
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 
-const container = document.getElementById('app');
-const hintEl = document.getElementById('hint');
-const scene = new THREE.Scene();
-scene.background = new THREE.Color(0xe8d9b8);
-scene.fog = new THREE.Fog(0xe8d9b8, 60, 140);
-
-const camera = new THREE.PerspectiveCamera(38, innerWidth/innerHeight, 0.1, 240);
-function pickFov() {
-  const a = innerWidth / innerHeight;
-  camera.fov = a >= 0.9 ? 38 : (a >= 0.62 ? 46 : 58);
-  camera.updateProjectionMatrix();
-}
-pickFov();
-const renderer = new THREE.WebGLRenderer({ antialias: true });
-renderer.setSize(innerWidth, innerHeight);
-renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
-renderer.shadowMap.enabled = true;
-renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-container.appendChild(renderer.domElement);
-const controls = new OrbitControls(camera, renderer.domElement);
-controls.enableDamping = true; controls.dampingFactor = 0.06;
-controls.enablePan = false; controls.maxPolarAngle = Math.PI * 0.52;
-
-const sun = new THREE.DirectionalLight(0xfff0d0, 2.3);
-sun.position.set(9, 13, 6); sun.castShadow = true;
-sun.shadow.mapSize.set(1024, 1024);
-sun.shadow.camera.left = -14; sun.shadow.camera.right = 14;
-sun.shadow.camera.top = 14; sun.shadow.camera.bottom = -14;
-sun.shadow.camera.far = 60; sun.shadow.bias = -0.0006;
-scene.add(sun);
-scene.add(new THREE.HemisphereLight(0xf8ecd4, 0x7a5c38, 1.05));
-
+// ---------- Deterministic PRNG ----------
 function mulberry32(a) {
   return function() {
     a |= 0; a = a + 0x6D2B79F5 | 0;
@@ -85,212 +57,1232 @@ function mulberry32(a) {
 }
 const rng = mulberry32(20261101);
 function rand(a, b) { return a + rng() * (b - a); }
+function randInt(a, b) { return Math.floor(rand(a, b + 1)); }
+function pick(arr) { return arr[Math.floor(rng() * arr.length)]; }
 
-// ---------- slab: sandy ground ----------
-const SLAB_H = 1.4;
-const slabGroup = new THREE.Group(); scene.add(slabGroup);
-{
-  const topMat = new THREE.MeshStandardMaterial({ color: 0xc9a96e, roughness: 0.95 });
-  const top = new THREE.Mesh(new THREE.BoxGeometry(12, 0.22, 12), topMat);
-  top.position.y = -0.11; top.receiveShadow = true; slabGroup.add(top);
-  const midMat = new THREE.MeshStandardMaterial({ color: 0x9a7448, roughness: 1 });
-  const mid = new THREE.Mesh(new THREE.BoxGeometry(12, SLAB_H, 12), midMat);
-  mid.position.y = -SLAB_H/2 - 0.2; slabGroup.add(mid);
-  const baseMat = new THREE.MeshStandardMaterial({ color: 0x6e4f2e, roughness: 1 });
-  const base = new THREE.Mesh(new THREE.BoxGeometry(12.4, 0.5, 12.4), baseMat);
-  base.position.y = -SLAB_H - 0.45; slabGroup.add(base);
-  const patchMat = new THREE.MeshStandardMaterial({ color: 0xb99861, roughness: 1 });
-  for (let i = 0; i < 14; i++) {
-    const p = new THREE.Mesh(new THREE.CircleGeometry(rand(0.5, 1.3), 9), patchMat);
-    p.rotation.x = -Math.PI/2; p.position.set(rand(-5.4, 5.4), 0.011, rand(-5.4, 5.4));
-    p.receiveShadow = true; slabGroup.add(p);
+// ---------- Scene & Renderer ----------
+const container = document.getElementById('app');
+const hintEl = document.getElementById('hint');
+const scene = new THREE.Scene();
+scene.fog = new THREE.FogExp2(0xdfc8a2, 0.0115);
+
+const camera = new THREE.PerspectiveCamera(38, innerWidth / innerHeight, 0.1, 240);
+function pickFov() {
+  const a = innerWidth / innerHeight;
+  camera.fov = a >= 0.9 ? 36 : (a >= 0.62 ? 44 : 54);
+  camera.updateProjectionMatrix();
+}
+pickFov();
+
+const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: 'high-performance' });
+renderer.setSize(innerWidth, innerHeight);
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.08;
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+container.appendChild(renderer.domElement);
+
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+controls.dampingFactor = 0.055;
+controls.enablePan = false;
+controls.minPolarAngle = Math.PI * 0.12;
+controls.maxPolarAngle = Math.PI * 0.56;
+controls.minDistance = 8;
+controls.maxDistance = 48;
+
+// ---------- Layered Lighting ----------
+const sun = new THREE.DirectionalLight(0xfff1d0, 2.75);
+sun.position.set(11, 18, 10);
+sun.castShadow = true;
+sun.shadow.mapSize.set(2048, 2048);
+sun.shadow.camera.left = -11;
+sun.shadow.camera.right = 11;
+sun.shadow.camera.top = 11;
+sun.shadow.camera.bottom = -11;
+sun.shadow.camera.near = 2;
+sun.shadow.camera.far = 45;
+sun.shadow.bias = -0.0005;
+sun.shadow.normalBias = 0.02;
+scene.add(sun);
+
+const hemi = new THREE.HemisphereLight(0xfdf2dc, 0x5c3c20, 1.15);
+scene.add(hemi);
+
+const rimLight = new THREE.DirectionalLight(0xffdfa8, 0.85);
+rimLight.position.set(-12, 9, -10);
+scene.add(rimLight);
+
+const frontCutawayFill = new THREE.DirectionalLight(0xffe4bc, 0.72);
+frontCutawayFill.position.set(2, -1, 14);
+scene.add(frontCutawayFill);
+
+// ---------- Helper: Vertex Color Noise & Displacement ----------
+function hashNoise(x, y, z) {
+  const s = Math.sin(x * 12.9898 + y * 78.233 + z * 37.719) * 43758.5453;
+  return s - Math.floor(s);
+}
+function smoothNoise(x, y, z) {
+  const ix = Math.floor(x), iy = Math.floor(y), iz = Math.floor(z);
+  const fx = x - ix, fy = y - iy, fz = z - iz;
+  const ux = fx * fx * (3 - 2 * fx), uy = fy * fy * (3 - 2 * fy), uz = fz * fz * (3 - 2 * fz);
+  const n000 = hashNoise(ix, iy, iz), n100 = hashNoise(ix + 1, iy, iz);
+  const n010 = hashNoise(ix, iy + 1, iz), n110 = hashNoise(ix + 1, iy + 1, iz);
+  const n001 = hashNoise(ix, iy, iz + 1), n101 = hashNoise(ix + 1, iy, iz + 1);
+  const n011 = hashNoise(ix, iy + 1, iz + 1), n111 = hashNoise(ix + 1, iy + 1, iz + 1);
+  const nx00 = n000 + ux * (n100 - n000), nx10 = n010 + ux * (n110 - n010);
+  const nx01 = n001 + ux * (n101 - n001), nx11 = n011 + ux * (n111 - n011);
+  const nxy0 = nx00 + uy * (nx10 - nx00), nxy1 = nx01 + uy * (nx11 - nx01);
+  return nxy0 + uz * (nxy1 - nxy0);
+}
+
+// ---------- Diorama Dimensions & Coordinates ----------
+const W = 12.0;          // X from -6 to +6
+const D = 10.4;          // Z from -5.2 to +5.2 (front cutaway face at Z = +5.2)
+const FRONT_Z = D / 2;   // +5.2
+const DEPTH = 6.6;       // Underground soil from Y = 0 down to Y = -6.6
+const HILL = { x: 0.35, z: -0.25, r: 1.85, h: 1.75 };
+
+function getSurfaceHeight(x, z) {
+  const dx = x - HILL.x, dz = z - HILL.z;
+  const dHill = Math.hypot(dx, dz);
+  let h = 0;
+  if (dHill < HILL.r * 1.35) {
+    const t = Math.max(0, 1 - dHill / (HILL.r * 1.15));
+    const cone = Math.pow(t, 1.45) * HILL.h;
+    const crater = dHill < 0.42 ? Math.pow(1 - dHill / 0.42, 1.6) * 0.48 : 0;
+    const rim = Math.exp(-Math.pow((dHill - 0.36) / 0.16, 2)) * 0.16;
+    h += cone - crater + rim;
+  }
+  h += (smoothNoise(x * 0.45 + 5, 0, z * 0.45 + 5) - 0.5) * 0.22;
+  h += (smoothNoise(x * 1.3 + 12, 0, z * 1.3 + 9) - 0.5) * 0.07;
+  return h;
+}
+
+const worldGroup = new THREE.Group();
+scene.add(worldGroup);
+
+// ---------- Chamber & Tunnel Layout on Front Cutaway & Interior ----------
+const CHAMBERS = [
+  { id: 'nursery', name: 'Brood Nursery', x: -2.85, y: -1.75, rx: 1.55, ry: 0.92, rz: 1.35, lightCol: 0xffd79e, lightInt: 1.5 },
+  { id: 'grain',   name: 'Seed Granary',  x:  3.05, y: -1.65, rx: 1.50, ry: 0.88, rz: 1.30, lightCol: 0xffca7a, lightInt: 1.4 },
+  { id: 'queen',   name: 'Royal Chamber', x: -2.25, y: -4.45, rx: 1.95, ry: 1.12, rz: 1.60, lightCol: 0xffae62, lightInt: 2.1 },
+  { id: 'fungus',  name: 'Fungus Garden', x:  2.55, y: -4.35, rx: 1.85, ry: 1.10, rz: 1.55, lightCol: 0x64f5c8, lightInt: 2.6 }
+];
+
+// Define tunnel spline networks (both cutaway front-face tunnels & side cross-section tunnels)
+const TUNNEL_PATHS = [
+  // Main vertical shaft from anthill crater down to central crossroads
+  new THREE.CatmullRomCurve3([
+    new THREE.Vector3(HILL.x, 1.45, HILL.z),
+    new THREE.Vector3(HILL.x, 0.2, 1.8),
+    new THREE.Vector3(0.25, -0.75, FRONT_Z - 0.18),
+    new THREE.Vector3(0.05, -2.05, FRONT_Z - 0.16),
+    new THREE.Vector3(-0.10, -3.35, FRONT_Z - 0.18),
+    new THREE.Vector3(-0.05, -4.40, FRONT_Z - 0.18)
+  ]),
+  // Upper-left branch to Nursery
+  new THREE.CatmullRomCurve3([
+    new THREE.Vector3(0.12, -1.35, FRONT_Z - 0.16),
+    new THREE.Vector3(-1.15, -1.45, FRONT_Z - 0.14),
+    new THREE.Vector3(-2.05, -1.72, FRONT_Z - 0.16),
+    new THREE.Vector3(-2.85, -1.80, FRONT_Z - 0.22)
+  ]),
+  // Upper-right branch to Seed Granary
+  new THREE.CatmullRomCurve3([
+    new THREE.Vector3(0.15, -1.20, FRONT_Z - 0.16),
+    new THREE.Vector3(1.35, -1.28, FRONT_Z - 0.14),
+    new THREE.Vector3(2.20, -1.58, FRONT_Z - 0.16),
+    new THREE.Vector3(3.05, -1.68, FRONT_Z - 0.22)
+  ]),
+  // Lower-left branch to Queen Chamber
+  new THREE.CatmullRomCurve3([
+    new THREE.Vector3(-0.08, -3.55, FRONT_Z - 0.16),
+    new THREE.Vector3(-0.95, -3.95, FRONT_Z - 0.14),
+    new THREE.Vector3(-1.75, -4.38, FRONT_Z - 0.18),
+    new THREE.Vector3(-2.45, -4.50, FRONT_Z - 0.24)
+  ]),
+  // Lower-right branch to Fungus Garden
+  new THREE.CatmullRomCurve3([
+    new THREE.Vector3(-0.05, -3.45, FRONT_Z - 0.16),
+    new THREE.Vector3(1.05, -3.82, FRONT_Z - 0.14),
+    new THREE.Vector3(1.85, -4.25, FRONT_Z - 0.18),
+    new THREE.Vector3(2.55, -4.40, FRONT_Z - 0.24)
+  ]),
+  // Side loop connecting Nursery down to Queen Chamber
+  new THREE.CatmullRomCurve3([
+    new THREE.Vector3(-3.65, -2.05, FRONT_Z - 0.18),
+    new THREE.Vector3(-4.35, -3.15, FRONT_Z - 0.14),
+    new THREE.Vector3(-3.60, -4.25, FRONT_Z - 0.18)
+  ]),
+  // Side loop connecting Granary down to Fungus Garden
+  new THREE.CatmullRomCurve3([
+    new THREE.Vector3(3.85, -1.95, FRONT_Z - 0.18),
+    new THREE.Vector3(4.45, -3.05, FRONT_Z - 0.14),
+    new THREE.Vector3(3.75, -4.15, FRONT_Z - 0.18)
+  ])
+];
+
+// Pre-sample tunnel points in 2D (X, Y) for fast front-wall carving
+const tunnelSamples2D = [];
+for (let tIdx = 0; tIdx < TUNNEL_PATHS.length; tIdx++) {
+  const curve = TUNNEL_PATHS[tIdx];
+  const steps = 42;
+  for (let i = 0; i <= steps; i++) {
+    const p = curve.getPoint(i / steps);
+    if (p.z > FRONT_Z - 1.2 && p.y < 0.25) {
+      tunnelSamples2D.push({ x: p.x, y: p.y, r: tIdx === 0 ? 0.44 : 0.36 });
+    }
   }
 }
 
-// ---------- anthill ----------
-const HILL = { x: 0.4, z: -0.6, r: 1.35 };
-const hillGroup = new THREE.Group(); hillGroup.position.set(HILL.x, 0, HILL.z); slabGroup.add(hillGroup);
+// Compute how deeply carved a point (x, y) on the front cutaway face is (0 = solid soil, >0 = recessed cavity depth)
+function getCutawayCarve(x, y) {
+  let maxDepth = 0;
+  // Chambers
+  for (const ch of CHAMBERS) {
+    const dx = (x - ch.x) / ch.rx;
+    let dy = (y - ch.y) / ch.ry;
+    // Flatten chamber floors slightly and dome the ceilings
+    if (dy < 0) dy *= 1.35;
+    const wob = (smoothNoise(x * 2.2, y * 2.2, 1.5) - 0.5) * 0.14;
+    const distSq = dx * dx + dy * dy + wob;
+    if (distSq < 1.0) {
+      const d = Math.sqrt(1.0 - distSq) * ch.rz;
+      if (d > maxDepth) maxDepth = d;
+    }
+  }
+  // Tunnels
+  for (const ts of tunnelSamples2D) {
+    const dx = x - ts.x, dy = y - ts.y;
+    const d2 = dx * dx + dy * dy;
+    const r2 = ts.r * ts.r;
+    if (d2 < r2) {
+      const d = Math.sqrt(r2 - d2) * 1.15;
+      if (d > maxDepth) maxDepth = d;
+    }
+  }
+  return maxDepth;
+}
+
+// ---------- Build Layered Soil Block & Sculpted Cutaway Face ----------
+const soilGroup = new THREE.Group();
+worldGroup.add(soilGroup);
+
 {
-  const hillMat = new THREE.MeshStandardMaterial({ color: 0x8a6242, roughness: 1 });
-  const hill = new THREE.Mesh(new THREE.ConeGeometry(HILL.r, 1.55, 14), hillMat);
-  hill.position.y = 0.77; hill.castShadow = true; hill.receiveShadow = true; hillGroup.add(hill);
-  // granular rings on the hill
-  for (let i = 0; i < 26; i++) {
-    const a = rand(0, Math.PI * 2), rr = rand(0.25, HILL.r * 0.95);
-    const gr = new THREE.Mesh(new THREE.DodecahedronGeometry(rand(0.05, 0.11), 0), hillMat);
-    const hgt = Math.max(0.05, 1.55 * (1 - rr / HILL.r));
-    gr.position.set(Math.cos(a) * rr, hgt, Math.sin(a) * rr);
-    gr.rotation.set(rand(0, 3), rand(0, 3), 0); hillGroup.add(gr);
+  // 1. Top Surface Terrain Mesh (with anthill mound & vertex colors)
+  const topGeo = new THREE.PlaneGeometry(W, D, 72, 64);
+  topGeo.rotateX(-Math.PI / 2);
+  const pos = topGeo.attributes.position;
+  const cols = new Float32Array(pos.count * 3);
+  const cSand = new THREE.Color(0xd7b377);
+  const cLoam = new THREE.Color(0xb68b52);
+  const cHill = new THREE.Color(0x8c5a32);
+  const cCrater = new THREE.Color(0x281509);
+  const tmpC = new THREE.Color();
+
+  for (let i = 0; i < pos.count; i++) {
+    const x = pos.getX(i), z = pos.getZ(i);
+    const y = getSurfaceHeight(x, z);
+    pos.setY(i, y);
+
+    const dHill = Math.hypot(x - HILL.x, z - HILL.z);
+    const n = smoothNoise(x * 0.9, y * 0.9, z * 0.9);
+    tmpC.copy(cSand).lerp(cLoam, n * 0.65);
+    if (dHill < HILL.r * 1.25) {
+      const t = Math.max(0, 1 - dHill / (HILL.r * 1.2));
+      tmpC.lerp(cHill, Math.min(1, t * 1.25));
+    }
+    if (dHill < 0.36) {
+      tmpC.lerp(cCrater, Math.pow(1 - dHill / 0.36, 1.4));
+    }
+    cols[i * 3] = tmpC.r;
+    cols[i * 3 + 1] = tmpC.g;
+    cols[i * 3 + 2] = tmpC.b;
   }
-  const hole = new THREE.Mesh(new THREE.CircleGeometry(0.22, 12),
-    new THREE.MeshBasicMaterial({ color: 0x1a0f06 }));
-  hole.rotation.x = -Math.PI/2; hole.position.y = 1.56; hillGroup.add(hole);
-  const rim = new THREE.Mesh(new THREE.TorusGeometry(0.24, 0.07, 8, 14), hillMat);
-  rim.rotation.x = Math.PI/2; rim.position.y = 1.56; rim.castShadow = true; hillGroup.add(rim);
-  // trailed sand around the base
-  const trailMat = new THREE.MeshStandardMaterial({ color: 0xb6906a, roughness: 1 });
-  for (let i = 0; i < 8; i++) {
+  topGeo.setAttribute('color', new THREE.BufferAttribute(cols, 3));
+  topGeo.computeVertexNormals();
+  const topMesh = new THREE.Mesh(topGeo, new THREE.MeshStandardMaterial({
+    vertexColors: true, roughness: 0.94, metalness: 0.02
+  }));
+  topMesh.receiveShadow = true;
+  topMesh.castShadow = true;
+  soilGroup.add(topMesh);
+
+  // 2. Sculpted Front Cutaway Wall (Z = +FRONT_Z, recessed into chambers & tunnels)
+  const frontGeo = new THREE.PlaneGeometry(W, DEPTH, 148, 92);
+  frontGeo.translate(0, -DEPTH / 2, FRONT_Z);
+  const fPos = frontGeo.attributes.position;
+  const fCols = new Float32Array(fPos.count * 3);
+
+  const cStrataTop = new THREE.Color(0xb88b54);
+  const cStrataMid = new THREE.Color(0x8c5830);
+  const cStrataDeep = new THREE.Color(0x59341a);
+  const cStrataBed = new THREE.Color(0x3b2210);
+  const cCavityWall = new THREE.Color(0x2d180a);
+  const cFungusTint = new THREE.Color(0x284e3f);
+
+  for (let i = 0; i < fPos.count; i++) {
+    const x = fPos.getX(i);
+    let y = fPos.getY(i);
+    const surfY = getSurfaceHeight(x, FRONT_Z);
+
+    // Match top edge seamlessly to surface terrain height
+    const depthRatio = -y / DEPTH; // 0 at top, 1 at bottom
+    y = surfY * (1 - depthRatio) + (-DEPTH) * depthRatio;
+
+    const carve = getCutawayCarve(x, y);
+    const microRough = (smoothNoise(x * 3.5, y * 3.5, 2.1) - 0.5) * 0.09;
+    let z = FRONT_Z - carve + microRough;
+
+    // Slight lip bevel right along tunnel/chamber rims
+    if (carve > 0.01 && carve < 0.25) {
+      z += 0.04;
+    }
+
+    fPos.setXYZ(i, x, y, z);
+
+    // Stratified soil coloring + cavity interior darkening
+    const wave = Math.sin(x * 0.7 + smoothNoise(x, y, 0) * 2.5) * 0.18;
+    const dNorm = Math.max(0, Math.min(1, (-y + wave) / DEPTH));
+    if (dNorm < 0.28) {
+      tmpC.copy(cStrataTop).lerp(cStrataMid, dNorm / 0.28);
+    } else if (dNorm < 0.68) {
+      tmpC.copy(cStrataMid).lerp(cStrataDeep, (dNorm - 0.28) / 0.40);
+    } else {
+      tmpC.copy(cStrataDeep).lerp(cStrataBed, (dNorm - 0.68) / 0.32);
+    }
+
+    const grain = (hashNoise(x * 19, y * 19, 1) - 0.5) * 0.08;
+    tmpC.offsetHSL(0, 0, grain);
+
+    if (carve > 0.02) {
+      const cFactor = Math.min(1, carve / 0.85);
+      tmpC.lerp(cCavityWall, cFactor * 0.78);
+      // Subtle bioluminescent tint inside fungus garden cavity
+      const dFungus = Math.hypot(x - 2.55, y - (-4.35));
+      if (dFungus < 2.1) {
+        tmpC.lerp(cFungusTint, Math.max(0, 1 - dFungus / 2.1) * cFactor * 0.55);
+      }
+    }
+
+    fCols[i * 3] = tmpC.r;
+    fCols[i * 3 + 1] = tmpC.g;
+    fCols[i * 3 + 2] = tmpC.b;
+  }
+  frontGeo.setAttribute('color', new THREE.BufferAttribute(fCols, 3));
+  frontGeo.computeVertexNormals();
+  const frontMesh = new THREE.Mesh(frontGeo, new THREE.MeshStandardMaterial({
+    vertexColors: true, roughness: 0.96, metalness: 0.03
+  }));
+  frontMesh.receiveShadow = true;
+  frontMesh.castShadow = true;
+  soilGroup.add(frontMesh);
+
+  // 3. Left, Right, and Back Soil Walls (matching surface profile & strata)
+  function makeSideWall(isLeft, isBack) {
+    const span = isBack ? W : D;
+    const wGeo = new THREE.PlaneGeometry(span, DEPTH, 48, 36);
+    const wPos = wGeo.attributes.position;
+    const wCols = new Float32Array(wPos.count * 3);
+    for (let i = 0; i < wPos.count; i++) {
+      const u = wPos.getX(i);
+      const v = wPos.getY(i); // +DEPTH/2 to -DEPTH/2
+      const depthRatio = (DEPTH / 2 - v) / DEPTH;
+      let wx, wz;
+      if (isBack) {
+        wx = -u; wz = -FRONT_Z;
+      } else if (isLeft) {
+        wx = -W / 2; wz = u;
+      } else {
+        wx = W / 2; wz = -u;
+      }
+      const sy = getSurfaceHeight(wx, wz);
+      const wy = sy * (1 - depthRatio) + (-DEPTH) * depthRatio;
+      wPos.setXYZ(i, wx, wy, wz);
+
+      const dNorm = Math.max(0, Math.min(1, -wy / DEPTH));
+      if (dNorm < 0.3) tmpC.copy(cStrataTop).lerp(cStrataMid, dNorm / 0.3);
+      else if (dNorm < 0.7) tmpC.copy(cStrataMid).lerp(cStrataDeep, (dNorm - 0.3) / 0.4);
+      else tmpC.copy(cStrataDeep).lerp(cStrataBed, (dNorm - 0.7) / 0.3);
+      wCols[i * 3] = tmpC.r; wCols[i * 3 + 1] = tmpC.g; wCols[i * 3 + 2] = tmpC.b;
+    }
+    wGeo.setAttribute('color', new THREE.BufferAttribute(wCols, 3));
+    wGeo.computeVertexNormals();
+    const m = new THREE.Mesh(wGeo, new THREE.MeshStandardMaterial({
+      vertexColors: true, roughness: 0.96, side: THREE.DoubleSide
+    }));
+    m.receiveShadow = true;
+    soilGroup.add(m);
+  }
+  makeSideWall(true, false);
+  makeSideWall(false, false);
+  makeSideWall(false, true);
+
+  // 4. Museum-style Dark Plinth Base Framing the Bottom
+  const plinthMat = new THREE.MeshStandardMaterial({ color: 0x2b190d, roughness: 0.85 });
+  const plinth = new THREE.Mesh(new THREE.BoxGeometry(W + 0.36, 0.55, D + 0.36), plinthMat);
+  plinth.position.set(0, -DEPTH - 0.27, 0);
+  plinth.receiveShadow = true;
+  plinth.castShadow = true;
+  soilGroup.add(plinth);
+
+  const trimMat = new THREE.MeshStandardMaterial({ color: 0x472b16, roughness: 0.75 });
+  const trim = new THREE.Mesh(new THREE.BoxGeometry(W + 0.16, 0.14, D + 0.16), trimMat);
+  trim.position.set(0, -DEPTH + 0.04, 0);
+  soilGroup.add(trim);
+}
+
+// ---------- Embedded Subsurface Stones, Strata Pebbles & Hanging Roots ----------
+{
+  const rockMats = [
+    new THREE.MeshStandardMaterial({ color: 0x7c6d5c, roughness: 0.92 }),
+    new THREE.MeshStandardMaterial({ color: 0x635446, roughness: 0.95 }),
+    new THREE.MeshStandardMaterial({ color: 0x8f7e6a, roughness: 0.88 }),
+    new THREE.MeshStandardMaterial({ color: 0x4e4237, roughness: 0.96 })
+  ];
+  const rockGeo = new THREE.DodecahedronGeometry(1, 1);
+  // Perturb rockGeo slightly for organic stones
+  const rPos = rockGeo.attributes.position;
+  for (let i = 0; i < rPos.count; i++) {
+    const vx = rPos.getX(i), vy = rPos.getY(i), vz = rPos.getZ(i);
+    const s = 0.85 + 0.3 * hashNoise(vx * 3, vy * 3, vz * 3);
+    rPos.setXYZ(i, vx * s, vy * s * 0.72, vz * s);
+  }
+  rockGeo.computeVertexNormals();
+
+  // Stones embedded along cutaway soil face (avoiding deep chamber centers)
+  for (let i = 0; i < 68; i++) {
+    const rx = rand(-W / 2 + 0.35, W / 2 - 0.35);
+    const ry = rand(-DEPTH + 0.25, -0.25);
+    const carve = getCutawayCarve(rx, ry);
+    if (carve > 0.32) continue; // Keep out of middle of chambers
+    const sz = rand(0.08, 0.28) * (ry < -4.5 ? 1.35 : 1.0);
+    const stone = new THREE.Mesh(rockGeo, pick(rockMats));
+    stone.scale.set(sz * rand(0.8, 1.3), sz * rand(0.6, 1.1), sz * 0.65);
+    stone.position.set(rx, ry, FRONT_Z - carve + rand(-0.04, 0.05));
+    stone.rotation.set(rand(0, 3), rand(0, 3), rand(0, 3));
+    stone.castShadow = true;
+    stone.receiveShadow = true;
+    soilGroup.add(stone);
+  }
+
+  // Gnarled Tree & Plant Roots penetrating ceiling of underground chambers & soil
+  const rootMat = new THREE.MeshStandardMaterial({ color: 0x5e3c1e, roughness: 0.9 });
+  const fineRootMat = new THREE.MeshStandardMaterial({ color: 0x78502b, roughness: 0.88 });
+  for (let i = 0; i < 28; i++) {
+    const startX = rand(-5.3, 5.3);
+    const startZ = rand(FRONT_Z - 0.9, FRONT_Z - 0.05);
+    const len = rand(1.1, 3.4);
+    const pts = [];
+    let cx = startX, cy = getSurfaceHeight(startX, startZ) - 0.05, cz = startZ;
+    const segs = 6;
+    for (let s = 0; s <= segs; s++) {
+      pts.push(new THREE.Vector3(cx, cy, cz));
+      cx += rand(-0.28, 0.28);
+      cy -= len / segs;
+      cz = Math.min(FRONT_Z + 0.02, Math.max(FRONT_Z - 1.1, cz + rand(-0.12, 0.12)));
+    }
+    const curve = new THREE.CatmullRomCurve3(pts);
+    const rGeo = new THREE.TubeGeometry(curve, 16, rand(0.022, 0.055), 6, false);
+    // Taper root radius along its length
+    const rp = rGeo.attributes.position;
+    for (let k = 0; k < rp.count; k++) {
+      const py = rp.getY(k);
+      const t = Math.max(0.15, Math.min(1, (py - (pts[segs].y)) / len));
+      const center = curve.getPoint(1 - t);
+      rp.setX(k, center.x + (rp.getX(k) - center.x) * t);
+      rp.setZ(k, center.z + (rp.getZ(k) - center.z) * t);
+    }
+    rGeo.computeVertexNormals();
+    const rootMesh = new THREE.Mesh(rGeo, i % 2 === 0 ? rootMat : fineRootMat);
+    rootMesh.castShadow = true;
+    soilGroup.add(rootMesh);
+  }
+}
+
+// ---------- Detailed Anthill Volcano & Interactive Proxy ----------
+const hillGroup = new THREE.Group();
+hillGroup.position.set(HILL.x, 0, HILL.z);
+worldGroup.add(hillGroup);
+{
+  const crumbMats = [
+    new THREE.MeshStandardMaterial({ color: 0x7b4e29, roughness: 0.96 }),
+    new THREE.MeshStandardMaterial({ color: 0x946238, roughness: 0.95 }),
+    new THREE.MeshStandardMaterial({ color: 0x623b1c, roughness: 0.98 }),
+    new THREE.MeshStandardMaterial({ color: 0xad7a4c, roughness: 0.92 })
+  ];
+  const crumbGeo = new THREE.DodecahedronGeometry(1, 0);
+
+  // Rich granular soil pellets clustered around the anthill cone and crater rim
+  for (let i = 0; i < 110; i++) {
     const a = rand(0, Math.PI * 2);
-    const tr = new THREE.Mesh(new THREE.CircleGeometry(rand(0.3, 0.6), 8), trailMat);
-    tr.rotation.x = -Math.PI/2;
-    tr.position.set(Math.cos(a) * rand(1.5, 2.2), 0.012, Math.sin(a) * rand(1.5, 2.2));
-    hillGroup.add(tr);
+    const rr = rand(0.24, HILL.r * 1.18);
+    const wx = HILL.x + Math.cos(a) * rr;
+    const wz = HILL.z + Math.sin(a) * rr;
+    const wy = getSurfaceHeight(wx, wz);
+    const sz = rand(0.035, 0.105) * (rr < 0.65 ? 1.25 : 0.9);
+    const gr = new THREE.Mesh(crumbGeo, pick(crumbMats));
+    gr.scale.set(sz * rand(0.8, 1.3), sz * rand(0.6, 1.0), sz * rand(0.8, 1.3));
+    gr.position.set(Math.cos(a) * rr, wy - 0.01, Math.sin(a) * rr);
+    gr.rotation.set(rand(0, 3), rand(0, 3), rand(0, 3));
+    gr.castShadow = true;
+    gr.receiveShadow = true;
+    hillGroup.add(gr);
   }
-  const proxy = new THREE.Mesh(new THREE.CylinderGeometry(HILL.r + 0.7, HILL.r + 0.7, 2.2, 12),
-    new THREE.MeshBasicMaterial({ visible: false }));
-  proxy.position.y = 0.9; hillGroup.add(proxy);
+
+  // Dark inner throat of the anthill crater
+  const throat = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.28, 0.16, 0.75, 16),
+    new THREE.MeshBasicMaterial({ color: 0x120904 })
+  );
+  throat.position.y = HILL.h - 0.42;
+  hillGroup.add(throat);
+
+  // Invisible hit proxy for tapping the anthill (generous radius for mobile touch)
+  const proxy = new THREE.Mesh(
+    new THREE.CylinderGeometry(HILL.r + 0.85, HILL.r + 0.95, 2.8, 16),
+    new THREE.MeshBasicMaterial({ visible: false })
+  );
+  proxy.position.y = 1.0;
+  hillGroup.add(proxy);
   hillGroup.userData.proxy = proxy;
 }
 
-// ---------- ants ----------
-const antBodyMat = new THREE.MeshStandardMaterial({ color: 0x6e2f16, roughness: 0.6 });
-const antHeadMat = new THREE.MeshStandardMaterial({ color: 0x571f0e, roughness: 0.6 });
-function makeAnt() {
-  const g = new THREE.Group();
-  const abd = new THREE.Mesh(new THREE.SphereGeometry(0.13, 10, 8), antBodyMat);
-  abd.scale.set(1, 0.85, 1.35); abd.position.set(0, 0.16, -0.19); abd.castShadow = true; g.add(abd);
-  const tho = new THREE.Mesh(new THREE.SphereGeometry(0.09, 9, 7), antBodyMat);
-  tho.position.set(0, 0.15, 0); tho.castShadow = true; g.add(tho);
-  const head = new THREE.Mesh(new THREE.SphereGeometry(0.095, 9, 7), antHeadMat);
-  head.position.set(0, 0.16, 0.15); head.castShadow = true; g.add(head);
-  const legs = [];
-  for (let l = 0; l < 6; l++) {
-    const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.014, 0.018, 0.22, 4), antHeadMat);
-    const side = l < 3 ? 1 : -1;
-    leg.position.set(side * 0.1, 0.09, (l % 3) * 0.09 - 0.08);
-    leg.rotation.z = side * 0.85; g.add(leg); legs.push(leg);
+// ---------- Underground Chamber Furnishings & Point Lights ----------
+const fungusPods = [];
+const chamberLights = [];
+const queenMeshRef = { group: null };
+const broodPiles = [];
+
+{
+  // Add warm point lights inside each chamber
+  for (const ch of CHAMBERS) {
+    const pLight = new THREE.PointLight(ch.lightCol, ch.lightInt, 4.8, 1.5);
+    pLight.position.set(ch.x, ch.y + 0.25, FRONT_Z - 0.35);
+    worldGroup.add(pLight);
+    chamberLights.push({ light: pLight, baseInt: ch.lightInt, id: ch.id });
   }
-  for (const s of [-1, 1]) {
-    const ant2 = new THREE.Mesh(new THREE.CylinderGeometry(0.008, 0.008, 0.14, 4), antHeadMat);
-    ant2.position.set(s * 0.05, 0.24, 0.22);
-    ant2.rotation.z = s * 0.5; ant2.rotation.x = -0.5; g.add(ant2);
+  // Central shaft soft glow
+  const shaftLight = new THREE.PointLight(0xffbe76, 1.1, 4.5, 1.5);
+  shaftLight.position.set(0.0, -2.5, FRONT_Z - 0.2);
+  worldGroup.add(shaftLight);
+
+  // 1. BROOD NURSERY (x: -2.85, y: -1.75) - translucent pearl eggs, ribbed larvae & cocoons
+  const eggMat = new THREE.MeshStandardMaterial({
+    color: 0xfff8e8, roughness: 0.28, metalness: 0.05,
+    emissive: 0x4a3219, emissiveIntensity: 0.25
+  });
+  const larvaMat = new THREE.MeshStandardMaterial({
+    color: 0xf7ebd2, roughness: 0.38,
+    emissive: 0x3d2812, emissiveIntensity: 0.2
+  });
+  const pupaMat = new THREE.MeshStandardMaterial({
+    color: 0xe5c99b, roughness: 0.55
+  });
+
+  const nurseryGroup = new THREE.Group();
+  nurseryGroup.position.set(-2.85, -2.32, FRONT_Z - 0.55);
+  worldGroup.add(nurseryGroup);
+
+  // Clustered egg piles
+  for (let i = 0; i < 38; i++) {
+    const egg = new THREE.Mesh(new THREE.SphereGeometry(0.055, 8, 6), eggMat);
+    egg.scale.set(1, 0.78, 1.38);
+    const a = rand(0, Math.PI * 2), r = rand(0, 0.95);
+    egg.position.set(Math.cos(a) * r, rand(0.02, 0.16) * (1 - r * 0.5), Math.sin(a) * r * 0.45);
+    egg.rotation.set(rand(-0.5, 0.5), rand(0, 3), rand(-0.5, 0.5));
+    egg.castShadow = true;
+    nurseryGroup.add(egg);
   }
-  g.userData.legs = legs;
-  return g;
+  // Segmented plump larvae
+  for (let i = 0; i < 11; i++) {
+    const lg = new THREE.Group();
+    for (let s = 0; s < 4; s++) {
+      const seg = new THREE.Mesh(new THREE.SphereGeometry(0.068 - s * 0.008, 8, 6), i % 3 === 0 ? pupaMat : larvaMat);
+      seg.position.set(s * 0.065 - 0.09, Math.sin(s * 0.8) * 0.025, 0);
+      seg.scale.set(0.95, 1.05, 1.0);
+      lg.add(seg);
+    }
+    lg.position.set(rand(-0.85, 0.85), rand(0.06, 0.14), rand(-0.32, 0.32));
+    lg.rotation.y = rand(0, Math.PI * 2);
+    lg.userData.phase = rand(0, 6.28);
+    nurseryGroup.add(lg);
+    broodPiles.push(lg);
+  }
+
+  // 2. SEED GRANARY (x: 3.05, y: -1.65) - golden seeds, wheat kernels, berry drupes & husks
+  const seedMats = [
+    new THREE.MeshStandardMaterial({ color: 0xe6ad45, roughness: 0.48 }),
+    new THREE.MeshStandardMaterial({ color: 0xc87d28, roughness: 0.55 }),
+    new THREE.MeshStandardMaterial({ color: 0xdf9b32, roughness: 0.42 }),
+    new THREE.MeshStandardMaterial({ color: 0x8f3922, roughness: 0.40 }), // red-brown berry seed
+    new THREE.MeshStandardMaterial({ color: 0xf2cb76, roughness: 0.62 })
+  ];
+  const granaryGroup = new THREE.Group();
+  granaryGroup.position.set(3.05, -2.22, FRONT_Z - 0.52);
+  worldGroup.add(granaryGroup);
+
+  const seedGeo = new THREE.SphereGeometry(0.065, 8, 6);
+  for (let i = 0; i < 56; i++) {
+    const sd = new THREE.Mesh(seedGeo, pick(seedMats));
+    const isBerry = i % 7 === 0;
+    sd.scale.set(isBerry ? 1.15 : 0.75, isBerry ? 1.1 : 0.65, isBerry ? 1.15 : 1.55);
+    const rx = rand(-0.98, 0.98);
+    const rz = rand(-0.38, 0.38);
+    const pileH = Math.max(0, (1 - Math.abs(rx) / 1.05) * 0.26);
+    sd.position.set(rx, rand(0.03, 0.06 + pileH), rz);
+    sd.rotation.set(rand(-0.6, 0.6), rand(0, 3.14), rand(-0.6, 0.6));
+    sd.castShadow = true;
+    granaryGroup.add(sd);
+  }
+
+  // 3. FUNGUS GARDEN (x: 2.55, y: -4.35) - spongy coral matrix + glowing bioluminescent caps
+  const fungusGroup = new THREE.Group();
+  fungusGroup.position.set(2.55, -5.08, FRONT_Z - 0.58);
+  worldGroup.add(fungusGroup);
+
+  const spongeMat = new THREE.MeshStandardMaterial({
+    color: 0x3b6e5c, roughness: 0.88,
+    emissive: 0x164236, emissiveIntensity: 0.45
+  });
+  const glowCapMat = new THREE.MeshStandardMaterial({
+    color: 0x7fffd4, roughness: 0.32,
+    emissive: 0x2ee8b5, emissiveIntensity: 0.95
+  });
+  const stalkMat = new THREE.MeshStandardMaterial({
+    color: 0xa6f0d8, roughness: 0.55,
+    emissive: 0x1b6650, emissiveIntensity: 0.35
+  });
+
+  // Base mycelial sponge mounds
+  for (let i = 0; i < 24; i++) {
+    const sp = new THREE.Mesh(new THREE.DodecahedronGeometry(rand(0.11, 0.24), 1), spongeMat);
+    const a = rand(0, Math.PI * 2), r = rand(0, 1.15);
+    sp.position.set(Math.cos(a) * r, rand(0.05, 0.36) * (1 - r * 0.45), Math.sin(a) * r * 0.42);
+    sp.scale.y = rand(0.65, 1.15);
+    sp.rotation.set(rand(0, 3), rand(0, 3), 0);
+    fungusGroup.add(sp);
+  }
+
+  // Glowing mushroom stalks & bulbs
+  for (let i = 0; i < 19; i++) {
+    const mg = new THREE.Group();
+    const h = rand(0.18, 0.48);
+    const st = new THREE.Mesh(new THREE.CylinderGeometry(0.018, 0.032, h, 6), stalkMat);
+    st.position.y = h / 2;
+    mg.add(st);
+
+    const capR = rand(0.055, 0.13);
+    const cap = new THREE.Mesh(new THREE.SphereGeometry(capR, 10, 8), glowCapMat);
+    cap.scale.set(1.15, 0.72, 1.15);
+    cap.position.y = h;
+    mg.add(cap);
+
+    const rx = rand(-1.1, 1.1);
+    const rz = rand(-0.4, 0.4);
+    mg.position.set(rx, rand(0.08, 0.25), rz);
+    mg.rotation.z = rand(-0.28, 0.28);
+    mg.rotation.x = rand(-0.2, 0.2);
+    mg.userData = { baseScale: 1, phase: rand(0, 6.28) };
+    fungusGroup.add(mg);
+    fungusPods.push(mg);
+  }
 }
-const ants = [];
-function antLoop(cx, cz, rx, rz, wobble) {
+
+// ---------- Articulated Realistic Ant Builder ----------
+const antMaterials = {
+  workerThorax: new THREE.MeshStandardMaterial({ color: 0x5c220e, roughness: 0.42, metalness: 0.08 }),
+  workerHead:   new THREE.MeshStandardMaterial({ color: 0x3b1307, roughness: 0.36, metalness: 0.10 }),
+  workerGaster: new THREE.MeshStandardMaterial({ color: 0x260b04, roughness: 0.30, metalness: 0.12 }),
+  soldierHead:  new THREE.MeshStandardMaterial({ color: 0x78280e, roughness: 0.38, metalness: 0.10 }),
+  queenGaster:  new THREE.MeshStandardMaterial({ color: 0x3d1407, roughness: 0.26, metalness: 0.15, emissive: 0x1a0600, emissiveIntensity: 0.2 }),
+  eyeMat:       new THREE.MeshStandardMaterial({ color: 0x090504, roughness: 0.15, metalness: 0.3 }),
+  legMat:       new THREE.MeshStandardMaterial({ color: 0x331106, roughness: 0.48 })
+};
+
+function makeAnt(role = 'worker') {
+  const scale = role === 'queen' ? 2.15 : (role === 'soldier' ? 1.32 : rand(0.88, 1.08));
+  const root = new THREE.Group();
+  root.scale.setScalar(scale);
+
+  // Body container lifted off ground by leg height
+  const body = new THREE.Group();
+  body.position.y = 0.14;
+  root.add(body);
+
+  // 1. Mesosoma (Thorax) - elongated bi-lobed capsule look
+  const thorax = new THREE.Mesh(new THREE.SphereGeometry(0.075, 10, 8), antMaterials.workerThorax);
+  thorax.scale.set(0.82, 0.78, 1.55);
+  thorax.castShadow = true;
+  body.add(thorax);
+
+  // 2. Petiole (narrow waist node between thorax and gaster)
+  const petiole = new THREE.Mesh(new THREE.SphereGeometry(0.032, 7, 6), antMaterials.workerThorax);
+  petiole.position.set(0, -0.01, -0.125);
+  body.add(petiole);
+
+  // 3. Gaster (Abdomen) - teardrop / ovate rear segment
+  const gasterPivot = new THREE.Group();
+  gasterPivot.position.set(0, 0.01, -0.15);
+  body.add(gasterPivot);
+
+  const gasterMat = role === 'queen' ? antMaterials.queenGaster : antMaterials.workerGaster;
+  const gaster = new THREE.Mesh(new THREE.SphereGeometry(0.115, 12, 10), gasterMat);
+  if (role === 'queen') {
+    gaster.scale.set(1.18, 1.08, 1.68);
+    gaster.position.set(0, 0.03, -0.14);
+  } else {
+    gaster.scale.set(0.95, 0.88, 1.32);
+    gaster.position.set(0, 0.015, -0.10);
+  }
+  gaster.castShadow = true;
+  gasterPivot.add(gaster);
+
+  // Subtle lighter tergite bands on the queen's gaster
+  if (role === 'queen') {
+    const bandMat = new THREE.MeshStandardMaterial({ color: 0x8f4319, roughness: 0.35 });
+    for (let b = 0; b < 3; b++) {
+      const band = new THREE.Mesh(new THREE.TorusGeometry(0.105 - b * 0.012, 0.012, 6, 14), bandMat);
+      band.position.set(0, 0.035, -0.08 - b * 0.07);
+      gasterPivot.add(band);
+    }
+  }
+
+  // 4. Head + Compound Eyes + Mandibles + Elbowed Antennae
+  const headPivot = new THREE.Group();
+  headPivot.position.set(0, 0.02, 0.125);
+  body.add(headPivot);
+
+  const headMat = role === 'soldier' ? antMaterials.soldierHead : antMaterials.workerHead;
+  const head = new THREE.Mesh(new THREE.SphereGeometry(0.085, 10, 8), headMat);
+  const hScale = role === 'soldier' ? 1.28 : 1.0;
+  head.scale.set(0.96 * hScale, 0.84 * hScale, 1.08 * hScale);
+  head.position.set(0, 0, 0.045);
+  head.castShadow = true;
+  headPivot.add(head);
+
+  // Compound eyes
+  for (const s of [-1, 1]) {
+    const eye = new THREE.Mesh(new THREE.SphereGeometry(0.022, 6, 5), antMaterials.eyeMat);
+    eye.position.set(s * 0.068 * hScale, 0.018, 0.065);
+    headPivot.add(eye);
+
+    // Curved mandibles
+    const mand = new THREE.Mesh(new THREE.ConeGeometry(0.022 * hScale, 0.075 * hScale, 5), headMat);
+    mand.position.set(s * 0.036 * hScale, -0.022, 0.125 * hScale);
+    mand.rotation.x = Math.PI * 0.46;
+    mand.rotation.z = s * 0.38;
+    headPivot.add(mand);
+  }
+
+  // Elbowed (geniculate) antennae: scape + funiculus
+  const antennae = [];
+  for (const s of [-1, 1]) {
+    const antPivot = new THREE.Group();
+    antPivot.position.set(s * 0.035, 0.035, 0.105);
+    headPivot.add(antPivot);
+
+    const scape = new THREE.Mesh(new THREE.CylinderGeometry(0.007, 0.009, 0.11, 5), antMaterials.legMat);
+    scape.position.set(s * 0.035, 0.035, 0.035);
+    scape.rotation.z = -s * 0.55;
+    scape.rotation.x = 0.55;
+    antPivot.add(scape);
+
+    const tip = new THREE.Mesh(new THREE.CylinderGeometry(0.006, 0.008, 0.10, 5), antMaterials.legMat);
+    tip.position.set(s * 0.065, 0.055, 0.095);
+    tip.rotation.x = 1.25;
+    tip.rotation.z = -s * 0.25;
+    antPivot.add(tip);
+
+    antennae.push(antPivot);
+  }
+
+  // 5. Six 2-Segment Articulated Legs (Femur + Tibia/Tarsus)
+  const legs = [];
+  const zOffsets = [0.068, 0.0, -0.068];
+  const zAngles = [0.32, 0.0, -0.36];
+
+  for (let l = 0; l < 6; l++) {
+    const side = l < 3 ? 1 : -1;
+    const idx = l % 3;
+    const hip = new THREE.Group();
+    hip.position.set(side * 0.052, -0.015, zOffsets[idx]);
+    hip.rotation.y = side * zAngles[idx];
+    body.add(hip);
+
+    // Upper femur angling upward and outward
+    const femur = new THREE.Mesh(new THREE.CylinderGeometry(0.011, 0.014, 0.13, 5), antMaterials.legMat);
+    femur.position.set(side * 0.048, 0.032, 0);
+    femur.rotation.z = -side * 1.05;
+    hip.add(femur);
+
+    // Lower tibia angling steeply down to ground
+    const tibia = new THREE.Mesh(new THREE.CylinderGeometry(0.007, 0.011, 0.17, 5), antMaterials.legMat);
+    tibia.position.set(side * 0.118, -0.042, 0);
+    tibia.rotation.z = -side * 0.35;
+    hip.add(tibia);
+
+    legs.push({ hip, side, idx, baseY: hip.rotation.y });
+  }
+
+  root.userData = { legs, antennae, headPivot, gasterPivot, body, role };
+  return root;
+}
+
+// Helper to create natural carried burdens (leaf fragments, seeds, white eggs)
+function attachBurden(antGroup, type) {
+  const headPivot = antGroup.userData.headPivot;
+  if (type === 'leaf') {
+    const leafShape = new THREE.Shape();
+    leafShape.moveTo(0, 0);
+    leafShape.quadraticCurveTo(0.12, 0.10, 0.04, 0.28);
+    leafShape.quadraticCurveTo(-0.08, 0.22, -0.06, 0.08);
+    leafShape.closePath();
+    const lGeo = new THREE.ShapeGeometry(leafShape);
+    const lMat = new THREE.MeshStandardMaterial({
+      color: pick([0x5da844, 0x74bf52, 0x4b9436]),
+      roughness: 0.65, side: THREE.DoubleSide
+    });
+    const leaf = new THREE.Mesh(lGeo, lMat);
+    leaf.position.set(0, 0.02, 0.13);
+    leaf.rotation.x = -0.35;
+    leaf.rotation.y = 0.2;
+    leaf.castShadow = true;
+    headPivot.add(leaf);
+  } else if (type === 'seed') {
+    const sMat = new THREE.MeshStandardMaterial({ color: 0xe3a83b, roughness: 0.45 });
+    const seed = new THREE.Mesh(new THREE.SphereGeometry(0.055, 8, 6), sMat);
+    seed.scale.set(0.8, 0.75, 1.35);
+    seed.position.set(0, -0.01, 0.15);
+    seed.castShadow = true;
+    headPivot.add(seed);
+  } else if (type === 'egg') {
+    const eMat = new THREE.MeshStandardMaterial({
+      color: 0xfff8eb, roughness: 0.25, emissive: 0x3b2812, emissiveIntensity: 0.25
+    });
+    const egg = new THREE.Mesh(new THREE.SphereGeometry(0.05, 8, 6), eMat);
+    egg.scale.set(0.85, 0.8, 1.3);
+    egg.position.set(0, -0.005, 0.145);
+    headPivot.add(egg);
+  }
+}
+
+// ---------- Populate Surface, Tunnel, Chamber & Royal Ants ----------
+const surfaceAnts = [];
+const undergroundAnts = [];
+const swarmAnts = [];
+
+// 1. Queen Ant + Retinue in the Royal Chamber (x: -2.25, y: -4.45)
+{
+  const queen = makeAnt('queen');
+  queen.position.set(-2.35, -5.18, FRONT_Z - 0.58);
+  queen.rotation.y = Math.PI * 0.42;
+  worldGroup.add(queen);
+  queenMeshRef.group = queen;
+
+  // Attendant workers grooming & guarding the queen
+  const spots = [
+    { x: -1.65, z: FRONT_Z - 0.48, ry: -1.2 },
+    { x: -2.95, z: FRONT_Z - 0.45, ry: 1.4 },
+    { x: -2.10, z: FRONT_Z - 0.85, ry: -0.3 }
+  ];
+  for (let i = 0; i < spots.length; i++) {
+    const att = makeAnt(i === 0 ? 'soldier' : 'worker');
+    att.position.set(spots[i].x, -5.20, spots[i].z);
+    att.rotation.y = spots[i].ry;
+    if (i === 1) attachBurden(att, 'egg');
+    worldGroup.add(att);
+    undergroundAnts.push({
+      g: att, curve: null, u: 0, sp: 0, ph: rand(0, 6.28),
+      stationary: true, basePos: att.position.clone(), baseRotY: spots[i].ry
+    });
+  }
+}
+
+// 2. Surface Foraging & Patrol Ants (conforming to 3D surface terrain & anthill slopes)
+function makeSurfaceLoop(cx, cz, rx, rz, wobble) {
   const pts = [];
-  for (let i = 0; i < 8; i++) {
-    const a = (i / 8) * Math.PI * 2;
-    pts.push(new THREE.Vector3(
-      cx + Math.cos(a) * (rx + rand(-wobble, wobble)), 0,
-      cz + Math.sin(a) * (rz + rand(-wobble, wobble))));
+  const count = 10;
+  for (let i = 0; i < count; i++) {
+    const a = (i / count) * Math.PI * 2;
+    const px = THREE.MathUtils.clamp(cx + Math.cos(a) * (rx + rand(-wobble, wobble)), -5.3, 5.3);
+    const pz = THREE.MathUtils.clamp(cz + Math.sin(a) * (rz + rand(-wobble, wobble)), -4.6, 4.6);
+    const py = getSurfaceHeight(px, pz);
+    pts.push(new THREE.Vector3(px, py, pz));
   }
   return new THREE.CatmullRomCurve3(pts, true, 'centripetal');
 }
-for (let i = 0; i < 13; i++) {
-  const g = makeAnt(); slabGroup.add(g);
-  const nearHill = i < 5;
-  const curve = antLoop(
-    nearHill ? HILL.x + rand(-1, 1) : rand(-4.5, 4.5),
-    nearHill ? HILL.z + rand(-1, 1) : rand(-4.5, 4.5),
-    rand(1.0, 2.6), rand(1.0, 2.4), 0.5);
-  ants.push({ g, curve, u: rand(0, 1), sp: rand(0.018, 0.034), ph: rand(0, 6.28), carry: null });
+
+for (let i = 0; i < 16; i++) {
+  const role = i % 5 === 0 ? 'soldier' : 'worker';
+  const g = makeAnt(role);
+  worldGroup.add(g);
+  const nearHill = i < 6;
+  const curve = makeSurfaceLoop(
+    nearHill ? HILL.x + rand(-0.9, 0.9) : rand(-4.0, 4.0),
+    nearHill ? HILL.z + rand(-0.9, 0.9) : rand(-3.5, 3.5),
+    rand(1.1, 2.7), rand(1.0, 2.3), 0.45
+  );
+  if (i === 0 || i === 4 || i === 8 || i === 12) attachBurden(g, 'leaf');
+  else if (i === 2 || i === 10) attachBurden(g, 'seed');
+
+  surfaceAnts.push({
+    g, curve, u: rand(0, 1), sp: rand(0.020, 0.036), ph: rand(0, 6.28)
+  });
 }
-// 3 leaf-carrying ants
-{
-  const leafMat = new THREE.MeshStandardMaterial({ color: 0x5da854, roughness: 0.7, side: THREE.DoubleSide });
-  for (let i = 0; i < 3; i++) {
-    const ant = ants[i * 3];
-    const leaf = new THREE.Mesh(new THREE.CircleGeometry(0.16, 3), leafMat);
-    leaf.rotation.x = -Math.PI / 2 + 0.3; leaf.position.set(0, 0.34, 0.26);
-    ant.g.add(leaf); ant.carry = leaf;
-  }
+
+// 3. Underground Tunnel & Chamber Worker Ants (walking in 3D along cutaway tunnels)
+const UG_LOOPS = [
+  // Loop 1: Anthill entrance -> Central shaft -> Nursery -> back up
+  new THREE.CatmullRomCurve3([
+    new THREE.Vector3(0.20, -0.55, FRONT_Z - 0.22),
+    new THREE.Vector3(0.12, -1.35, FRONT_Z - 0.20),
+    new THREE.Vector3(-1.35, -1.55, FRONT_Z - 0.20),
+    new THREE.Vector3(-2.75, -2.18, FRONT_Z - 0.32),
+    new THREE.Vector3(-3.55, -2.05, FRONT_Z - 0.25),
+    new THREE.Vector3(-1.45, -1.42, FRONT_Z - 0.22)
+  ], true, 'centripetal'),
+  // Loop 2: Central shaft -> Seed Granary -> Fungus Garden -> Lower shaft
+  new THREE.CatmullRomCurve3([
+    new THREE.Vector3(0.15, -1.25, FRONT_Z - 0.20),
+    new THREE.Vector3(1.65, -1.42, FRONT_Z - 0.20),
+    new THREE.Vector3(3.05, -2.08, FRONT_Z - 0.30),
+    new THREE.Vector3(4.25, -3.05, FRONT_Z - 0.20),
+    new THREE.Vector3(2.65, -4.85, FRONT_Z - 0.32),
+    new THREE.Vector3(1.10, -3.85, FRONT_Z - 0.20),
+    new THREE.Vector3(-0.05, -2.65, FRONT_Z - 0.20)
+  ], true, 'centripetal'),
+  // Loop 3: Nursery -> West shaft -> Royal Chamber -> Central shaft
+  new THREE.CatmullRomCurve3([
+    new THREE.Vector3(-2.85, -2.15, FRONT_Z - 0.28),
+    new THREE.Vector3(-4.20, -3.15, FRONT_Z - 0.20),
+    new THREE.Vector3(-3.25, -4.75, FRONT_Z - 0.30),
+    new THREE.Vector3(-1.55, -4.35, FRONT_Z - 0.22),
+    new THREE.Vector3(-0.08, -3.45, FRONT_Z - 0.20),
+    new THREE.Vector3(0.05, -1.85, FRONT_Z - 0.20)
+  ], true, 'centripetal')
+];
+
+for (let i = 0; i < 14; i++) {
+  const g = makeAnt(i % 6 === 0 ? 'soldier' : 'worker');
+  worldGroup.add(g);
+  const loopIdx = i % UG_LOOPS.length;
+  if (loopIdx === 0 && i % 2 === 0) attachBurden(g, 'egg');
+  if (loopIdx === 1 && i % 2 === 1) attachBurden(g, 'leaf');
+  if (loopIdx === 2 && i % 3 === 0) attachBurden(g, 'seed');
+
+  undergroundAnts.push({
+    g, curve: UG_LOOPS[loopIdx], u: (i / 14 + rand(0, 0.08)) % 1,
+    sp: rand(0.022, 0.035), ph: rand(0, 6.28), stationary: false
+  });
 }
-// swarm ants (hidden until tap, wall-clock emergence)
-const swarmAnts = [];
-for (let i = 0; i < 7; i++) {
-  const g = makeAnt(); g.visible = false; slabGroup.add(g);
-  const a = rand(0, Math.PI * 2);
-  const curve = new THREE.CatmullRomCurve3([
-    new THREE.Vector3(HILL.x, 0, HILL.z),
-    new THREE.Vector3(HILL.x + Math.cos(a) * 1.6, 0, HILL.z + Math.sin(a) * 1.6),
-    new THREE.Vector3(HILL.x + Math.cos(a + 0.9) * 2.6, 0, HILL.z + Math.sin(a + 0.9) * 2.6),
-    new THREE.Vector3(HILL.x + Math.cos(a + 1.8) * 1.7, 0, HILL.z + Math.sin(a + 1.8) * 1.7),
-    new THREE.Vector3(HILL.x, 0, HILL.z),
-  ], true, 'centripetal');
-  swarmAnts.push({ g, curve, u: rand(0, 1), sp: rand(0.05, 0.075), ph: rand(0, 6.28) });
+
+// 4. Swarm Ants (Emerge from anthill crater & tunnel mouth on tap, wall-clock 4500ms)
+for (let i = 0; i < 11; i++) {
+  const g = makeAnt(i % 3 === 0 ? 'soldier' : 'worker');
+  g.visible = false;
+  worldGroup.add(g);
+  const a = (i / 11) * Math.PI * 2 + rand(-0.2, 0.2);
+  const pts = [
+    new THREE.Vector3(HILL.x, getSurfaceHeight(HILL.x, HILL.z) - 0.15, HILL.z),
+    new THREE.Vector3(
+      HILL.x + Math.cos(a) * 1.4,
+      getSurfaceHeight(HILL.x + Math.cos(a) * 1.4, HILL.z + Math.sin(a) * 1.4),
+      HILL.z + Math.sin(a) * 1.4
+    ),
+    new THREE.Vector3(
+      HILL.x + Math.cos(a + 0.75) * 2.8,
+      getSurfaceHeight(HILL.x + Math.cos(a + 0.75) * 2.8, HILL.z + Math.sin(a + 0.75) * 2.8),
+      HILL.z + Math.sin(a + 0.75) * 2.8
+    ),
+    new THREE.Vector3(
+      HILL.x + Math.cos(a + 1.55) * 1.8,
+      getSurfaceHeight(HILL.x + Math.cos(a + 1.55) * 1.8, HILL.z + Math.sin(a + 1.55) * 1.8),
+      HILL.z + Math.sin(a + 1.55) * 1.8
+    ),
+    new THREE.Vector3(HILL.x, getSurfaceHeight(HILL.x, HILL.z) - 0.15, HILL.z)
+  ];
+  const curve = new THREE.CatmullRomCurve3(pts, true, 'centripetal');
+  swarmAnts.push({ g, curve, u: rand(0, 1), sp: rand(0.055, 0.082), ph: rand(0, 6.28) });
 }
 const swarm = { t0: -1 };
 const SWARM_MS = 4500;
 
-// ---------- scenery: grass, pebbles, twigs, flowers ----------
+// ---------- Rich Surface Botanicals: Swaying Grass, Wildflowers, Pebbles, Twigs & Clover ----------
+const swayingFoliage = [];
 {
-  const grassMats = [0x7fae56, 0x93bd66, 0x6b9a4a].map(c => new THREE.MeshStandardMaterial({ color: c, roughness: 0.9 }));
-  for (let i = 0; i < 26; i++) {
-    const g = new THREE.Group();
-    const n = 3;
-    for (let k = 0; k < n; k++) {
-      const bl = new THREE.Mesh(new THREE.ConeGeometry(0.035, rand(0.25, 0.5), 4), grassMats[k % 3]);
-      bl.position.set(rand(-0.08, 0.08), 0.15, rand(-0.08, 0.08));
-      bl.rotation.z = rand(-0.3, 0.3); bl.castShadow = true; g.add(bl);
+  const grassCols = [0x6da344, 0x82b853, 0x568934, 0x97c763];
+  const grassMats = grassCols.map(c => new THREE.MeshStandardMaterial({
+    color: c, roughness: 0.78, side: THREE.DoubleSide
+  }));
+
+  // Curved tapering grass blade geometry with pivot at base
+  function createBladeGeo(h, w) {
+    const geo = new THREE.PlaneGeometry(w, h, 1, 5);
+    geo.translate(0, h / 2, 0);
+    const p = geo.attributes.position;
+    for (let i = 0; i < p.count; i++) {
+      const py = p.getY(i);
+      const t = py / h;
+      p.setX(i, p.getX(i) * (1 - Math.pow(t, 1.4) * 0.92));
+      p.setZ(i, Math.pow(t, 2.0) * h * 0.26);
     }
+    geo.computeVertexNormals();
+    return geo;
+  }
+  const bladeGeos = [
+    createBladeGeo(0.55, 0.06),
+    createBladeGeo(0.85, 0.075),
+    createBladeGeo(1.18, 0.085)
+  ];
+
+  // 48 lush grass tufts across the surface (taller tufts near back & edges)
+  for (let i = 0; i < 48; i++) {
     let x, z;
-    do { x = rand(-5.4, 5.4); z = rand(-5.4, 5.4); } while (Math.hypot(x - HILL.x, z - HILL.z) < 2.2);
-    g.position.set(x, 0, z); slabGroup.add(g);
+    let tries = 0;
+    do {
+      x = rand(-5.5, 5.5);
+      z = rand(-4.7, 4.7);
+      tries++;
+    } while (Math.hypot(x - HILL.x, z - HILL.z) < 1.95 && tries < 20);
+
+    const tuft = new THREE.Group();
+    const y = getSurfaceHeight(x, z);
+    tuft.position.set(x, y - 0.02, z);
+
+    const isEdge = Math.abs(x) > 3.6 || z < -2.2;
+    const count = isEdge ? randInt(6, 9) : randInt(4, 6);
+    for (let k = 0; k < count; k++) {
+      const gIdx = isEdge ? randInt(1, 2) : randInt(0, 1);
+      const bl = new THREE.Mesh(bladeGeos[gIdx], grassMats[(i + k) % grassMats.length]);
+      bl.rotation.y = (k / count) * Math.PI * 2 + rand(-0.3, 0.3);
+      bl.rotation.x = rand(0.08, 0.28);
+      bl.scale.setScalar(rand(0.8, 1.25));
+      bl.castShadow = true;
+      tuft.add(bl);
+    }
+    tuft.userData = { phase: rand(0, 6.28), amp: rand(0.05, 0.11) };
+    worldGroup.add(tuft);
+    swayingFoliage.push(tuft);
   }
-  const pebMats = [0x9a8a72, 0x8a7a64, 0xa89880].map(c => new THREE.MeshStandardMaterial({ color: c, roughness: 1 }));
-  for (let i = 0; i < 16; i++) {
-    const p = new THREE.Mesh(new THREE.DodecahedronGeometry(rand(0.06, 0.15), 0), pebMats[i % 3]);
-    p.position.set(rand(-5.4, 5.4), 0.05, rand(-5.4, 5.4));
-    p.scale.y = 0.6; p.rotation.y = rand(0, 3); p.castShadow = true; slabGroup.add(p);
-  }
-  const twigMat = new THREE.MeshStandardMaterial({ color: 0x7a5a38, roughness: 1 });
-  for (let i = 0; i < 4; i++) {
-    const tw = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.05, rand(0.7, 1.2), 6), twigMat);
-    tw.rotation.set(Math.PI / 2, 0, rand(0, 3));
-    tw.position.set(rand(-4.5, 4.5), 0.05, rand(-4.5, 4.5));
-    tw.castShadow = true; slabGroup.add(tw);
-  }
-  const petalCols = [0xf2f0e4, 0xffd166, 0xf4a7b9];
-  for (let i = 0; i < 6; i++) {
+
+  // 11 Detailed Wildflowers (Daisies, Buttercups & Pink Clover Blossoms)
+  const petalPalettes = [
+    { petal: 0xfff9eb, center: 0xe89c25 }, // White Chamomile / Daisy
+    { petal: 0xffd24c, center: 0xc96b14 }, // Golden Buttercup
+    { petal: 0xf49db6, center: 0xe0822b }  // Meadow Pink
+  ];
+  const stemMat = new THREE.MeshStandardMaterial({ color: 0x5c8f3b, roughness: 0.85 });
+
+  for (let i = 0; i < 11; i++) {
+    let x, z;
+    do {
+      x = rand(-5.2, 5.2);
+      z = rand(-4.4, 4.2);
+    } while (Math.hypot(x - HILL.x, z - HILL.z) < 2.15);
+
     const fg = new THREE.Group();
-    const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.03, 0.35, 5),
-      new THREE.MeshStandardMaterial({ color: 0x6b9a4a, roughness: 1 }));
-    stem.position.y = 0.17; fg.add(stem);
-    for (let p = 0; p < 5; p++) {
-      const pt = new THREE.Mesh(new THREE.CircleGeometry(0.09, 6),
-        new THREE.MeshStandardMaterial({ color: petalCols[i % 3], roughness: 0.8, side: THREE.DoubleSide }));
-      const a = (p / 5) * Math.PI * 2;
-      pt.position.set(Math.cos(a) * 0.1, 0.37, Math.sin(a) * 0.1);
-      pt.rotation.x = -Math.PI / 2 + 0.4; fg.add(pt);
+    const h = rand(0.52, 1.05);
+    // Curved stem
+    const stemCurve = new THREE.QuadraticBezierCurve3(
+      new THREE.Vector3(0, 0, 0),
+      new THREE.Vector3(rand(-0.08, 0.08), h * 0.55, rand(-0.08, 0.08)),
+      new THREE.Vector3(0, h, 0)
+    );
+    const stem = new THREE.Mesh(new THREE.TubeGeometry(stemCurve, 8, 0.022, 6, false), stemMat);
+    stem.castShadow = true;
+    fg.add(stem);
+
+    const pal = petalPalettes[i % petalPalettes.length];
+    const pMat = new THREE.MeshStandardMaterial({ color: pal.petal, roughness: 0.6, side: THREE.DoubleSide });
+    const headG = new THREE.Group();
+    headG.position.set(0, h, 0);
+    headG.rotation.x = rand(-0.25, 0.25);
+    headG.rotation.z = rand(-0.25, 0.25);
+    fg.add(headG);
+
+    const numPetals = 8;
+    for (let p = 0; p < numPetals; p++) {
+      const a = (p / numPetals) * Math.PI * 2;
+      const pt = new THREE.Mesh(new THREE.CircleGeometry(0.085, 7), pMat);
+      pt.scale.set(0.65, 1.35, 1);
+      pt.position.set(Math.cos(a) * 0.11, 0.01, Math.sin(a) * 0.11);
+      pt.rotation.y = -a + Math.PI / 2;
+      pt.rotation.x = -Math.PI / 2 + 0.28;
+      pt.castShadow = true;
+      headG.add(pt);
     }
-    const ctr = new THREE.Mesh(new THREE.SphereGeometry(0.05, 6, 5),
-      new THREE.MeshStandardMaterial({ color: 0xe8a13a, roughness: 0.8 }));
-    ctr.position.y = 0.38; fg.add(ctr);
-    let x, z;
-    do { x = rand(-5, 5); z = rand(-5, 5); } while (Math.hypot(x - HILL.x, z - HILL.z) < 2.4);
-    fg.position.set(x, 0, z); fg.castShadow = true; slabGroup.add(fg);
+    const ctr = new THREE.Mesh(
+      new THREE.SphereGeometry(0.062, 8, 6),
+      new THREE.MeshStandardMaterial({ color: pal.center, roughness: 0.7 })
+    );
+    ctr.scale.y = 0.65;
+    ctr.position.y = 0.015;
+    headG.add(ctr);
+
+    const sy = getSurfaceHeight(x, z);
+    fg.position.set(x, sy - 0.02, z);
+    fg.userData = { phase: rand(0, 6.28), amp: rand(0.06, 0.12) };
+    worldGroup.add(fg);
+    swayingFoliage.push(fg);
+  }
+
+  // Surface Pebbles, Fallen Twigs & Bark Chips
+  const pebMats = [0x9c8b74, 0x82725d, 0xb0a089, 0x6e5f4d].map(
+    c => new THREE.MeshStandardMaterial({ color: c, roughness: 0.92 })
+  );
+  for (let i = 0; i < 32; i++) {
+    const x = rand(-5.5, 5.5), z = rand(-4.7, 4.7);
+    if (Math.hypot(x - HILL.x, z - HILL.z) < 0.7) continue;
+    const p = new THREE.Mesh(new THREE.DodecahedronGeometry(rand(0.055, 0.17), 1), pick(pebMats));
+    p.position.set(x, getSurfaceHeight(x, z) + 0.02, z);
+    p.scale.set(rand(0.9, 1.3), rand(0.45, 0.75), rand(0.9, 1.3));
+    p.rotation.set(rand(0, 3), rand(0, 3), rand(0, 3));
+    p.castShadow = true;
+    p.receiveShadow = true;
+    worldGroup.add(p);
+  }
+
+  const twigMat = new THREE.MeshStandardMaterial({ color: 0x694828, roughness: 0.95 });
+  for (let i = 0; i < 7; i++) {
+    const x = rand(-4.8, 4.8), z = rand(-4.0, 4.0);
+    if (Math.hypot(x - HILL.x, z - HILL.z) < 1.8) continue;
+    const len = rand(0.65, 1.35);
+    const tw = new THREE.Mesh(new THREE.CylinderGeometry(0.028, 0.045, len, 6), twigMat);
+    tw.rotation.set(Math.PI / 2 + rand(-0.1, 0.1), rand(0, Math.PI), rand(-0.1, 0.1));
+    tw.position.set(x, getSurfaceHeight(x, z) + 0.03, z);
+    tw.castShadow = true;
+    tw.receiveShadow = true;
+    worldGroup.add(tw);
   }
 }
 
-// ---------- drifting dandelion puffs ----------
-function puffTexture() {
-  const cv = document.createElement('canvas'); cv.width = cv.height = 64;
+// ---------- Atmosphere: Portrait-Sky Clouds, Dandelion Seeds & Underground Spores ----------
+function makeRadialTex(innerCol, midCol, outerCol) {
+  const cv = document.createElement('canvas');
+  cv.width = cv.height = 64;
   const cx = cv.getContext('2d');
-  const g = cx.createRadialGradient(32, 32, 3, 32, 32, 30);
-  g.addColorStop(0, 'rgba(255,252,244,0.95)'); g.addColorStop(0.6, 'rgba(255,252,244,0.5)'); g.addColorStop(1, 'rgba(255,252,244,0)');
-  cx.fillStyle = g; cx.fillRect(0, 0, 64, 64);
-  return cv;
-}
-const puffTex = new THREE.CanvasTexture(puffTexture());
-const puffs = [];
-for (let i = 0; i < 7; i++) {
-  const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: puffTex, transparent: true, opacity: rand(0.7, 0.95) }));
-  sp.scale.setScalar(rand(0.28, 0.5));
-  sp.position.set(rand(-7, 7), rand(2.5, 6.5), rand(-4, 3));
-  sp.userData = { v: rand(0.15, 0.35), bob: rand(0, 6.28) };
-  scene.add(sp); puffs.push(sp);
+  const g = cx.createRadialGradient(32, 32, 2, 32, 32, 30);
+  g.addColorStop(0, innerCol);
+  g.addColorStop(0.5, midCol);
+  g.addColorStop(1, outerCol);
+  cx.fillStyle = g;
+  cx.fillRect(0, 0, 64, 64);
+  return new THREE.CanvasTexture(cv);
 }
 
-// ---------- hints ----------
+const puffTex = makeRadialTex('rgba(255,252,244,0.98)', 'rgba(255,248,232,0.55)', 'rgba(255,248,232,0)');
+const sporeTex = makeRadialTex('rgba(160,255,220,0.95)', 'rgba(100,240,195,0.45)', 'rgba(100,240,195,0)');
+const dustTex = makeRadialTex('rgba(255,228,175,0.85)', 'rgba(240,200,140,0.35)', 'rgba(240,200,140,0)');
+
+// 1. Drifting Dandelion Parachutes & Golden Pollen Motes across upper sky (fills portrait upper band)
+const puffs = [];
+const seedStemMat = new THREE.MeshBasicMaterial({ color: 0x8c6d46 });
+const seedCrownMat = new THREE.MeshBasicMaterial({ color: 0xfffdf7, wireframe: true, transparent: true, opacity: 0.65 });
+
+for (let i = 0; i < 18; i++) {
+  const pg = new THREE.Group();
+  const sp = new THREE.Sprite(new THREE.SpriteMaterial({
+    map: puffTex, transparent: true, opacity: rand(0.75, 0.96), depthWrite: false
+  }));
+  const sc = rand(0.32, 0.58);
+  sp.scale.setScalar(sc);
+  pg.add(sp);
+
+  // Tiny suspended achene seed + filament umbrella on larger dandelion seeds
+  if (i % 2 === 0) {
+    const filament = new THREE.Mesh(new THREE.CylinderGeometry(0.004, 0.004, sc * 0.45, 3), seedStemMat);
+    filament.position.y = -sc * 0.22;
+    pg.add(filament);
+    const seedBit = new THREE.Mesh(new THREE.SphereGeometry(0.018, 4, 4), seedStemMat);
+    seedBit.scale.y = 1.6;
+    seedBit.position.y = -sc * 0.45;
+    pg.add(seedBit);
+    const umbrella = new THREE.Mesh(new THREE.ConeGeometry(sc * 0.22, sc * 0.18, 6, 1, true), seedCrownMat);
+    umbrella.rotation.x = Math.PI;
+    umbrella.position.y = 0.02;
+    pg.add(umbrella);
+  }
+
+  pg.position.set(rand(-8.5, 8.5), rand(1.4, 8.2), rand(-5.5, 4.5));
+  pg.userData = {
+    vx: rand(0.18, 0.42),
+    bobFreq: rand(0.7, 1.4),
+    bobAmp: rand(0.12, 0.28),
+    phase: rand(0, 6.28),
+    swayAmp: rand(0.15, 0.3)
+  };
+  scene.add(pg);
+  puffs.push(pg);
+}
+
+// 2. Soft Translucent Sky Cloudlet Clusters high above the diorama (keeps tall portrait sky rich)
+const clouds = [];
+{
+  const cloudMat = new THREE.MeshStandardMaterial({
+    color: 0xfff8eb, roughness: 1.0, transparent: true, opacity: 0.48, depthWrite: false
+  });
+  for (let i = 0; i < 6; i++) {
+    const cg = new THREE.Group();
+    const blobs = randInt(4, 6);
+    for (let b = 0; b < blobs; b++) {
+      const puff = new THREE.Mesh(new THREE.SphereGeometry(rand(0.55, 1.05), 10, 8), cloudMat);
+      puff.position.set((b - blobs / 2) * 0.65 + rand(-0.15, 0.15), rand(-0.12, 0.18), rand(-0.25, 0.25));
+      puff.scale.set(1.35, 0.52, 0.85);
+      cg.add(puff);
+    }
+    cg.position.set(rand(-9.5, 9.5), rand(5.2, 9.2), rand(-8.0, -2.5));
+    cg.userData = { speed: rand(0.08, 0.18), bob: rand(0, 6.28) };
+    scene.add(cg);
+    clouds.push(cg);
+  }
+}
+
+// 3. Underground Drifting Spores & Warm Chamber Dust Motes
+const undergroundMotes = [];
+for (let i = 0; i < 34; i++) {
+  const isFungusSpore = i < 16;
+  const sp = new THREE.Sprite(new THREE.SpriteMaterial({
+    map: isFungusSpore ? sporeTex : dustTex,
+    transparent: true,
+    opacity: rand(0.45, 0.88),
+    depthWrite: false,
+    blending: THREE.AdditiveBlending
+  }));
+  sp.scale.setScalar(isFungusSpore ? rand(0.12, 0.24) : rand(0.10, 0.20));
+
+  let cx, cy;
+  if (isFungusSpore) {
+    cx = 2.55 + rand(-1.45, 1.45);
+    cy = -4.35 + rand(-0.75, 0.85);
+  } else {
+    const ch = CHAMBERS[i % 3];
+    cx = ch.x + rand(-1.3, 1.3);
+    cy = ch.y + rand(-0.65, 0.65);
+  }
+  const cz = FRONT_Z - rand(0.15, 0.85);
+  sp.position.set(cx, cy, cz);
+  sp.userData = {
+    baseX: cx, baseY: cy, baseZ: cz,
+    phase: rand(0, 6.28),
+    speed: rand(0.6, 1.3)
+  };
+  worldGroup.add(sp);
+  undergroundMotes.push(sp);
+}
+
+// ---------- Hints (Exact Preserved Behavior) ----------
 const HINTS = {
   idle: 'Tap the anthill',
   swarm: 'Watch them swarm',
 };
 function setHint(s) {
-  hintEl.textContent = HINTS[s]; hintEl.dataset.s = s; hintEl.classList.remove('faded');
+  hintEl.textContent = HINTS[s];
+  hintEl.dataset.s = s;
+  hintEl.classList.remove('faded');
   clearTimeout(setHint._t);
   setHint._t = setTimeout(() => hintEl.classList.add('faded'), 6000);
 }
@@ -299,111 +1291,255 @@ function resetHintIf(state, ms) {
 }
 setHint('idle');
 
-// ---------- fit ----------
-const FIT_CENTER = new THREE.Vector3(0, 0.5, 0);
-const FIT_PTS = [];
-for (const x of [-6, 6]) for (const y of [-SLAB_H, 0.4]) for (const z of [-6, 6])
-  FIT_PTS.push(new THREE.Vector3(x, y, z));
-FIT_PTS.push(new THREE.Vector3(HILL.x, 1.8, HILL.z));
+// ---------- Responsive Camera Framing (Any Viewport Aspect Ratio) ----------
+const FIT_CENTER = new THREE.Vector3(0, -2.15, 0.35);
+const FIT_PTS = [
+  new THREE.Vector3(-6.2,  1.8, -5.2),
+  new THREE.Vector3( 6.2,  1.8, -5.2),
+  new THREE.Vector3(-6.2,  1.4,  5.4),
+  new THREE.Vector3( 6.2,  1.4,  5.4),
+  new THREE.Vector3(-6.2, -DEPTH - 0.6,  5.4),
+  new THREE.Vector3( 6.2, -DEPTH - 0.6,  5.4),
+  new THREE.Vector3(-6.2, -DEPTH - 0.6, -5.2),
+  new THREE.Vector3( 6.2, -DEPTH - 0.6, -5.2),
+  new THREE.Vector3(HILL.x, HILL.h + 0.55, HILL.z)
+];
+
 function fitDir() {
   const a = innerWidth / innerHeight;
-  if (a < 0.62) return new THREE.Vector3(0.05, 0.9, 1).normalize();
-  if (a < 0.9) return new THREE.Vector3(0.42, 0.4, 1).normalize();
-  return new THREE.Vector3(0.62, 0.42, 1).normalize();
+  // Slightly elevated frontal-3/4 cutaway angle so BOTH surface world & underground chambers read clearly
+  if (a < 0.62) return new THREE.Vector3(0.12, 0.38, 1.0).normalize();
+  if (a < 0.9)  return new THREE.Vector3(0.20, 0.36, 1.0).normalize();
+  return new THREE.Vector3(0.26, 0.34, 1.0).normalize();
 }
+
 const _rel = new THREE.Vector3();
 function requiredDistance(right, up, fwd, target) {
   const fovV = THREE.MathUtils.degToRad(camera.fov);
-  const tanH = Math.tan(Math.atan(Math.tan(fovV/2) * camera.aspect));
-  const tanV = Math.tan(fovV/2);
-  let d = 4;
+  const halfV = fovV / 2;
+  const halfH = Math.atan(Math.tan(halfV) * camera.aspect);
+
+  // Reserve safe vertical margins for the fixed header (top) and footer (bottom)
+  const headerPx = 96;
+  const footerPx = 48;
+  const vSafe = Math.max(0.56, 1 - (headerPx + footerPx) / Math.max(innerHeight, 320));
+  const hSafe = 0.92;
+
+  const tanH = Math.tan(halfH) * hSafe;
+  const tanV = Math.tan(halfV) * vSafe;
+
+  let d = 6;
   for (const c of FIT_PTS) {
     _rel.copy(c).sub(target);
     const cf = _rel.dot(fwd);
-    d = Math.max(d, Math.abs(_rel.dot(right)) / tanH - cf, Math.abs(_rel.dot(up)) / tanV - cf);
+    const rx = Math.abs(_rel.dot(right));
+    const ry = Math.abs(_rel.dot(up));
+    d = Math.max(d, rx / tanH - cf, ry / tanV - cf);
   }
   return d;
 }
+
 function frameInitialCamera() {
   pickFov();
   const fd = fitDir();
   const fwd = fd.clone().negate();
-  const right = new THREE.Vector3().crossVectors(fwd, new THREE.Vector3(0,1,0)).normalize();
+  const right = new THREE.Vector3().crossVectors(fwd, new THREE.Vector3(0, 1, 0)).normalize();
   const up = new THREE.Vector3().crossVectors(right, fwd).normalize();
-  const dist = requiredDistance(right, up, fwd, FIT_CENTER) * (innerWidth / innerHeight < 0.62 ? 1.01 : 1.06);
+  const dist = requiredDistance(right, up, fwd, FIT_CENTER) * 1.04;
   camera.position.copy(FIT_CENTER).addScaledVector(fd, dist);
   controls.target.copy(FIT_CENTER);
-  camera.updateProjectionMatrix(); controls.update();
+  camera.updateProjectionMatrix();
+  controls.update();
 }
 frameInitialCamera();
 
-// ---------- tap ----------
-const ray = new THREE.Raycaster(); const ndc = new THREE.Vector2();
+// ---------- Tap Interaction (Anthill Proxy + Hill Area) ----------
+const ray = new THREE.Raycaster();
+const ndc = new THREE.Vector2();
 let downX = 0, downY = 0, downT = 0;
-renderer.domElement.addEventListener('pointerdown', e => { downX = e.clientX; downY = e.clientY; downT = performance.now(); });
+
+renderer.domElement.addEventListener('pointerdown', e => {
+  downX = e.clientX;
+  downY = e.clientY;
+  downT = performance.now();
+});
+
 renderer.domElement.addEventListener('pointerup', e => {
-  if (Math.hypot(e.clientX - downX, e.clientY - downY) > 7 || performance.now() - downT > 450) return;
+  if (Math.hypot(e.clientX - downX, e.clientY - downY) > 9 || performance.now() - downT > 480) return;
   ndc.set((e.clientX / innerWidth) * 2 - 1, -(e.clientY / innerHeight) * 2 + 1);
   ray.setFromCamera(ndc, camera);
   const hits = ray.intersectObjects([hillGroup.userData.proxy], false);
   if (!hits.length) return;
+
   swarm.t0 = performance.now();
-  for (const s of swarmAnts) { s.g.visible = true; s.u = rand(0, 0.15); }
-  if (hintEl.dataset.s !== 'swarm') { setHint('swarm'); resetHintIf('swarm', SWARM_MS); }
+  for (const s of swarmAnts) {
+    s.g.visible = true;
+    s.u = rand(0, 0.16);
+  }
+  if (hintEl.dataset.s !== 'swarm') {
+    setHint('swarm');
+    resetHintIf('swarm', SWARM_MS);
+  }
 });
 
 addEventListener('resize', () => {
-  camera.aspect = innerWidth/innerHeight;
+  camera.aspect = innerWidth / innerHeight;
   renderer.setSize(innerWidth, innerHeight);
   renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
-  pickFov(); frameInitialCamera();
+  pickFov();
+  frameInitialCamera();
 });
 
-// ---------- animate ----------
+// ---------- Animation Loop ----------
 const clock = new THREE.Clock();
-const _p = new THREE.Vector3(), _tan = new THREE.Vector3();
-function walkAnt(a, dt, speedMul) {
+const _p = new THREE.Vector3();
+const _tan = new THREE.Vector3();
+const _up = new THREE.Vector3(0, 1, 0);
+const _lookTarget = new THREE.Vector3();
+
+function animateAntPose(antGroup, t, ph, speedMul) {
+  const ud = antGroup.userData;
+  const freq = 15 * Math.min(speedMul, 2.2);
+  const phase = t * freq + ph;
+
+  // Tripod gait across 6 articulated legs
+  for (let i = 0; i < ud.legs.length; i++) {
+    const leg = ud.legs[i];
+    const tripod = (i % 2 === 0) ? 1 : -1;
+    const swing = Math.sin(phase * 1.1 + (i % 2) * Math.PI) * 0.28 * Math.min(speedMul, 1.8);
+    const lift = Math.max(0, Math.cos(phase * 1.1 + (i % 2) * Math.PI)) * 0.18;
+    leg.hip.rotation.y = leg.baseY + swing * tripod;
+    leg.hip.rotation.z = leg.side * lift;
+  }
+
+  // Expressive antennae & gaster bobbing
+  ud.antennae[0].rotation.x = Math.sin(t * 9 + ph) * 0.18;
+  ud.antennae[1].rotation.x = Math.cos(t * 9.5 + ph) * 0.18;
+  ud.gasterPivot.rotation.x = Math.sin(t * 7 + ph) * 0.08;
+  ud.headPivot.rotation.y = Math.sin(t * 5.5 + ph) * 0.09;
+}
+
+function walkSurfaceAnt(a, dt, t, speedMul) {
   a.u = (a.u + a.sp * speedMul * dt) % 1;
   a.curve.getPointAt(a.u, _p);
   a.curve.getTangentAt(a.u, _tan);
-  a.g.position.set(_p.x, 0, _p.z);
-  a.g.rotation.y = Math.atan2(_tan.x, _tan.z);
-  const wig = Math.sin(clock.elapsedTime * 14 + a.ph) * 0.35 * Math.min(speedMul, 2);
-  a.g.userData.legs.forEach((l, i) => { l.rotation.x = wig * (i % 2 === 0 ? 1 : -1); });
+  const y = getSurfaceHeight(_p.x, _p.z);
+  a.g.position.set(_p.x, y, _p.z);
+
+  // Align ant with 3D slope tangent
+  const nextX = _p.x + _tan.x * 0.15;
+  const nextZ = _p.z + _tan.z * 0.15;
+  const nextY = getSurfaceHeight(nextX, nextZ);
+  _lookTarget.set(nextX, nextY, nextZ);
+  a.g.lookAt(_lookTarget);
+
+  animateAntPose(a.g, t, a.ph, speedMul);
 }
+
+function walkUndergroundAnt(a, dt, t, speedMul) {
+  if (a.stationary) {
+    animateAntPose(a.g, t, a.ph, 0.45 * speedMul);
+    a.g.rotation.y = a.baseRotY + Math.sin(t * 1.8 + a.ph) * 0.18;
+    return;
+  }
+  a.u = (a.u + a.sp * speedMul * dt) % 1;
+  a.curve.getPointAt(a.u, _p);
+  a.curve.getTangentAt(a.u, _tan);
+  a.g.position.copy(_p);
+  _lookTarget.copy(_p).add(_tan);
+  a.g.up.copy(_up);
+  a.g.lookAt(_lookTarget);
+
+  animateAntPose(a.g, t, a.ph, speedMul);
+}
+
 function animate() {
   requestAnimationFrame(animate);
-  const dt = Math.min(clock.getDelta(), 0.3);
+  const dt = Math.min(clock.getDelta(), 0.1);
   const t = clock.elapsedTime;
   const now = performance.now();
 
+  // Wall-clock swarm phase (4500ms)
   let speedMul = 1;
+  let swarmPulse = 0;
   if (swarm.t0 > 0) {
     const e = (now - swarm.t0) / SWARM_MS;
     if (e >= 1) {
       swarm.t0 = -1;
       for (const s of swarmAnts) s.g.visible = false;
-    } else speedMul = 1 + Math.sin(Math.min(e, 1) * Math.PI) * 2.2;
+    } else {
+      swarmPulse = Math.sin(Math.min(e, 1) * Math.PI);
+      speedMul = 1 + swarmPulse * 2.3;
+    }
   }
-  for (const a of ants) walkAnt(a, dt, speedMul);
-  if (swarm.t0 > 0) for (const s of swarmAnts) walkAnt(s, dt, 1);
 
-  // dandelion puffs drift
+  // Update surface, underground, and emerging swarm ants
+  for (const a of surfaceAnts) walkSurfaceAnt(a, dt, t, speedMul);
+  for (const u of undergroundAnts) walkUndergroundAnt(u, dt, t, speedMul);
+  if (swarm.t0 > 0) {
+    for (const s of swarmAnts) walkSurfaceAnt(s, dt, t, 1.25);
+  }
+
+  // Animate Queen breathing & subtle royal grooming
+  if (queenMeshRef.group) {
+    const q = queenMeshRef.group;
+    q.userData.gasterPivot.scale.set(
+      1 + Math.sin(t * 2.4) * 0.035,
+      1 + Math.sin(t * 2.4) * 0.04,
+      1 + Math.cos(t * 2.4) * 0.025
+    );
+    q.userData.headPivot.rotation.y = Math.sin(t * 1.6) * 0.14;
+    q.userData.antennae[0].rotation.x = Math.sin(t * 4.2) * 0.2;
+    q.userData.antennae[1].rotation.x = Math.cos(t * 4.5) * 0.2;
+  }
+
+  // Gentle wriggle on nursery larvae
+  for (const lg of broodPiles) {
+    lg.rotation.z = Math.sin(t * 2.2 + lg.userData.phase) * 0.06;
+  }
+
+  // Bioluminescent fungus garden breathing & chamber light warmth
+  for (const fp of fungusPods) {
+    const s = 1 + Math.sin(t * 2.1 + fp.userData.phase) * 0.06;
+    fp.scale.set(s, 1 + Math.cos(t * 2.1 + fp.userData.phase) * 0.08, s);
+  }
+  for (const cl of chamberLights) {
+    const flicker = Math.sin(t * 2.8 + (cl.id === 'fungus' ? 1.5 : 0)) * 0.12;
+    cl.light.intensity = cl.baseInt + flicker + swarmPulse * 0.55;
+  }
+
+  // Surface grass tufts & wildflowers swaying in the breeze
+  for (const f of swayingFoliage) {
+    f.rotation.z = Math.sin(t * 1.65 + f.userData.phase) * f.userData.amp;
+    f.rotation.x = Math.cos(t * 1.25 + f.userData.phase) * f.userData.amp * 0.5;
+  }
+
+  // Sky dandelion puffs & seeds drifting
   for (const p of puffs) {
-    p.position.x += p.userData.v * dt;
-    p.position.y += Math.sin(t * 0.8 + p.userData.bob) * dt * 0.12;
-    if (p.position.x > 8) p.position.x = -8;
+    p.position.x += p.userData.vx * dt;
+    p.position.y += Math.sin(t * p.userData.bobFreq + p.userData.phase) * dt * p.userData.bobAmp;
+    p.rotation.z = Math.sin(t * 1.2 + p.userData.phase) * p.userData.swayAmp;
+    if (p.position.x > 9.0) p.position.x = -9.0;
+  }
+
+  // High portrait-sky clouds drifting slowly
+  for (const c of clouds) {
+    c.position.x += c.userData.speed * dt;
+    c.position.y += Math.sin(t * 0.4 + c.userData.bob) * dt * 0.04;
+    if (c.position.x > 11.5) c.position.x = -11.5;
+  }
+
+  // Underground spores & dust motes floating inside chambers
+  for (const m of undergroundMotes) {
+    const ud = m.userData;
+    m.position.x = ud.baseX + Math.sin(t * ud.speed + ud.phase) * 0.22;
+    m.position.y = ud.baseY + Math.cos(t * ud.speed * 0.85 + ud.phase) * 0.18;
   }
 
   controls.update();
   renderer.render(scene, camera);
 }
 animate();
-
-// pass 2: darker/taller anthill + crater rim for contrast, drifting dandelion puffs fill phone sky
-// pass 1: initial build - sandy slab, granular anthill + hole, 13 looping ants (3 leaf-carriers),
-//   tap anthill -> 7 swarm ants emerge + all ants 3x speed (wall-clock 4.5s), grass, pebbles,
-//   twigs, flowers, hint ownership, mulberry32(20261101), bird's-angle portrait fit
 </script>
 </body>
 </html>

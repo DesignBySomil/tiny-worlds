@@ -46,7 +46,7 @@
 } }
 </script>
 <script type="module">
-// argon p1 (Gemini 4 Argon rework)
+// argon p2 (Gemini 4 Argon rework: portrait occupancy + header clearance)
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 
@@ -92,6 +92,8 @@ function fbm(x, z, octaves = 4) {
 // ---------- scene, camera, renderer ----------
 const container = document.getElementById('app');
 const hintEl = document.getElementById('hint');
+const headerEl = document.querySelector('header');
+const footerEl = document.querySelector('footer');
 const scene = new THREE.Scene();
 const bgBase = new THREE.Color(0xe6c499);
 const bgStorm = new THREE.Color(0xb37742);
@@ -101,7 +103,7 @@ scene.fog = new THREE.FogExp2(0xe6c499, 0.022);
 const camera = new THREE.PerspectiveCamera(38, innerWidth / innerHeight, 0.1, 240);
 function pickFov() {
   const a = innerWidth / innerHeight;
-  camera.fov = a >= 0.9 ? 36 : (a >= 0.62 ? 44 : 54);
+  camera.fov = a >= 0.9 ? 36 : (a >= 0.62 ? 44 : 52);
   camera.updateProjectionMatrix();
 }
 pickFov();
@@ -122,7 +124,7 @@ controls.enablePan = false;
 controls.maxPolarAngle = Math.PI * 0.49;
 controls.minPolarAngle = Math.PI * 0.12;
 controls.minDistance = 4.5;
-controls.maxDistance = 26;
+controls.maxDistance = 28;
 
 // ---------- lighting (warm key + cool sky fill + warm rim) ----------
 const sun = new THREE.DirectionalLight(0xffe1b0, 3.1);
@@ -218,7 +220,6 @@ const sandBump = makeSandBumpTexture();
 const stoneBump = makeStoneBumpTexture();
 
 // ---------- materials with strong value contrast ----------
-// Ground is pale warm golden sand; ruins are dark roasted umber/charcoal-weathered sandstone
 const sandMat = new THREE.MeshStandardMaterial({
   vertexColors: true,
   roughness: 0.92,
@@ -277,17 +278,13 @@ const goldLeafMat = new THREE.MeshStandardMaterial({
 
 // ---------- terrain height function ----------
 function getSandHeight(x, z) {
-  // Primary sweeping dune ridge in background (-z) and right (+x)
   const ridge1 = Math.exp(-Math.pow((z + 2.15) * 0.75 + Math.sin(x * 0.65) * 0.35, 2)) * 0.72;
   const ridge2 = Math.exp(-Math.pow((x - 2.1) * 0.7 - (z - 0.6) * 0.4, 2)) * 0.42;
   const ridge3 = Math.exp(-Math.pow((x + 2.0) * 0.8 + (z - 1.5) * 0.5, 2)) * 0.36;
-  // Center courtyard depression where temple floor peeks through
   const courtyard = Math.exp(-(x * x * 0.45 + (z - 0.1) * (z - 0.1) * 0.55)) * -0.18;
-  // Wind ripples
   const diag = x * 0.82 + z * 0.57;
   const ripples = Math.sin(diag * 7.5 + fbm(x * 1.4, z * 1.4, 2) * 2.2) * 0.018;
   const detail = (fbm(x * 0.8 + 5, z * 0.8 + 5, 3) - 0.5) * 0.16;
-  // Soft taper near slab edges
   const edgeDist = Math.max(Math.abs(x), Math.abs(z));
   const edgeMask = THREE.MathUtils.smoothstep(edgeDist, 2.5, 3.25);
   const raw = (ridge1 + ridge2 + ridge3 + courtyard + detail + ripples) * (1 - edgeMask * 0.75);
@@ -300,7 +297,6 @@ const slabGroup = new THREE.Group();
 scene.add(slabGroup);
 
 {
-  // Sculpted top sand mesh
   const topGeo = new THREE.PlaneGeometry(6.5, 6.5, 96, 96);
   topGeo.rotateX(-Math.PI / 2);
   const pos = topGeo.attributes.position;
@@ -331,7 +327,6 @@ scene.add(slabGroup);
   topMesh.castShadow = true;
   slabGroup.add(topMesh);
 
-  // Upper sandstone rim collar
   const collarGeo = new THREE.BoxGeometry(6.54, 0.24, 6.54);
   const collarMat = new THREE.MeshStandardMaterial({ color: 0xc89d66, roughness: 0.92, bumpMap: stoneBump, bumpScale: 0.015 });
   const collar = new THREE.Mesh(collarGeo, collarMat);
@@ -339,7 +334,6 @@ scene.add(slabGroup);
   collar.receiveShadow = true;
   slabGroup.add(collar);
 
-  // Stratified cliff pedestal body
   const midGeo = new THREE.BoxGeometry(6.48, SLAB_H, 6.48, 24, 12, 24);
   const mPos = midGeo.attributes.position;
   const mCol = new Float32Array(mPos.count * 3);
@@ -368,7 +362,6 @@ scene.add(slabGroup);
   midMesh.receiveShadow = true;
   slabGroup.add(midMesh);
 
-  // Heavy dark plinth base with stepped molding
   const step1 = new THREE.Mesh(
     new THREE.BoxGeometry(6.74, 0.22, 6.74),
     new THREE.MeshStandardMaterial({ color: 0x4a3420, roughness: 0.9 })
@@ -395,7 +388,6 @@ function makeFlutedCylinder(rTop, rBot, height, radialSegs = 32, heightSegs = 12
     const r = Math.hypot(vx, vz);
     if (r > 0.001) {
       const angle = Math.atan2(vz, vx);
-      // Concave flute channels along the shaft
       const flute = Math.pow(Math.max(0, Math.cos(angle * flutes)), 1.6) * -0.018;
       const chip = (noise2(angle * 3.5 + vy * 2.2, vy * 4.5 + rTop * 10) - 0.5) * chipAmount;
       const scale = (r + flute + chip) / r;
@@ -407,7 +399,6 @@ function makeFlutedCylinder(rTop, rBot, height, radialSegs = 32, heightSegs = 12
   return geo;
 }
 
-// Lotus/papyrus bell capital via LatheGeometry
 const capitalProfile = [
   new THREE.Vector2(0.18, 0.0),
   new THREE.Vector2(0.20, 0.04),
@@ -459,21 +450,18 @@ function makeHeroColumn(x, z, h, tiltX, tiltZ, broken, hasBands) {
   g.rotation.x = tiltX;
   g.rotation.z = tiltZ;
 
-  // Square plinth
   const plinth = new THREE.Mesh(new THREE.BoxGeometry(0.66, 0.16, 0.66), stoneWeatheredMat);
   plinth.position.y = 0.08;
   plinth.castShadow = true;
   plinth.receiveShadow = true;
   g.add(plinth);
 
-  // Lathe torus base molding
   const torus = new THREE.Mesh(baseLatheGeo, stoneDarkMat);
   torus.position.y = 0.16;
   torus.castShadow = true;
   torus.receiveShadow = true;
   g.add(torus);
 
-  // Stacked fluted drums
   const numDrums = Math.max(2, Math.round(h / 0.55));
   const drumH = h / numDrums;
   let curY = 0.36;
@@ -516,7 +504,6 @@ function makeHeroColumn(x, z, h, tiltX, tiltZ, broken, hasBands) {
     abacus.receiveShadow = true;
     g.add(abacus);
   } else {
-    // Fractured jagged top crest
     for (let k = 0; k < 4; k++) {
       const shard = new THREE.Mesh(
         new THREE.DodecahedronGeometry(rand(0.09, 0.14), 0),
@@ -542,7 +529,6 @@ const col4 = makeHeroColumn(1.75, -1.30, 1.35, -0.05, -0.11, true, false);
 // Cracked segmented architrave lintel spanning col1 to col3
 {
   const yLintel = Math.min(col1.topY, col3.topY) + 0.11;
-  // Left lintel block
   const beamL = new THREE.Mesh(new THREE.BoxGeometry(1.42, 0.32, 0.56), stoneWeatheredMat);
   beamL.position.set(-1.25, yLintel, -1.53);
   beamL.rotation.z = -0.025;
@@ -551,7 +537,6 @@ const col4 = makeHeroColumn(1.75, -1.30, 1.35, -0.05, -0.11, true, false);
   beamL.receiveShadow = true;
   slabGroup.add(beamL);
 
-  // Right lintel block with fracture gap
   const beamR = new THREE.Mesh(new THREE.BoxGeometry(1.36, 0.32, 0.56), stoneDarkMat);
   beamR.position.set(0.18, yLintel - 0.02, -1.56);
   beamR.rotation.z = 0.03;
@@ -560,14 +545,12 @@ const col4 = makeHeroColumn(1.75, -1.30, 1.35, -0.05, -0.11, true, false);
   beamR.receiveShadow = true;
   slabGroup.add(beamR);
 
-  // Cornice molding strip on top
   const cornice = new THREE.Mesh(new THREE.BoxGeometry(2.75, 0.12, 0.66), stoneMidMat);
   cornice.position.set(-0.54, yLintel + 0.21, -1.55);
   cornice.rotation.z = 0.008;
   cornice.castShadow = true;
   slabGroup.add(cornice);
 
-  // Turquoise & terracotta frieze inlays on architrave
   for (let i = -3; i <= 3; i++) {
     if (i === 0) continue;
     const plaque = new THREE.Mesh(
@@ -606,7 +589,6 @@ const col4 = makeHeroColumn(1.75, -1.30, 1.35, -0.05, -0.11, true, false);
   wallGroup.position.set(wx, getSandHeight(wx, wz) - 0.05, wz);
   wallGroup.rotation.y = 0.52;
 
-  // Left and right masonry piers built of coursed stone blocks
   for (const side of [-1, 1]) {
     const pierH = side === -1 ? 5 : 4;
     for (let row = 0; row < pierH; row++) {
@@ -625,7 +607,6 @@ const col4 = makeHeroColumn(1.75, -1.30, 1.35, -0.05, -0.11, true, false);
     }
   }
 
-  // Low sill wall under arch window
   for (let row = 0; row < 2; row++) {
     const sill = new THREE.Mesh(new THREE.BoxGeometry(0.68, 0.26, 0.36), stoneWeatheredMat);
     sill.position.set(0, row * 0.27 + 0.13, 0);
@@ -634,12 +615,11 @@ const col4 = makeHeroColumn(1.75, -1.30, 1.35, -0.05, -0.11, true, false);
     wallGroup.add(sill);
   }
 
-  // Voussoir wedge stones forming the broken arch ring
   const archR = 0.44;
   const archCenterY = 1.05;
   const numVoussoirs = 9;
   for (let i = 0; i < numVoussoirs; i++) {
-    if (i === 6 || i === 7) continue; // dramatic collapsed gap in upper right arch
+    if (i === 6 || i === 7) continue;
     const ang = (i / (numVoussoirs - 1)) * Math.PI;
     const vx = -Math.cos(ang) * archR;
     const vy = archCenterY + Math.sin(ang) * archR;
@@ -667,12 +647,10 @@ const col4 = makeHeroColumn(1.75, -1.30, 1.35, -0.05, -0.11, true, false);
   hg.position.set(hx, getSandHeight(hx, hz) + 0.12, hz);
   hg.rotation.set(-0.18, -0.62, 0.38);
 
-  // Sculpted cranium/jaw
   const skullGeo = new THREE.SphereGeometry(0.54, 24, 20);
   const sPos = skullGeo.attributes.position;
   for (let i = 0; i < sPos.count; i++) {
     let x = sPos.getX(i), y = sPos.getY(i), z = sPos.getZ(i);
-    // Flatten cheeks & chin slightly, elongate face
     if (y < 0) {
       x *= 0.85 + 0.15 * (1 + y);
       z *= 0.92;
@@ -687,7 +665,6 @@ const col4 = makeHeroColumn(1.75, -1.30, 1.35, -0.05, -0.11, true, false);
   headMesh.receiveShadow = true;
   hg.add(headMesh);
 
-  // Striped Nemes royal headdress crown & flared lappets
   const nemesTop = new THREE.Mesh(
     new THREE.CylinderGeometry(0.58, 0.52, 0.42, 18),
     stoneDarkMat
@@ -697,7 +674,6 @@ const col4 = makeHeroColumn(1.75, -1.30, 1.35, -0.05, -0.11, true, false);
   nemesTop.castShadow = true;
   hg.add(nemesTop);
 
-  // Gold & turquoise diadem headband
   const diadem = new THREE.Mesh(
     new THREE.CylinderGeometry(0.535, 0.535, 0.11, 20),
     goldLeafMat
@@ -706,14 +682,12 @@ const col4 = makeHeroColumn(1.75, -1.30, 1.35, -0.05, -0.11, true, false);
   diadem.castShadow = true;
   hg.add(diadem);
 
-  // Royal Uraeus cobra crest on brow
   const cobra = new THREE.Mesh(new THREE.TorusGeometry(0.08, 0.032, 10, 16, Math.PI * 1.3), goldLeafMat);
   cobra.position.set(0, 0.26, 0.53);
   cobra.rotation.y = Math.PI / 2;
   cobra.castShadow = true;
   hg.add(cobra);
 
-  // Side Nemes lappets with alternating carved stripes
   for (const side of [-1, 1]) {
     const lappetGroup = new THREE.Group();
     lappetGroup.position.set(side * 0.48, -0.05, -0.02);
@@ -730,7 +704,6 @@ const col4 = makeHeroColumn(1.75, -1.30, 1.35, -0.05, -0.11, true, false);
     hg.add(lappetGroup);
   }
 
-  // Prominent brow ridge, deep eye sockets, broad carved nose, full lips, ceremonial beard stub
   const brow = new THREE.Mesh(new THREE.BoxGeometry(0.52, 0.08, 0.18), stoneDarkMat);
   brow.position.set(0, 0.10, 0.46);
   hg.add(brow);
@@ -743,19 +716,16 @@ const col4 = makeHeroColumn(1.75, -1.30, 1.35, -0.05, -0.11, true, false);
     hg.add(eye);
   }
 
-  // Chipped bridge of nose
   const nose = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.09, 0.24, 6), stoneMidMat);
   nose.position.set(0, -0.08, 0.52);
   nose.rotation.x = -0.15;
   nose.castShadow = true;
   hg.add(nose);
 
-  // Carved lips
   const lips = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.07, 0.14), stoneDarkMat);
   lips.position.set(0, -0.25, 0.46);
   hg.add(lips);
 
-  // Braided royal beard fragment
   const beard = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.05, 0.32, 8), stoneWeatheredMat);
   beard.position.set(0, -0.46, 0.42);
   beard.rotation.x = 0.2;
@@ -773,14 +743,12 @@ const col4 = makeHeroColumn(1.75, -1.30, 1.35, -0.05, -0.11, true, false);
   obGroup.rotation.y = Math.PI / 4 + 0.12;
   obGroup.rotation.z = 0.035;
 
-  // Stepped pedestal
   const ped = new THREE.Mesh(new THREE.BoxGeometry(0.76, 0.32, 0.76), stoneWeatheredMat);
   ped.position.y = 0.16;
   ped.castShadow = true;
   ped.receiveShadow = true;
   obGroup.add(ped);
 
-  // Tapered 4-sided monolith shaft
   const shaftH = 2.85;
   const shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.34, shaftH, 4, 8), stoneDarkMat);
   shaft.position.y = 0.32 + shaftH / 2;
@@ -788,13 +756,11 @@ const col4 = makeHeroColumn(1.75, -1.30, 1.35, -0.05, -0.11, true, false);
   shaft.receiveShadow = true;
   obGroup.add(shaft);
 
-  // Electrum/gold pyramidion capstone
   const pyr = new THREE.Mesh(new THREE.ConeGeometry(0.18, 0.42, 4), goldLeafMat);
   pyr.position.y = 0.32 + shaftH + 0.21;
   pyr.castShadow = true;
   obGroup.add(pyr);
 
-  // Carved cartouche & faience decorative bands along shaft
   for (const by of [1.1, 1.85, 2.55]) {
     const sRatio = 1 - (by - 0.32) / shaftH;
     const r = THREE.MathUtils.lerp(0.185, 0.345, sRatio);
@@ -807,7 +773,6 @@ const col4 = makeHeroColumn(1.75, -1.30, 1.35, -0.05, -0.11, true, false);
   }
   slabGroup.add(obGroup);
 
-  // Second shattered obelisk tip half-buried in foreground left
   const fx = -1.35, fz = 1.85;
   const fGroup = new THREE.Group();
   fGroup.position.set(fx, getSandHeight(fx, fz) + 0.04, fz);
@@ -825,7 +790,6 @@ const col4 = makeHeroColumn(1.75, -1.30, 1.35, -0.05, -0.11, true, false);
 
 // ---------- Dense Foreground Details: Amphorae, Pottery Shards, Carved Relief Stones & Desert Scrub ----------
 {
-  // Intact & broken terracotta amphorae Profile
   const jarProfile = [
     new THREE.Vector2(0.0, 0.0),
     new THREE.Vector2(0.06, 0.02),
@@ -855,7 +819,6 @@ const col4 = makeHeroColumn(1.75, -1.30, 1.35, -0.05, -0.11, true, false);
     slabGroup.add(jar);
   }
 
-  // Curved terracotta & turquoise faience pottery shards scattered across ground
   const shardGeo = new THREE.CylinderGeometry(0.13, 0.11, 0.16, 8, 1, true, 0, Math.PI * 0.65);
   for (let i = 0; i < 24; i++) {
     const sx = rand(-2.85, 2.85);
@@ -871,7 +834,6 @@ const col4 = makeHeroColumn(1.75, -1.30, 1.35, -0.05, -0.11, true, false);
     slabGroup.add(shard);
   }
 
-  // Weathered rocks, rubble stones & carved relief blocks (InstancedMesh for crisp density)
   const rockGeo = new THREE.DodecahedronGeometry(0.16, 1);
   const rPos = rockGeo.attributes.position;
   for (let i = 0; i < rPos.count; i++) {
@@ -902,7 +864,6 @@ const col4 = makeHeroColumn(1.75, -1.30, 1.35, -0.05, -0.11, true, false);
   if (rockInst.instanceColor) rockInst.instanceColor.needsUpdate = true;
   slabGroup.add(rockInst);
 
-  // Dry desert scrub tufts tucked against ruins & rocks
   const scrubMat = new THREE.MeshStandardMaterial({ color: 0x59482e, roughness: 0.95 });
   const stalkGeo = new THREE.ConeGeometry(0.018, 0.28, 5);
   stalkGeo.translate(0, 0.14, 0);
@@ -939,7 +900,6 @@ const packMatB = new THREE.MeshStandardMaterial({ color: 0x22787a, roughness: 0.
 function createCamelMesh(idx) {
   const root = new THREE.Group();
 
-  // Torso & hump
   const torso = new THREE.Mesh(new THREE.CapsuleGeometry(0.11, 0.22, 6, 12), camelMat);
   torso.rotation.z = Math.PI / 2;
   torso.position.y = 0.36;
@@ -952,7 +912,6 @@ function createCamelMesh(idx) {
   hump.castShadow = true;
   root.add(hump);
 
-  // Saddle blanket & merchant packs
   const pack = new THREE.Mesh(
     new THREE.BoxGeometry(0.22, 0.14, 0.28),
     idx % 2 === 0 ? packMatA : packMatB
@@ -965,7 +924,6 @@ function createCamelMesh(idx) {
   goldTrim.position.set(-0.02, 0.41, 0);
   root.add(goldTrim);
 
-  // Curved S-neck & head
   const neckGroup = new THREE.Group();
   neckGroup.position.set(0.15, 0.36, 0);
   const neck = new THREE.Mesh(new THREE.CapsuleGeometry(0.042, 0.18, 5, 8), camelMat);
@@ -980,7 +938,6 @@ function createCamelMesh(idx) {
   neckGroup.add(head);
   root.add(neckGroup);
 
-  // 4 articulated legs
   const legs = [];
   const legOffsets = [
     [0.11, 0.065], [0.11, -0.065],
@@ -1017,20 +974,20 @@ const gustTex = makeSoftTexture('rgba(176, 126, 74, 0.92)', 'rgba(176, 126, 74, 
 const wispTex = makeWispTexture();
 
 {
-  // Layered glowing sun high in upper sky
+  // Layered glowing sun positioned below the header band
   const sunTex = makeSoftTexture('rgba(255, 250, 228, 1)', 'rgba(255, 226, 168, 0)');
   sunSpr = new THREE.Sprite(new THREE.SpriteMaterial({ map: sunTex, transparent: true, opacity: 0.96, depthWrite: false }));
-  sunSpr.scale.set(3.2, 3.2, 1);
-  sunSpr.position.set(-3.6, 5.2, -4.2);
+  sunSpr.scale.set(2.9, 2.9, 1);
+  sunSpr.position.set(-3.1, 4.1, -3.8);
   scene.add(sunSpr);
 
   const haloTex = makeSoftTexture('rgba(255, 215, 148, 0.55)', 'rgba(255, 190, 110, 0)');
-  sunHaloSpr = new THREE.Sprite(new THREE.SpriteMaterial({ map: haloTex, transparent: true, opacity: 0.75, depthWrite: false, blending: THREE.AdditiveBlending }));
-  sunHaloSpr.scale.set(7.5, 7.5, 1);
+  sunHaloSpr = new THREE.Sprite(new THREE.SpriteMaterial({ map: haloTex, transparent: true, opacity: 0.72, depthWrite: false, blending: THREE.AdditiveBlending }));
+  sunHaloSpr.scale.set(6.4, 6.4, 1);
   sunHaloSpr.position.copy(sunSpr.position);
   scene.add(sunHaloSpr);
 
-  // High altitude drifting dust wisps & sand clouds (fills upper half of portrait phones)
+  // High altitude drifting dust wisps & sand clouds
   for (let i = 0; i < 14; i++) {
     const mat = new THREE.SpriteMaterial({
       map: wispTex,
@@ -1039,10 +996,10 @@ const wispTex = makeWispTexture();
       depthWrite: false
     });
     const sp = new THREE.Sprite(mat);
-    const w = rand(2.8, 5.5);
+    const w = rand(2.6, 5.0);
     const h = w * rand(0.22, 0.36);
     sp.scale.set(w, h, 1);
-    sp.position.set(rand(-6, 6), rand(3.6, 7.2), rand(-5.5, 1.5));
+    sp.position.set(rand(-5.2, 5.2), rand(3.1, 4.65), rand(-4.2, 1.2));
     scene.add(sp);
     highWisps.push({
       s: sp,
@@ -1053,7 +1010,7 @@ const wispTex = makeWispTexture();
     });
   }
 
-  // Circling desert vultures / falcons with articulated flapping wings
+  // Circling desert vultures / falcons with articulated flapping wings (kept within y <= 4.75 so they never cross header)
   const birdMat = new THREE.MeshBasicMaterial({ color: 0x2c1b0e, side: THREE.DoubleSide });
   const wingGeo = new THREE.BufferGeometry();
   wingGeo.setAttribute('position', new THREE.BufferAttribute(new Float32Array([
@@ -1067,21 +1024,23 @@ const wispTex = makeWispTexture();
 
   for (let i = 0; i < 7; i++) {
     const bGroup = new THREE.Group();
-    const leftWing = new THREE.Mesh(wingGeo, birdMat);
-    const rightWing = new THREE.Mesh(wingGeo, birdMat);
+    const leftWing = new THREE.Mesh(wingGeo, birdMat.clone());
+    leftWing.material.transparent = true;
+    const rightWing = new THREE.Mesh(wingGeo, leftWing.material);
     rightWing.scale.x = -1;
     bGroup.add(leftWing, rightWing);
-    const sc = rand(0.65, 1.15);
+    const sc = rand(0.65, 1.1);
     bGroup.scale.setScalar(sc);
     scene.add(bGroup);
     birds.push({
       g: bGroup,
       lw: leftWing,
       rw: rightWing,
-      ax: rand(-1.8, 1.8),
-      ay: rand(4.1, 6.6),
-      az: rand(-2.8, 0.4),
-      r: rand(1.4, 3.2),
+      mat: leftWing.material,
+      ax: rand(-1.3, 1.3),
+      ay: rand(3.45, 4.42),
+      az: rand(-1.9, 0.3),
+      r: rand(1.1, 2.1),
       spd: rand(0.28, 0.52),
       ph: rand(0, 6.28),
       flapSpd: rand(3.5, 5.5)
@@ -1110,7 +1069,7 @@ const wispTex = makeWispTexture();
     });
   }
 
-  // Ambient floating sand grains across full vertical volume
+  // Ambient floating sand grains
   const grainTex = makeSoftTexture('rgba(218, 172, 118, 0.92)', 'rgba(218, 172, 118, 0)');
   for (let i = 0; i < 120; i++) {
     const mat = new THREE.SpriteMaterial({
@@ -1122,7 +1081,7 @@ const wispTex = makeWispTexture();
     const s = new THREE.Sprite(mat);
     const sc = rand(0.045, 0.14);
     s.scale.set(sc, sc, 1);
-    s.position.set(rand(-4.5, 4.5), rand(0.15, 6.8), rand(-3.8, 3.8));
+    s.position.set(rand(-4.2, 4.2), rand(0.15, 4.65), rand(-3.6, 3.6));
     scene.add(s);
     grains.push({
       s,
@@ -1162,9 +1121,9 @@ function summonStorm(now) {
   for (let i = 0; i < 34; i++) {
     const mat = new THREE.SpriteMaterial({ map: gustTex, transparent: true, opacity: 0, depthWrite: false });
     const s = new THREE.Sprite(mat);
-    const sc = rand(1.3, 2.9);
+    const sc = rand(1.3, 2.7);
     s.scale.set(sc * 1.9, sc, 1);
-    s.position.set(-7.2 + rand(-1.2, 1.2), rand(0.25, 5.2), rand(-3.6, 3.6));
+    s.position.set(-7.2 + rand(-1.2, 1.2), rand(0.25, 4.2), rand(-3.6, 3.6));
     scene.add(s);
     gusts.push({
       s,
@@ -1218,55 +1177,126 @@ renderer.domElement.addEventListener('pointerup', e => {
   }
 });
 
-// Start an initial gentle caravan appearance shortly after load so the world feels alive
 summonCaravan(performance.now() / 1000 + 0.5);
 
-// ---------- Responsive Camera Containment ----------
+// ---------- Exact Safe-Area Camera Containment (Portrait Occupancy + Header Clearance) ----------
+// Bounds include full pedestal base (-2.05) up through highest bird flight path (4.80)
 const fitBox = new THREE.Box3(
-  new THREE.Vector3(-3.55, -2.35, -3.55),
-  new THREE.Vector3(3.55, 3.85, 3.55)
+  new THREE.Vector3(-3.55, -2.05, -3.55),
+  new THREE.Vector3(3.55, 4.80, 3.55)
 );
 
+let safeHeaderNdcY = 0.72;
+
 function fitCamera() {
-  const center = fitBox.getCenter(new THREE.Vector3());
-  controls.target.copy(center);
-  const dir = new THREE.Vector3(0.18, 0.50, 1).normalize();
+  const w = innerWidth;
+  const h = innerHeight;
+  camera.aspect = w / h;
+  pickFov();
+
+  // Measure actual DOM header & footer heights to guarantee zero overlap at any aspect ratio
+  const headerRect = headerEl.getBoundingClientRect();
+  const footerRect = footerEl.getBoundingClientRect();
+  const isPortrait = camera.aspect < 0.85;
+
+  const topClearPx = Math.max(headerRect.bottom, isPortrait ? 104 : 112) + (isPortrait ? 14 : 26);
+  const botClearPx = Math.max(h - footerRect.top, 42) + (isPortrait ? 14 : 20);
+
+  // Convert safe vertical bounds into Normalized Device Coordinates [-1, 1]
+  const yTopMax = Math.max(0.25, 1 - 2 * (topClearPx / h));
+  const yBotMin = Math.min(-0.25, -1 + 2 * (botClearPx / h));
+  safeHeaderNdcY = yTopMax;
+
+  // Horizontal margin: tighter on portrait so the diorama + sky fill most of the tall screen height
+  const xMax = isPortrait ? 0.94 : 0.88;
+
+  // Steeper elevation on portrait increases vertical projected footprint of the 3D slab + sky volume
+  const dir = (isPortrait
+    ? new THREE.Vector3(0.15, 0.64, 1.0)
+    : new THREE.Vector3(0.18, 0.48, 1.0)
+  ).normalize();
+
   const corners = [];
   for (const x of [fitBox.min.x, fitBox.max.x])
     for (const y of [fitBox.min.y, fitBox.max.y])
       for (const z of [fitBox.min.z, fitBox.max.z])
         corners.push(new THREE.Vector3(x, y, z));
 
+  const boxCenter = fitBox.getCenter(new THREE.Vector3());
   const probe = new THREE.PerspectiveCamera(camera.fov, camera.aspect, 0.1, 240);
-  probe.position.copy(center).addScaledVector(dir, 0.001);
-  probe.lookAt(center);
+  probe.position.copy(boxCenter).addScaledVector(dir, 10);
+  probe.lookAt(boxCenter);
   probe.updateMatrixWorld();
-  const inv = probe.matrixWorldInverse;
 
-  let need = 0;
-  const vFov = THREE.MathUtils.degToRad(camera.fov) / 2;
-  const hFov = Math.atan(Math.tan(vFov) * camera.aspect);
-  for (const c of corners) {
-    const p = c.clone().applyMatrix4(inv);
-    const d = -p.z;
-    need = Math.max(need, d + Math.abs(p.y) / Math.tan(vFov), d + Math.abs(p.x) / Math.tan(hFov));
+  // Camera basis vectors in world space
+  const camRight = new THREE.Vector3().setFromMatrixColumn(probe.matrixWorld, 0);
+  const camUp = new THREE.Vector3().setFromMatrixColumn(probe.matrixWorld, 1);
+
+  const tanV = Math.tan(THREE.MathUtils.degToRad(camera.fov) / 2);
+  const tanH = tanV * camera.aspect;
+
+  const projCorners = corners.map(c => {
+    const rel = c.clone().sub(boxCenter);
+    return {
+      x: rel.dot(camRight),
+      y: rel.dot(camUp),
+      z: rel.dot(dir) // distance along camera-to-origin axis
+    };
+  });
+
+  // Iteratively solve exact vertical camera shift (yShift) and distance (dist) so:
+  // 1) Topmost point of fitBox (birds/arch/obelisk) stays strictly <= yTopMax (below header hint pill)
+  // 2) Bottommost point of fitBox (full slab base) stays strictly >= yBotMin (above footer)
+  // 3) Left/Right corners stay within [-xMax, xMax]
+  let yShift = 0;
+  let dist = 12;
+
+  for (let iter = 0; iter < 12; iter++) {
+    let reqDistV = 0;
+    let reqDistH = 0;
+
+    for (const p of projCorners) {
+      const py = p.y - yShift;
+      if (py > 0) {
+        reqDistV = Math.max(reqDistV, p.z + py / (tanV * yTopMax));
+      } else {
+        reqDistV = Math.max(reqDistV, p.z + (-py) / (tanV * (-yBotMin)));
+      }
+      reqDistH = Math.max(reqDistH, p.z + Math.abs(p.x) / (tanH * xMax));
+    }
+
+    dist = Math.max(reqDistV, reqDistH);
+
+    // Compute actual top and bottom NDC y at this distance, then center them in [yBotMin, yTopMax]
+    let maxNdcY = -Infinity;
+    let minNdcY = Infinity;
+    for (const p of projCorners) {
+      const depth = Math.max(0.5, dist - p.z);
+      const ndcY = (p.y - yShift) / (depth * tanV);
+      if (ndcY > maxNdcY) maxNdcY = ndcY;
+      if (ndcY < minNdcY) minNdcY = ndcY;
+    }
+
+    const targetMidNdcY = (yTopMax + yBotMin) * 0.5;
+    const currentMidNdcY = (maxNdcY + minNdcY) * 0.5;
+    yShift += (currentMidNdcY - targetMidNdcY) * dist * tanV * 0.85;
   }
 
-  // Extra margin on tall portrait viewports so slab clears both header & footer cleanly
-  const aspectMargin = camera.aspect < 0.65 ? 1.16 : 1.11;
-  const dist = need * aspectMargin + 0.25;
-  const footerBias = camera.aspect < 0.65 ? -0.18 : -0.32;
-  controls.target.y += footerBias;
-  camera.position.copy(center).addScaledVector(dir, dist);
-  camera.position.y += footerBias;
+  dist *= 1.02; // subtle breathing room
+
+  const finalTarget = boxCenter.clone().addScaledVector(camUp, yShift);
+  controls.target.copy(finalTarget);
+  camera.position.copy(finalTarget).addScaledVector(dir, dist);
   camera.lookAt(controls.target);
   controls.update();
 }
+
 fitCamera();
+if (document.fonts && document.fonts.ready) {
+  document.fonts.ready.then(() => fitCamera());
+}
 
 addEventListener('resize', () => {
-  camera.aspect = innerWidth / innerHeight;
-  pickFov();
   renderer.setSize(innerWidth, innerHeight);
   fitCamera();
 });
@@ -1298,20 +1328,20 @@ function animate() {
   scene.fog.color.copy(scene.background);
   scene.fog.density = 0.022 + stormBoost * 0.045;
   sunSpr.material.opacity = 0.96 * (1 - stormBoost * 0.68);
-  sunHaloSpr.material.opacity = 0.75 * (1 - stormBoost * 0.78) + Math.sin(now * 1.7) * 0.04;
+  sunHaloSpr.material.opacity = 0.72 * (1 - stormBoost * 0.78) + Math.sin(now * 1.7) * 0.04;
   sun.intensity = 3.1 * (1 - stormBoost * 0.45);
 
-  // Ambient sand grains
+  // Ambient sand grains (smoothly faded before reaching the header zone)
   for (const g of grains) {
     g.s.position.x += g.spd * (1 + stormBoost * 4.5) * dt;
     g.s.position.y += Math.sin(now * g.wob + g.ph) * dt * 0.32;
-    if (g.s.position.x > 4.8) {
-      g.s.position.x = -4.8;
-      g.s.position.y = rand(0.15, 6.8);
+    if (g.s.position.x > 4.4) {
+      g.s.position.x = -4.4;
+      g.s.position.y = rand(0.15, 4.65);
     }
     ndcV.copy(g.s.position).project(camera);
-    const inBand = ndcV.y > 0.52 && Math.abs(ndcV.x) < 0.65;
-    g.s.material.opacity = inBand ? 0.08 : g.baseOp * (1 + stormBoost * 0.65);
+    const headerFade = 1 - THREE.MathUtils.smoothstep(ndcV.y, safeHeaderNdcY - 0.12, safeHeaderNdcY);
+    g.s.material.opacity = g.baseOp * (1 + stormBoost * 0.65) * headerFade;
   }
 
   // Ground-skimming wind streamers
@@ -1327,14 +1357,14 @@ function animate() {
     st.s.material.opacity = st.baseOp * edgeFade * (1 + stormBoost * 0.9);
   }
 
-  // High altitude dust wisps (keeps tall portrait phone sky rich)
+  // High altitude dust wisps (kept clear of header text band)
   for (const w of highWisps) {
     w.s.position.x += w.spd * (1 + stormBoost * 2.5) * dt;
     w.s.position.y = w.y0 + Math.sin(now * 0.6 + w.ph) * 0.12;
-    if (w.s.position.x > 6.5) w.s.position.x = -6.5;
+    if (w.s.position.x > 5.5) w.s.position.x = -5.5;
     ndcV.copy(w.s.position).project(camera);
-    const inHeader = ndcV.y > 0.62 && Math.abs(ndcV.x) < 0.62;
-    w.s.material.opacity = (inHeader ? 0.1 : w.baseOp) * (1 + stormBoost * 0.5);
+    const headerFade = 1 - THREE.MathUtils.smoothstep(ndcV.y, safeHeaderNdcY - 0.15, safeHeaderNdcY - 0.02);
+    w.s.material.opacity = w.baseOp * (1 + stormBoost * 0.5) * headerFade;
   }
 
   // Gust wall sprites (wall-clock lifetime + cleanup)
@@ -1350,21 +1380,29 @@ function animate() {
     }
     gu.s.position.x = gu.x0 + t * 13.5;
     gu.s.position.y = gu.y0 + Math.sin(t * 9) * 0.24;
-    gu.s.material.opacity = Math.sin(Math.min(t * 1.15, 1) * Math.PI) * 0.78;
+    ndcV.copy(gu.s.position).project(camera);
+    const headerFade = 1 - THREE.MathUtils.smoothstep(ndcV.y, safeHeaderNdcY - 0.12, safeHeaderNdcY);
+    gu.s.material.opacity = Math.sin(Math.min(t * 1.15, 1) * Math.PI) * 0.78 * headerFade;
   }
 
-  // Circling 3D desert birds with banking & wingbeats
+  // Circling 3D desert birds with banking, wingbeats, and strict header clearance
   for (const b of birds) {
     const a = now * b.spd + b.ph;
     const nx = b.ax + Math.cos(a) * b.r;
     const nz = b.az + Math.sin(a) * b.r;
-    const ny = b.ay + Math.sin(now * 0.75 + b.ph) * 0.22;
+    const ny = b.ay + Math.sin(now * 0.75 + b.ph) * 0.16;
     b.g.position.set(nx, ny, nz);
     b.g.rotation.y = -a;
     b.g.rotation.z = 0.22;
     const flap = Math.sin(now * b.flapSpd + b.ph) * 0.42;
     b.lw.rotation.z = flap;
     b.rw.rotation.z = -flap;
+
+    // Guarantee birds never visually cross the header text even if user orbits camera
+    ndcV.copy(b.g.position).project(camera);
+    const birdFade = 1 - THREE.MathUtils.smoothstep(ndcV.y, safeHeaderNdcY - 0.08, safeHeaderNdcY - 0.01);
+    b.mat.opacity = birdFade;
+    b.g.visible = birdFade > 0.02;
   }
 
   // Camel Caravan marching along the sweeping background dune ridge (wall-clock driven)
@@ -1388,7 +1426,6 @@ function animate() {
         const nextX = cx + 0.1;
         const nextZ = -2.05 + Math.sin(nextX * 0.75) * 0.38;
 
-        // Smooth scale fade at slab boundaries so camels emerge & vanish gracefully
         const edgeScale = Math.min(
           THREE.MathUtils.smoothstep(u, 0.0, 0.08),
           1 - THREE.MathUtils.smoothstep(u, 0.92, 1.0)
@@ -1398,7 +1435,6 @@ function animate() {
         c.root.scale.setScalar(Math.max(0.001, edgeScale));
         c.root.rotation.y = -Math.atan2(nextZ - cz, nextX - cx);
 
-        // Articulated stride cycle
         const stride = now * 5.8 + i * 1.7;
         c.legs[0].rotation.z = Math.sin(stride) * 0.42;
         c.legs[1].rotation.z = -Math.sin(stride) * 0.42;
