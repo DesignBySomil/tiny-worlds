@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Avalanche Slope - a tiny world</title>
+<style>
+  html, body { margin:0; padding:0; height:100%; background:#bcd4e8; overflow:hidden;
+    font-family: Georgia, 'Times New Roman', serif; }
+  #app { position:fixed; inset:0; }
+  header { position:fixed; top:0; left:0; right:0; text-align:center; pointer-events:none;
+    padding: max(18px, env(safe-area-inset-top)) 16px 18px; z-index:5;
+    background: linear-gradient(rgba(14,34,52,.62), rgba(14,34,52,.30) 55%, rgba(14,34,52,0)); }
+  header h1 { margin:0; font-size:15px; letter-spacing:.42em; font-weight:400;
+    color:#f4f9fd; text-transform:uppercase; text-shadow:0 1px 8px rgba(8,24,40,.75); }
+  header .rule { width:44px; height:1px; background:rgba(244,249,253,.55); margin:9px auto; }
+  #hint { display:inline-block; font-size:11.5px; letter-spacing:.24em; text-transform:uppercase;
+    color:#fafdff; transition:opacity 1.2s ease; padding:5px 12px; border-radius:3px;
+    background:rgba(10,28,44,.45);
+    text-shadow:0 1px 3px rgba(5,18,30,.98), 0 0 8px rgba(5,18,30,.95), 0 0 18px rgba(5,18,30,.85); }
+  #hint.faded { opacity:.45; }
+  footer { position:fixed; bottom:0; left:0; right:0; text-align:center; pointer-events:none;
+    padding:0 16px max(14px, env(safe-area-inset-bottom)); z-index:5;
+    font-size:10px; letter-spacing:.34em; text-transform:uppercase; color:rgba(244,249,253,.6); }
+  canvas { display:block; touch-action:none; }
+  @media (max-width: 380px) {
+    header h1 { font-size:12px; letter-spacing:.3em; }
+    #hint { font-size:10px; letter-spacing:.2em; }
+  }
+</style>
+</head>
+<body>
+<div id="app"></div>
+<header>
+  <h1>Avalanche Slope</h1>
+  <div class="rule"></div>
+  <span id="hint"></span>
+</header>
+<footer>A tiny world</footer>
+<script type="importmap">
+{ "imports": {
+  "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+  "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+} }
+</script>
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+// pass 1
+const container = document.getElementById('app');
+const hintEl = document.getElementById('hint');
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0xbcd4e8);
+scene.fog = new THREE.Fog(0xbcd4e8, 60, 140);
+
+const camera = new THREE.PerspectiveCamera(38, innerWidth/innerHeight, 0.1, 240);
+function pickFov() {
+  const a = innerWidth / innerHeight;
+  camera.fov = a >= 0.9 ? 38 : (a >= 0.62 ? 46 : 58);
+  camera.updateProjectionMatrix();
+}
+pickFov();
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setSize(innerWidth, innerHeight);
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+container.appendChild(renderer.domElement);
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true; controls.dampingFactor = 0.06;
+controls.enablePan = false; controls.maxPolarAngle = Math.PI * 0.52;
+
+const sun = new THREE.DirectionalLight(0xfff2dd, 2.2);
+sun.position.set(8, 12, 6); sun.castShadow = true;
+sun.shadow.mapSize.set(1024, 1024);
+sun.shadow.camera.left = -14; sun.shadow.camera.right = 14;
+sun.shadow.camera.top = 14; sun.shadow.camera.bottom = -14;
+sun.shadow.camera.far = 60; sun.shadow.bias = -0.0006;
+scene.add(sun);
+scene.add(new THREE.HemisphereLight(0xe4eef8, 0x4a5e70, 1.15));
+
+function mulberry32(a) {
+  return function() {
+    a |= 0; a = a + 0x6D2B79F5 | 0;
+    let t = Math.imul(a ^ a >>> 15, 1 | a);
+    t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+    return ((t ^ t >>> 14) >>> 0) / 4294967296;
+  };
+}
+const rng = mulberry32(20261101);
+function rand(a, b) { return a + rng() * (b - a); }
+
+// ---------- slab + mountain wedge ----------
+const SLAB_H = 1.4;
+const slabGroup = new THREE.Group(); scene.add(slabGroup);
+const SNOW = new THREE.MeshStandardMaterial({ color: 0xf6fafd, roughness: 0.85 });
+const SNOW_BLUE = new THREE.MeshStandardMaterial({ color: 0xd8e8f4, roughness: 0.9 });
+{
+  const top = new THREE.Mesh(new THREE.BoxGeometry(12, 0.22, 12), SNOW_BLUE);
+  top.position.y = -0.11; top.receiveShadow = true; slabGroup.add(top);
+  const mid = new THREE.Mesh(new THREE.BoxGeometry(12, SLAB_H, 12),
+    new THREE.MeshStandardMaterial({ color: 0x7e94a6, roughness: 1 }));
+  mid.position.y = -SLAB_H/2 - 0.2; slabGroup.add(mid);
+  const base = new THREE.Mesh(new THREE.BoxGeometry(12.4, 0.5, 12.4),
+    new THREE.MeshStandardMaterial({ color: 0x54687a, roughness: 1 }));
+  base.position.y = -SLAB_H - 0.45; slabGroup.add(base);
+}
+// mountain wedge: triangular prism, ridge along x, slope facing +z (front)
+const SLOPE = { ridgeY: 5.2, backZ: -4.9, frontZ: 3.4, halfW: 5.2 };
+let wedgeMesh;
+{
+  const shape = new THREE.Shape();
+  shape.moveTo(-SLOPE.halfW, 0);
+  shape.lineTo(SLOPE.halfW, 0);
+  // ridge in the middle-back; we build cross-section in (z,y) then extrude along x
+  // simpler: build with BufferGeometry
+  const g = new THREE.BufferGeometry();
+  const W = SLOPE.halfW, zB = SLOPE.backZ, zF = SLOPE.frontZ, yR = SLOPE.ridgeY;
+  // ridge line slightly off-center back
+  const zR = zB + 1.2;
+  const v = [];
+  // front slope quad (zF,0)-(zR,yR) for both x ends
+  const quad = (a, b, c, d) => { v.push(...a, ...b, ...c, ...a, ...c, ...d); };
+  quad([-W, 0, zF], [W, 0, zF], [W, yR, zR], [-W, yR, zR]);           // front slope
+  quad([W, 0, zB], [-W, 0, zB], [-W, yR, zR], [W, yR, zR]);           // back slope
+  quad([-W, 0, zB], [-W, 0, zF], [-W, yR, zR], [-W, yR, zR]);         // left cap (degenerate ok)
+  quad([W, 0, zF], [W, 0, zB], [W, yR, zR], [W, yR, zR]);             // right cap
+  g.setAttribute('position', new THREE.Float32BufferAttribute(v, 3));
+  g.computeVertexNormals();
+  wedgeMesh = new THREE.Mesh(g, SNOW);
+  wedgeMesh.castShadow = true; wedgeMesh.receiveShadow = true;
+  slabGroup.add(wedgeMesh);
+}
+function slopeY(z) {
+  const zR = SLOPE.backZ + 1.2;
+  if (z >= zR) return SLOPE.ridgeY * (SLOPE.frontZ - z) / (SLOPE.frontZ - zR);
+  return SLOPE.ridgeY * (z - SLOPE.backZ) / (zR - SLOPE.backZ);
+}
+
+// ---------- pines on the lower slope + flats ----------
+const PINE = new THREE.MeshStandardMaterial({ color: 0x2e5d46, roughness: 0.9 });
+const PINE_SNOW = new THREE.MeshStandardMaterial({ color: 0xe8f2f8, roughness: 0.9 });
+const TRUNK = new THREE.MeshStandardMaterial({ color: 0x5a4230, roughness: 1 });
+function pine(x, z, s) {
+  const g = new THREE.Group(); g.position.set(x, slopeY(z) > 0.05 ? slopeY(z) : 0, z);
+  const t = new THREE.Mesh(new THREE.CylinderGeometry(0.06*s, 0.09*s, 0.5*s, 6), TRUNK);
+  t.position.y = 0.25*s; g.add(t);
+  for (let i = 0; i < 3; i++) {
+    const c = new THREE.Mesh(new THREE.ConeGeometry((0.55 - i*0.13)*s, 0.55*s, 8), PINE);
+    c.position.y = (0.55 + i*0.34)*s; c.castShadow = true; g.add(c);
+    const cap = new THREE.Mesh(new THREE.ConeGeometry((0.56 - i*0.13)*s, 0.2*s, 8), PINE_SNOW);
+    cap.position.y = (0.72 + i*0.34)*s; g.add(cap);
+  }
+  slabGroup.add(g);
+}
+pine(-3.4, 1.2, 1.3); pine(2.8, 1.8, 1.1); pine(-1.8, 2.6, 0.9); pine(4.2, 0.4, 1.0);
+pine(-4.4, 4.2, 1.2); pine(0.8, 4.6, 1.05); pine(3.6, 4.4, 0.85); pine(-2.6, 4.8, 0.8);
+// rocks poking through the snow
+{
+  const rockMat = new THREE.MeshStandardMaterial({ color: 0x76868f, roughness: 1 });
+  for (const [x, z, s] of [[-4.6,-1.2,0.5],[4.6,-2.4,0.65],[-1.2,-2.2,0.4],[2.0,-0.8,0.35],[5.0,2.8,0.45],[-5.0,2.2,0.5]]) {
+    const r = new THREE.Mesh(new THREE.DodecahedronGeometry(s, 0), rockMat);
+    r.position.set(x, slopeY(z) * 0.9 + s * 0.4, z); r.castShadow = true; slabGroup.add(r);
+  }
+}
+// snow drifts on the flats
+for (let i = 0; i < 10; i++) {
+  const d = new THREE.Mesh(new THREE.SphereGeometry(rand(0.3, 0.7), 8, 6), SNOW);
+  d.scale.y = 0.3; d.position.set(rand(-5.4, 5.4), 0.02, rand(3.8, 5.4));
+  d.receiveShadow = true; slabGroup.add(d);
+}
+
+// ---------- falling snow (upper band; NDC faded) ----------
+const flakes = [];
+function makeSoftTexture(inner, outer) {
+  const c = document.createElement('canvas'); c.width = c.height = 64;
+  const ctx = c.getContext('2d');
+  const g = ctx.createRadialGradient(32, 32, 4, 32, 32, 30);
+  g.addColorStop(0, inner); g.addColorStop(1, outer);
+  ctx.fillStyle = g; ctx.fillRect(0, 0, 64, 64);
+  return new THREE.CanvasTexture(c);
+}
+{
+  const tex = makeSoftTexture('rgba(255,255,255,1)', 'rgba(255,255,255,0)');
+  for (let i = 0; i < 40; i++) {
+    const mat = new THREE.SpriteMaterial({ map: tex, transparent: true, opacity: rand(0.5, 0.95), depthWrite: false });
+    const s = new THREE.Sprite(mat);
+    const sc = rand(0.06, 0.16); s.scale.set(sc, sc, 1);
+    s.position.set(rand(-7, 7), rand(0.5, 9), rand(-6, 5));
+    scene.add(s);
+    flakes.push({ s, spd: rand(0.4, 1.0), sway: rand(0.5, 1.4), phase: rand(0, Math.PI * 2), baseOp: mat.opacity });
+  }
+}
+
+// ---------- avalanche event ----------
+const hintIdle = 'Tap the slope';
+const hintSlide = 'Watch it slide';
+let hintOwner = 'idle';
+function setHint(text, owner) { hintEl.textContent = text; hintEl.classList.remove('faded'); hintOwner = owner; }
+function resetHintIf(owner) { if (hintOwner === owner) setHint(hintIdle, 'idle'); }
+setHint(hintIdle, 'idle');
+
+const slides = []; // rolling snowballs
+const puffs = [];  // powder cloud sprites
+let lastTap = 0;
+const puffTex = makeSoftTexture('rgba(250,253,255,0.95)', 'rgba(250,253,255,0)');
+function avalanche(now) {
+  lastTap = now;
+  setHint(hintSlide, 'user');
+  const zR = SLOPE.backZ + 1.2;
+  for (let i = 0; i < 18; i++) {
+    const b = new THREE.Mesh(new THREE.SphereGeometry(rand(0.12, 0.3), 8, 6), SNOW);
+    const x = rand(-SLOPE.halfW * 0.85, SLOPE.halfW * 0.85);
+    b.position.set(x, slopeY(zR) + 0.2, zR + rand(-0.2, 0.2));
+    b.castShadow = true; scene.add(b);
+    slides.push({ m: b, x, z: zR, t0: now + rand(0, 0.5), speed: rand(3.2, 5.2), spin: rand(-6, 6), done: false });
+  }
+  for (let i = 0; i < 8; i++) {
+    const mat = new THREE.SpriteMaterial({ map: puffTex, transparent: true, opacity: 0, depthWrite: false });
+    const s = new THREE.Sprite(mat);
+    s.position.set(rand(-4, 4), 1.5, SLOPE.backZ + 2);
+    scene.add(s);
+    puffs.push({ s, t0: now + rand(0, 0.4), dur: rand(2.2, 3.2), x0: s.position.x });
+  }
+  setTimeout(() => resetHintIf('user'), 5600);
+}
+
+// ---------- interaction ----------
+const ray = new THREE.Raycaster();
+const ptr = new THREE.Vector2();
+const slopeProxy = new THREE.Mesh(new THREE.BoxGeometry(11, 6.5, 9.5),
+  new THREE.MeshBasicMaterial({ visible: false }));
+slopeProxy.position.set(0, 2.6, -0.7);
+scene.add(slopeProxy);
+let downX = 0, downY = 0;
+renderer.domElement.addEventListener('pointerdown', e => { downX = e.clientX; downY = e.clientY; });
+renderer.domElement.addEventListener('pointerup', e => {
+  if (Math.hypot(e.clientX - downX, e.clientY - downY) > 8) return;
+  ptr.x = (e.clientX / innerWidth) * 2 - 1;
+  ptr.y = -(e.clientY / innerHeight) * 2 + 1;
+  ray.setFromCamera(ptr, camera);
+  if (ray.intersectObject(slopeProxy, false).length) {
+    const now = performance.now() / 1000;
+    if (now - lastTap > 0.8) avalanche(now);
+  }
+});
+
+// ---------- camera containment ----------
+const fitBox = new THREE.Box3().setFromObject(slabGroup);
+fitBox.expandByPoint(new THREE.Vector3(0, SLOPE.ridgeY + 0.8, 0));
+function fitCamera() {
+  const center = fitBox.getCenter(new THREE.Vector3());
+  controls.target.copy(center);
+  const dir = new THREE.Vector3(0.08, 0.85, 1).normalize();
+  const corners = [];
+  for (const x of [fitBox.min.x, fitBox.max.x])
+    for (const y of [fitBox.min.y, fitBox.max.y])
+      for (const z of [fitBox.min.z, fitBox.max.z])
+        corners.push(new THREE.Vector3(x, y, z));
+  const probe = new THREE.PerspectiveCamera(camera.fov, camera.aspect, 0.1, 240);
+  probe.position.copy(center).addScaledVector(dir, 10); probe.lookAt(center); probe.updateMatrixWorld();
+  const inv = probe.matrixWorldInverse;
+  let need = 0;
+  const vFov = THREE.MathUtils.degToRad(camera.fov) / 2;
+  const hFov = Math.atan(Math.tan(vFov) * camera.aspect);
+  for (const c of corners) {
+    const p = c.clone().applyMatrix4(inv);
+    const d = -p.z;
+    need = Math.max(need, d + Math.abs(p.y) / Math.tan(vFov), d + Math.abs(p.x) / Math.tan(hFov));
+  }
+  const dist = need * 1.02 + 0.2;
+  camera.position.copy(center).addScaledVector(dir, dist);
+  camera.lookAt(center); controls.update();
+}
+fitCamera();
+addEventListener('resize', () => {
+  camera.aspect = innerWidth / innerHeight; pickFov();
+  renderer.setSize(innerWidth, innerHeight); fitCamera();
+});
+
+// ---------- animate ----------
+const clock = new THREE.Clock();
+const ndcV = new THREE.Vector3();
+function animate() {
+  requestAnimationFrame(animate);
+  const dt = Math.min(clock.getDelta(), 0.3);
+  const now = performance.now() / 1000;
+  // snowfall
+  for (const f of flakes) {
+    f.s.position.y -= f.spd * dt;
+    f.s.position.x += Math.sin(now * f.sway + f.phase) * dt * 0.4;
+    if (f.s.position.y < 0.2) { f.s.position.y = 9; f.s.position.x = rand(-7, 7); }
+    ndcV.copy(f.s.position).project(camera);
+    const inBand = ndcV.y > 0.45 && Math.abs(ndcV.x) < 0.62;
+    const target = inBand ? 0.12 : f.baseOp;
+    f.s.material.opacity += (target - f.s.material.opacity) * Math.min(1, dt * 3);
+  }
+  // rolling snowballs follow the slope surface
+  for (const b of slides) {
+    if (b.done) continue;
+    const t = now - b.t0;
+    if (t < 0) continue;
+    b.z = (SLOPE.backZ + 1.2) + b.speed * t;
+    if (b.z >= SLOPE.frontZ + 1.6) {
+      b.done = true; scene.remove(b.m); continue;
+    }
+    b.m.position.z = b.z;
+    b.m.position.y = Math.max(0.15, slopeY(Math.min(b.z, SLOPE.frontZ)) + 0.15);
+    b.m.rotation.x += b.spin * dt;
+  }
+  // powder cloud swells and drifts downhill, then fades
+  for (const p of puffs) {
+    const t = (now - p.t0) / p.dur;
+    if (t < 0) continue;
+    if (t >= 1) { p.s.material.opacity = 0; continue; }
+    const grow = 1 + t * 5;
+    p.s.scale.set(2.2 * grow, 1.6 * grow, 1);
+    p.s.position.z = SLOPE.backZ + 1.5 + t * 6.5;
+    p.s.position.y = 1.2 + Math.sin(t * Math.PI) * 1.2;
+    p.s.material.opacity = Math.sin(Math.min(t * 1.15, 1) * Math.PI) * 0.75;
+  }
+  controls.update();
+  renderer.render(scene, camera);
+}
+animate();
+</script>
+</body>
+</html>
