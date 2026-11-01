@@ -1,0 +1,351 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Wildfire and Regrowth - a tiny world</title>
+<style>
+  html, body { margin:0; padding:0; height:100%; background:#2a2320; overflow:hidden;
+    font-family: Georgia, 'Times New Roman', serif; }
+  #app { position:fixed; inset:0; }
+  header { position:fixed; top:0; left:0; right:0; text-align:center; pointer-events:none;
+    padding: max(18px, env(safe-area-inset-top)) 16px 18px; z-index:5;
+    background: linear-gradient(rgba(8,5,3,.66), rgba(8,5,3,.32) 55%, rgba(8,5,3,0)); }
+  header h1 { margin:0; font-size:15px; letter-spacing:.42em; font-weight:400;
+    color:#f3e9dc; text-transform:uppercase; text-shadow:0 1px 8px rgba(0,0,0,.8); }
+  header .rule { width:44px; height:1px; background:rgba(243,233,220,.55); margin:9px auto; }
+  #hint { display:inline-block; font-size:11.5px; letter-spacing:.24em; text-transform:uppercase;
+    color:#fdf6ec; transition:opacity 1.2s ease; padding:5px 12px; border-radius:3px;
+    background:rgba(10,6,4,.5);
+    text-shadow:0 1px 3px rgba(0,0,0,.98), 0 0 8px rgba(0,0,0,.95), 0 0 18px rgba(0,0,0,.85); }
+  #hint.faded { opacity:.45; }
+  footer { position:fixed; bottom:0; left:0; right:0; text-align:center; pointer-events:none;
+    padding:0 16px max(14px, env(safe-area-inset-bottom)); z-index:5;
+    font-size:10px; letter-spacing:.34em; text-transform:uppercase; color:rgba(243,233,220,.55); }
+  canvas { display:block; touch-action:none; }
+</style>
+</head>
+<body>
+<div id="app"></div>
+<header>
+  <h1>Wildfire and Regrowth</h1>
+  <div class="rule"></div>
+  <span id="hint"></span>
+</header>
+<footer>A tiny world</footer>
+<script type="importmap">
+{ "imports": {
+  "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+  "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+} }
+</script>
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+// pass 1
+const container = document.getElementById('app');
+const hintEl = document.getElementById('hint');
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x2a2320);
+scene.fog = new THREE.Fog(0x2a2320, 60, 140);
+
+const camera = new THREE.PerspectiveCamera(38, innerWidth/innerHeight, 0.1, 240);
+function pickFov() {
+  const a = innerWidth / innerHeight;
+  camera.fov = a >= 0.9 ? 38 : (a >= 0.62 ? 46 : 58);
+  camera.updateProjectionMatrix();
+}
+pickFov();
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setSize(innerWidth, innerHeight);
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+container.appendChild(renderer.domElement);
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true; controls.dampingFactor = 0.06;
+controls.enablePan = false; controls.maxPolarAngle = Math.PI * 0.52;
+
+const sun = new THREE.DirectionalLight(0xffd9b0, 1.6);
+sun.position.set(7, 11, 5); sun.castShadow = true;
+sun.shadow.mapSize.set(1024, 1024);
+sun.shadow.camera.left = -14; sun.shadow.camera.right = 14;
+sun.shadow.camera.top = 14; sun.shadow.camera.bottom = -14;
+sun.shadow.camera.far = 60; sun.shadow.bias = -0.0006;
+scene.add(sun);
+const emberGlow = new THREE.PointLight(0xff6a26, 0.9, 22);
+emberGlow.position.set(0, 2.2, 0); scene.add(emberGlow);
+scene.add(new THREE.HemisphereLight(0x6a5648, 0x1a1310, 0.9));
+
+function mulberry32(a) {
+  return function() {
+    a |= 0; a = a + 0x6D2B79F5 | 0;
+    let t = Math.imul(a ^ a >>> 15, 1 | a);
+    t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+    return ((t ^ t >>> 14) >>> 0) / 4294967296;
+  };
+}
+const rng = mulberry32(20261101);
+function rand(a, b) { return a + rng() * (b - a); }
+
+// ---------- slab: scorched earth ----------
+const SLAB_H = 1.4;
+const slabGroup = new THREE.Group(); scene.add(slabGroup);
+{
+  const ashMat = new THREE.MeshStandardMaterial({ color: 0x4a4038, roughness: 1 });
+  const top = new THREE.Mesh(new THREE.BoxGeometry(12, 0.22, 12), ashMat);
+  top.position.y = -0.11; top.receiveShadow = true; slabGroup.add(top);
+  const charMat = new THREE.MeshStandardMaterial({ color: 0x241d18, roughness: 1 });
+  const mid = new THREE.Mesh(new THREE.BoxGeometry(12, SLAB_H, 12), charMat);
+  mid.position.y = -SLAB_H/2 - 0.2; slabGroup.add(mid);
+  const baseMat = new THREE.MeshStandardMaterial({ color: 0x14100c, roughness: 1 });
+  const base = new THREE.Mesh(new THREE.BoxGeometry(12.4, 0.5, 12.4), baseMat);
+  base.position.y = -SLAB_H - 0.45; slabGroup.add(base);
+  // ash mounds + scorch patches
+  const patchMat = new THREE.MeshStandardMaterial({ color: 0x372e26, roughness: 1 });
+  for (let i = 0; i < 16; i++) {
+    const p = new THREE.Mesh(new THREE.CircleGeometry(rand(0.5, 1.4), 9), patchMat);
+    p.rotation.x = -Math.PI/2; p.position.set(rand(-5.4, 5.4), 0.011, rand(-5.4, 5.4));
+    p.receiveShadow = true; slabGroup.add(p);
+  }
+  const moundMat = new THREE.MeshStandardMaterial({ color: 0x55483c, roughness: 1 });
+  for (let i = 0; i < 9; i++) {
+    const m = new THREE.Mesh(new THREE.SphereGeometry(rand(0.25, 0.55), 8, 6), moundMat);
+    m.scale.y = 0.35; m.position.set(rand(-5.2, 5.2), 0.02, rand(-5.2, 5.2));
+    m.castShadow = true; m.receiveShadow = true; slabGroup.add(m);
+  }
+}
+
+// ---------- charred trunks with ember cracks ----------
+const embers = [];
+{
+  const trunkMat = new THREE.MeshStandardMaterial({ color: 0x191310, roughness: 1 });
+  const crackMat = new THREE.MeshStandardMaterial({ color: 0xff5a1a, emissive: 0xff4a10, emissiveIntensity: 1.4, roughness: 0.6 });
+  const spots = [
+    [-3.6,-2.6,2.4],[-1.8,-3.6,1.6],[1.2,-3.0,2.8],[3.8,-2.2,1.9],[4.4,0.8,2.6],
+    [2.6,3.0,1.5],[-0.6,3.4,2.2],[-3.2,2.2,1.7],[-4.4,0.2,2.9],[0.8,0.6,1.3],[4.2,-4.2,1.4],[-4.6,-4.0,1.2]
+  ];
+  for (const [x, z, h] of spots) {
+    const t = new THREE.Mesh(new THREE.CylinderGeometry(rand(0.09, 0.14), rand(0.16, 0.24), h, 7), trunkMat);
+    t.position.set(x, h/2, z); t.rotation.z = rand(-0.06, 0.06); t.rotation.x = rand(-0.05, 0.05);
+    t.castShadow = true; t.receiveShadow = true; slabGroup.add(t);
+    // broken top splinters
+    for (let k = 0; k < 3; k++) {
+      const sp = new THREE.Mesh(new THREE.ConeGeometry(0.045, rand(0.2, 0.4), 5), trunkMat);
+      sp.position.set(x + rand(-0.08, 0.08), h + rand(0.02, 0.12), z + rand(-0.08, 0.08));
+      sp.rotation.set(rand(-0.4, 0.4), 0, rand(-0.4, 0.4));
+      slabGroup.add(sp);
+    }
+    // glowing cracks on some trunks
+    const nCr = 1 + Math.floor(rng() * 3);
+    for (let k = 0; k < nCr; k++) {
+      const c = new THREE.Mesh(new THREE.BoxGeometry(0.035, rand(0.15, 0.5), 0.035), crackMat.clone());
+      const a = rand(0, Math.PI * 2), rr = 0.15;
+      c.position.set(x + Math.cos(a) * rr, rand(0.2, h - 0.2), z + Math.sin(a) * rr);
+      slabGroup.add(c);
+      embers.push({ m: c, phase: rand(0, Math.PI * 2), spd: rand(1.2, 2.4) });
+    }
+    // fallen branch
+    if (rng() < 0.6) {
+      const b = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.06, rand(0.6, 1.1), 5), trunkMat);
+      b.rotation.set(Math.PI/2, 0, rand(0, Math.PI));
+      b.position.set(x + rand(-0.8, 0.8), 0.06, z + rand(-0.8, 0.8));
+      b.castShadow = true; slabGroup.add(b);
+    }
+  }
+  // scattered stones
+  const stoneMat = new THREE.MeshStandardMaterial({ color: 0x5e544a, roughness: 1 });
+  for (let i = 0; i < 14; i++) {
+    const s = new THREE.Mesh(new THREE.DodecahedronGeometry(rand(0.07, 0.16), 0), stoneMat);
+    s.position.set(rand(-5.4, 5.4), 0.05, rand(-5.4, 5.4));
+    s.castShadow = true; slabGroup.add(s);
+  }
+}
+
+// ---------- drifting smoke wisps + rising embers (upper band; NDC faded) ----------
+const wisps = [];
+function makeSoftTexture(inner, outer) {
+  const c = document.createElement('canvas'); c.width = c.height = 64;
+  const ctx = c.getContext('2d');
+  const g = ctx.createRadialGradient(32, 32, 4, 32, 32, 30);
+  g.addColorStop(0, inner); g.addColorStop(1, outer);
+  ctx.fillStyle = g; ctx.fillRect(0, 0, 64, 64);
+  return new THREE.CanvasTexture(c);
+}
+{
+  const tex = makeSoftTexture('rgba(200,190,180,0.7)', 'rgba(200,190,180,0)');
+  for (let i = 0; i < 11; i++) {
+    const mat = new THREE.SpriteMaterial({ map: tex, transparent: true, opacity: rand(0.3, 0.55), depthWrite: false });
+    const s = new THREE.Sprite(mat);
+    const sc = rand(2.0, 4.4); s.scale.set(sc, sc * 0.7, 1);
+    s.position.set(rand(-7, 7), rand(2.4, 8.6), rand(-5, 4));
+    scene.add(s);
+    wisps.push({ s, spd: rand(0.1, 0.28), baseOp: mat.opacity });
+  }
+}
+const sparks = [];
+{
+  const tex = makeSoftTexture('rgba(255,170,80,1)', 'rgba(255,90,20,0)');
+  for (let i = 0; i < 14; i++) {
+    const mat = new THREE.SpriteMaterial({ map: tex, transparent: true, opacity: rand(0.6, 1), depthWrite: false });
+    const s = new THREE.Sprite(mat);
+    const sc = rand(0.08, 0.18); s.scale.set(sc, sc, 1);
+    s.position.set(rand(-5, 5), rand(0.3, 6), rand(-5, 4));
+    scene.add(s);
+    sparks.push({ s, spd: rand(0.5, 1.1), sway: rand(0.4, 1.2), phase: rand(0, Math.PI * 2), baseOp: mat.opacity });
+  }
+}
+
+// ---------- regrowth event ----------
+const hintIdle = 'Tap the ashes';
+const hintGrow = 'Watch it regrow';
+let hintOwner = 'idle';
+function setHint(text, owner) { hintEl.textContent = text; hintEl.classList.remove('faded'); hintOwner = owner; }
+function resetHintIf(owner) { if (hintOwner === owner) setHint(hintIdle, 'idle'); }
+setHint(hintIdle, 'idle');
+
+const sprouts = []; // {g, t0, delay, grown}
+const GREEN = new THREE.MeshStandardMaterial({ color: 0x3f8f3a, roughness: 0.8 });
+const GREEN2 = new THREE.MeshStandardMaterial({ color: 0x63b04a, roughness: 0.8 });
+const FLOWER_COLS = [0xe86a92, 0xf2c14e, 0xf3f0e4, 0x9a6ad0];
+function spawnSprout(x, z, delay, now) {
+  const g = new THREE.Group(); g.position.set(x, 0, z);
+  const blades = 2 + Math.floor(rng() * 3);
+  for (let i = 0; i < blades; i++) {
+    const bl = new THREE.Mesh(new THREE.ConeGeometry(0.045, rand(0.3, 0.55), 5), rng() < 0.5 ? GREEN : GREEN2);
+    bl.position.set(rand(-0.1, 0.1), 0.2, rand(-0.1, 0.1));
+    bl.rotation.set(rand(-0.25, 0.25), 0, rand(-0.25, 0.25));
+    bl.castShadow = true; g.add(bl);
+  }
+  if (rng() < 0.45) {
+    const fm = new THREE.MeshStandardMaterial({ color: FLOWER_COLS[Math.floor(rng() * FLOWER_COLS.length)], roughness: 0.6 });
+    const f = new THREE.Mesh(new THREE.SphereGeometry(0.075, 8, 6), fm);
+    f.position.set(0, rand(0.32, 0.5), 0); g.add(f);
+  }
+  g.scale.setScalar(0.001);
+  slabGroup.add(g);
+  sprouts.push({ g, t0: now, delay, phase: rand(0, Math.PI * 2) });
+}
+let lastTap = 0;
+function regrow(x, z, now) {
+  lastTap = now;
+  setHint(hintGrow, 'user');
+  const n = 16;
+  for (let i = 0; i < n; i++) {
+    const a = rand(0, Math.PI * 2), r = rand(0.15, 2.2);
+    const px = THREE.MathUtils.clamp(x + Math.cos(a) * r, -5.5, 5.5);
+    const pz = THREE.MathUtils.clamp(z + Math.sin(a) * r, -5.5, 5.5);
+    spawnSprout(px, pz, r * 0.5 + rand(0, 0.25), now);
+  }
+  // cap total sprouts
+  while (sprouts.length > 140) { const old = sprouts.shift(); slabGroup.remove(old.g); }
+  setTimeout(() => resetHintIf('user'), 5200);
+}
+
+// ---------- interaction ----------
+const ray = new THREE.Raycaster();
+const ptr = new THREE.Vector2();
+const groundProxy = new THREE.Mesh(new THREE.BoxGeometry(12, 0.4, 12),
+  new THREE.MeshBasicMaterial({ visible: false }));
+groundProxy.position.y = 0.0; scene.add(groundProxy);
+let downX = 0, downY = 0;
+renderer.domElement.addEventListener('pointerdown', e => { downX = e.clientX; downY = e.clientY; });
+renderer.domElement.addEventListener('pointerup', e => {
+  if (Math.hypot(e.clientX - downX, e.clientY - downY) > 8) return;
+  ptr.x = (e.clientX / innerWidth) * 2 - 1;
+  ptr.y = -(e.clientY / innerHeight) * 2 + 1;
+  ray.setFromCamera(ptr, camera);
+  const hit = ray.intersectObject(groundProxy, false);
+  if (hit.length) {
+    const now = performance.now() / 1000;
+    if (now - lastTap > 0.8) regrow(hit[0].point.x, hit[0].point.z, now);
+  }
+});
+
+// ---------- camera containment ----------
+function collectFit() {
+  const b = new THREE.Box3().setFromObject(slabGroup);
+  b.expandByPoint(new THREE.Vector3(0, 4.2, 0));
+  return b;
+}
+const fitBox = collectFit();
+function fitCamera() {
+  const center = fitBox.getCenter(new THREE.Vector3());
+  controls.target.copy(center);
+  const dir = new THREE.Vector3(0.08, 0.85, 1).normalize();
+  const corners = [];
+  for (const x of [fitBox.min.x, fitBox.max.x])
+    for (const y of [fitBox.min.y, fitBox.max.y])
+      for (const z of [fitBox.min.z, fitBox.max.z])
+        corners.push(new THREE.Vector3(x, y, z));
+  const probe = new THREE.PerspectiveCamera(camera.fov, camera.aspect, 0.1, 240);
+  probe.position.copy(center).addScaledVector(dir, 10); probe.lookAt(center); probe.updateMatrixWorld();
+  const inv = probe.matrixWorldInverse;
+  let need = 0;
+  const vFov = THREE.MathUtils.degToRad(camera.fov) / 2;
+  const hFov = Math.atan(Math.tan(vFov) * camera.aspect);
+  for (const c of corners) {
+    const p = c.clone().applyMatrix4(inv);
+    const d = -p.z;
+    need = Math.max(need, d + Math.abs(p.y) / Math.tan(vFov), d + Math.abs(p.x) / Math.tan(hFov));
+  }
+  const dist = need * 1.02 + 0.2;
+  camera.position.copy(center).addScaledVector(dir, dist);
+  camera.lookAt(center); controls.update();
+}
+fitCamera();
+addEventListener('resize', () => {
+  camera.aspect = innerWidth / innerHeight; pickFov();
+  renderer.setSize(innerWidth, innerHeight); fitCamera();
+});
+
+// ---------- animate ----------
+const clock = new THREE.Clock();
+const ndcV = new THREE.Vector3();
+function animate() {
+  requestAnimationFrame(animate);
+  const dt = Math.min(clock.getDelta(), 0.3);
+  const now = performance.now() / 1000;
+  // ember crack pulse
+  let glow = 0;
+  for (const e of embers) {
+    const p = 0.9 + Math.sin(now * e.spd + e.phase) * 0.6;
+    e.m.material.emissiveIntensity = p;
+    glow += p;
+  }
+  emberGlow.intensity = 0.5 + glow / embers.length * 0.35;
+  // smoke drift
+  for (const w of wisps) {
+    w.s.position.x += w.spd * dt;
+    if (w.s.position.x > 8) w.s.position.x = -8;
+    ndcV.copy(w.s.position).project(camera);
+    const inBand = ndcV.y > 0.45 && Math.abs(ndcV.x) < 0.62;
+    const target = inBand ? 0.08 : w.baseOp;
+    w.s.material.opacity += (target - w.s.material.opacity) * Math.min(1, dt * 3);
+  }
+  // rising embers
+  for (const s of sparks) {
+    s.s.position.y += s.spd * dt;
+    s.s.position.x += Math.sin(now * s.sway + s.phase) * dt * 0.5;
+    if (s.s.position.y > 9) { s.s.position.y = 0.3; s.s.position.x = rand(-5, 5); }
+    ndcV.copy(s.s.position).project(camera);
+    const inBand = ndcV.y > 0.45 && Math.abs(ndcV.x) < 0.62;
+    const target = inBand ? 0.12 : s.baseOp;
+    s.s.material.opacity += (target - s.s.material.opacity) * Math.min(1, dt * 3);
+  }
+  // sprouts grow with distance-delayed wave
+  for (const sp of sprouts) {
+    const t = (now - sp.t0 - sp.delay) / 1.1;
+    if (t <= 0) { sp.g.scale.setScalar(0.001); continue; }
+    const k = t >= 1 ? 1 : 1 - Math.pow(1 - t, 3);
+    sp.g.scale.setScalar(Math.max(0.001, k));
+    if (t >= 1) sp.g.rotation.z = Math.sin(now * 1.4 + sp.phase) * 0.02;
+  }
+  controls.update();
+  renderer.render(scene, camera);
+}
+animate();
+</script>
+</body>
+</html>
