@@ -449,6 +449,12 @@ function setHint(s) {
   hintEl.textContent = HINTS[s]; hintEl.classList.remove('faded');
   clearTimeout(setHint._t);
   setHint._t = setTimeout(() => hintEl.classList.add('faded'), 6000);
+// pass 8: TEMPORARY QA hook - projects mushroom tap points to screen coords for
+// the full-cycle retest; REMOVED before acceptance (same rule as volcano pass 20)
+window.__qaCaps = () => MSH.map(m => {
+  const v = new THREE.Vector3(m.x, 1.2, m.z).project(camera);
+  return { x: Math.round((v.x + 1) / 2 * innerWidth), y: Math.round((-v.y + 1) / 2 * innerHeight) };
+});
 }
 function litCount() { return MSH.filter(m => m.lit).length; }
 function lightMushroom(m) {
@@ -524,6 +530,7 @@ Promise.all(['BirchTree_Dead_1.glb', 'BirchTree_Dead_3.glb', 'Rock_Moss_1.glb',
   });
 
 // pass markers for deploy verification
+// pass 8: temporary QA projection hook (to be removed pre-acceptance)
 // pass 7: moon half-disc fix - glow sprite moved off the disc plane (z-fight line)
 // pass 6: coherent quality pass - portrait bounds fix, moon clear of header, hero mushroom scale (10 groups), floor density, stronger night light read
 // pass 5: mycelium calm-down - dim resting teal, sparser branching, threads off the bottom edge
@@ -654,6 +661,12 @@ addEventListener('resize', () => {
   frameInitialCamera();
 });
 setTimeout(() => hintEl.classList.add('faded'), 6000);
+// pass 8: TEMPORARY QA hook - projects mushroom tap points to screen coords for
+// the full-cycle retest; REMOVED before acceptance (same rule as volcano pass 20)
+window.__qaCaps = () => MSH.map(m => {
+  const v = new THREE.Vector3(m.x, 1.2, m.z).project(camera);
+  return { x: Math.round((v.x + 1) / 2 * innerWidth), y: Math.round((-v.y + 1) / 2 * innerHeight) };
+});
 </script>
 </body>
 </html>
