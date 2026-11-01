@@ -294,11 +294,11 @@ const _m4 = new THREE.Matrix4(), _q = new THREE.Quaternion(), _e = new THREE.Eul
 function petalSpawn(i, burstFrom) {
   if (burstFrom) {
     petDat[i] = { x: burstFrom.x + rand(-1.2, 1.2), y: burstFrom.y + rand(-0.3, 0.8), z: burstFrom.z + rand(-1.2, 1.2),
-      vy: rand(0.25, 0.5), ph: rand(0, 6.28), spin: rand(1.5, 3.5), drift: rand(0.2, 0.5) };
+      vy: rand(0.25, 0.5), ph: rand(0, 6.28), spin: rand(1.5, 3.5), drift: rand(0.2, 0.5), scale: 1 };
   } else {
     const c = canopies[Math.floor(rand(0, canopies.length))];
     petDat[i] = { x: c.center.x + rand(-1.6, 1.6), y: c.center.y + rand(-0.5, 1.0), z: c.center.z + rand(-1.6, 1.6),
-      vy: rand(0.22, 0.42), ph: rand(0, 6.28), spin: rand(1.5, 3.5), drift: rand(0.15, 0.45) };
+      vy: rand(0.22, 0.42), ph: rand(0, 6.28), spin: rand(1.5, 3.5), drift: rand(0.15, 0.45), scale: 1 };
   }
 }
 for (let i = 0; i < PETALS; i++) { petalSpawn(i); petDat[i].y = rand(GRASS_Y + 0.2, 5.5); }
@@ -365,6 +365,7 @@ function burst(from, n) {
   for (let i = 0; i < PETALS && n > 0; i++, n--) {
     petalSpawn(i, from);
     petDat[i].vy = rand(0.5, 0.9); petDat[i].drift = rand(0.4, 0.8);   // livelier shower
+    petDat[i].scale = 1.7;                                              // pass 4: photogenic size
   }
   burstT = 0;
 }
@@ -422,7 +423,7 @@ function animate() {
     _e.set(t * d.spin + d.ph, d.ph, Math.sin(t * 1.8 + d.ph) * 0.7);
     _q.setFromEuler(_e);
     _v.set(d.x, Math.max(d.y, GRASS_Y + 0.06), d.z);
-    _m4.compose(_v, _q, _sv);
+    _sv.setScalar(d.scale || 1); _m4.compose(_v, _q, _sv); _sv.set(1,1,1);
     petMesh.setMatrixAt(i, _m4);
     if (d.y <= GRASS_Y + 0.1 && Math.random() < dt * 0.08) petalSpawn(i);
   }
@@ -439,6 +440,7 @@ function animate() {
   renderer.render(scene, camera);
 }
 animate();
+// pass 4: burst petals at 1.7x scale - the flurry reads on phone-size viewports
 // pass 3: petal shower is an instant 60-petal teleport flurry at the tapped canopy
 //         (trickle spawn was unphotogenic, hint reverted before the shower read)
 // pass 2: canopy mass - 17-20 overlapping blobs + underlayer (were separate balls on sticks),
