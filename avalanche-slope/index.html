@@ -47,7 +47,7 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 
-// pass 1
+// pass 2
 const container = document.getElementById('app');
 const hintEl = document.getElementById('hint');
 const scene = new THREE.Scene();
@@ -97,7 +97,7 @@ const slabGroup = new THREE.Group(); scene.add(slabGroup);
 const SNOW = new THREE.MeshStandardMaterial({ color: 0xf6fafd, roughness: 0.85 });
 const SNOW_BLUE = new THREE.MeshStandardMaterial({ color: 0xd8e8f4, roughness: 0.9 });
 {
-  const top = new THREE.Mesh(new THREE.BoxGeometry(12, 0.22, 12), SNOW_BLUE);
+  const top = new THREE.Mesh(new THREE.BoxGeometry(12, 0.22, 12), new THREE.MeshStandardMaterial({ color: 0xc2d8ea, roughness: 0.95 }));
   top.position.y = -0.11; top.receiveShadow = true; slabGroup.add(top);
   const mid = new THREE.Mesh(new THREE.BoxGeometry(12, SLAB_H, 12),
     new THREE.MeshStandardMaterial({ color: 0x7e94a6, roughness: 1 }));
@@ -136,6 +136,19 @@ function slopeY(z) {
   const zR = SLOPE.backZ + 1.2;
   if (z >= zR) return SLOPE.ridgeY * (SLOPE.frontZ - z) / (SLOPE.frontZ - zR);
   return SLOPE.ridgeY * (z - SLOPE.backZ) / (zR - SLOPE.backZ);
+}
+
+// contour stripes across the front slope so the relief reads
+{
+  const zR = SLOPE.backZ + 1.2;
+  const ang = Math.atan2(SLOPE.ridgeY, SLOPE.frontZ - zR);
+  for (let i = 1; i <= 4; i++) {
+    const z = zR + (SLOPE.frontZ - zR) * (i / 4.6);
+    const stripe = new THREE.Mesh(new THREE.BoxGeometry(10.2, 0.05, 0.4), SNOW_BLUE);
+    stripe.position.set(0, slopeY(z) + 0.06, z);
+    stripe.rotation.x = -ang;
+    slabGroup.add(stripe);
+  }
 }
 
 // ---------- pines on the lower slope + flats ----------
@@ -252,7 +265,7 @@ fitBox.expandByPoint(new THREE.Vector3(0, SLOPE.ridgeY + 0.8, 0));
 function fitCamera() {
   const center = fitBox.getCenter(new THREE.Vector3());
   controls.target.copy(center);
-  const dir = new THREE.Vector3(0.08, 0.85, 1).normalize();
+  const dir = new THREE.Vector3(0.12, 0.5, 1).normalize();
   const corners = [];
   for (const x of [fitBox.min.x, fitBox.max.x])
     for (const y of [fitBox.min.y, fitBox.max.y])
