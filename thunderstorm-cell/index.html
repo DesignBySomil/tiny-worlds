@@ -42,14 +42,15 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 
 // pass markers for deploy verification
 // pass 1: first thunderstorm-cell build - storm day palette, hero cumulonimbus, drag-to-steer, tap lightning, rain-fed pond
+// pass 2: legibility + form - lifted storm light, lighter greys, wider lower cloud, clearer header, lighter pond bed/canopy
 
 // ---------- palette (brooding storm day, distinct from volcano dusk / mushroom night) ----------
 const PAL = {
   skyTop: 0x39404d, skyHorizon: 0x8d9b8a,
   grassBase: 0x5d7048, grassDark: 0x46573a, grassBlade: 0x6d8053,
   strataTop: 0x5a4f3d, strataMid: 0x4a3f33, strataRock: 0x3a3a40,
-  cloudDark: 0x3b414c, cloudMid: 0x4d5560, cloudRim: 0x8a94a2,
-  pondBed: 0x33302a, pondWater: 0x51707e,
+  cloudDark: 0x4a515e, cloudMid: 0x646e7c, cloudRim: 0xa9b3c2,
+  pondBed: 0x4a453a, pondWater: 0x51707e,
   rain: 0xaab8c8, bolt: 0xeaf2ff, scorch: 0x141210
 };
 
@@ -61,7 +62,7 @@ renderer.setSize(innerWidth, innerHeight);
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
-renderer.toneMappingExposure = 1.05;
+renderer.toneMappingExposure = 1.15;
 app.appendChild(renderer.domElement);
 
 const scene = new THREE.Scene();
@@ -90,7 +91,7 @@ controls.minDistance = 6; controls.maxDistance = 40;
 controls.maxPolarAngle = Math.PI * 0.52; controls.enablePan = false;
 
 // ---------- lights ----------
-const sun = new THREE.DirectionalLight(0xb8c4d2, 1.35);
+const sun = new THREE.DirectionalLight(0xc4cfdb, 2.1);
 sun.position.set(-9, 14, 6);
 sun.castShadow = true;
 sun.shadow.mapSize.set(2048, 2048);
@@ -98,7 +99,7 @@ sun.shadow.camera.left = -14; sun.shadow.camera.right = 14;
 sun.shadow.camera.top = 14; sun.shadow.camera.bottom = -14;
 sun.shadow.camera.far = 50; sun.shadow.bias = -0.0004;
 scene.add(sun);
-scene.add(new THREE.HemisphereLight(0x6d7887, 0x3f4a38, 0.85));
+scene.add(new THREE.HemisphereLight(0x7d8899, 0x4a5545, 1.15));
 const flashLight = new THREE.PointLight(0xcfe0ff, 0, 40, 1.6);
 scene.add(flashLight);
 
@@ -148,7 +149,7 @@ pondWater.scale.setScalar(POND.minR); slabGroup.add(pondWater);
 
 // ---------- hero cloud: layered cumulonimbus ----------
 const cloud = new THREE.Group(); scene.add(cloud);
-const CLOUD_Y = 7.2;
+const CLOUD_Y = 6.6;
 function puff(x, y, z, s, color, flat=1) {
   const m = new THREE.Mesh(new THREE.SphereGeometry(1, 20, 16),
     new THREE.MeshStandardMaterial({ color, roughness: 0.9 }));
@@ -168,10 +169,10 @@ puff(1.5, 0.95, -0.5, 1.6, PAL.cloudMid);
 puff(0.4, 1.0, 1.2, 1.3, PAL.cloudMid);
 puff(-0.5, 1.05, -1.2, 1.35, PAL.cloudMid);
 // towering top, rim-lit
-puff(0, 2.1, 0, 1.7, PAL.cloudMid);
-puff(-0.7, 3.0, 0.3, 1.2, PAL.cloudRim);
-puff(0.6, 3.3, -0.2, 1.05, PAL.cloudRim);
-puff(0.1, 4.0, 0.1, 0.8, PAL.cloudRim);
+puff(0, 1.9, 0, 1.7, PAL.cloudMid);
+puff(-0.7, 2.65, 0.3, 1.15, PAL.cloudRim);
+puff(0.6, 2.85, -0.2, 1.0, PAL.cloudRim);
+puff(0.1, 3.35, 0.1, 0.72, PAL.cloudRim);
 cloud.position.set(-2.5, CLOUD_Y, 1.0);
 
 // soft glow sprite inside cloud for idle flicker
@@ -269,7 +270,7 @@ const branchCurve = new THREE.CatmullRomCurve3([
   new THREE.Vector3(0.5,1.25,0), new THREE.Vector3(1.0,1.9,0.3), new THREE.Vector3(1.6,2.2,0.5)
 ]);
 tree.add(new THREE.Mesh(new THREE.TubeGeometry(branchCurve, 8, 0.06, 6), trunkMat));
-const canopyMat = new THREE.MeshStandardMaterial({ color: 0x55663f, roughness: 1 });
+const canopyMat = new THREE.MeshStandardMaterial({ color: 0x6d7f52, roughness: 1 });
 [[1.75,2.35,0,0.75],[1.35,2.0,0.45,0.5],[2.05,2.1,-0.3,0.55]].forEach(([x,y,z,s]) => {
   const c = new THREE.Mesh(new THREE.SphereGeometry(s, 12, 10), canopyMat);
   c.position.set(x,y,z); c.scale.set(1.5, 0.75, 1.2); c.castShadow = true; tree.add(c);
@@ -311,7 +312,7 @@ function strike() {
 // ---------- camera framing (bounds-fit, portrait-aware) ----------
 const frameBox = new THREE.Box3(
   new THREE.Vector3(-SLAB/2 - 1, -SLAB_H, -SLAB/2 - 1),
-  new THREE.Vector3(SLAB/2 + 1, CLOUD_Y + 5.5, SLAB/2 + 1));
+  new THREE.Vector3(SLAB/2 + 1, CLOUD_Y + 6.6, SLAB/2 + 1));
 function frameInitialCamera() {
   const size = frameBox.getSize(new THREE.Vector3());
   const center = frameBox.getCenter(new THREE.Vector3());
@@ -442,7 +443,7 @@ function animate() {
     if (boltLife <= 0) { scene.remove(bolt); bolt = null; }
   }
   flashLight.intensity = Math.max(0, flashLight.intensity - dt * 260);
-  renderer.toneMappingExposure += (1.05 - renderer.toneMappingExposure) * dt * 6;
+  renderer.toneMappingExposure += (1.15 - renderer.toneMappingExposure) * dt * 6;
   if (scorch && scorchLife > 0) {
     scorchLife -= dt / 30;
     scorch.material.opacity = Math.max(0, scorchLife) * 0.85;
