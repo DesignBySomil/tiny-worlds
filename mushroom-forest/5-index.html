@@ -1,0 +1,1858 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>MUSHROOM FOREST — A Tiny World</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      user-select: none;
+      -webkit-user-select: none;
+      -webkit-touch-callout: none;
+    }
+
+    html, body {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: radial-gradient(circle at 50% 38%, #132238 0%, #09111e 58%, #04070d 100%);
+      font-family: "Segoe UI", -apple-system, BlinkMacSystemFont, Roboto, Helvetica, Arial, sans-serif;
+      color: #e8f4f8;
+      touch-action: none;
+    }
+
+    #canvas-container {
+      position: fixed;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      z-index: 1;
+    }
+
+    canvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+      outline: none;
+    }
+
+    header {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      z-index: 10;
+      pointer-events: none;
+      text-align: center;
+      padding: clamp(10px, 2.2vh, 20px) 16px 8px;
+      background: linear-gradient(to bottom, rgba(4, 8, 15, 0.72) 0%, rgba(4, 8, 15, 0.28) 68%, rgba(4, 8, 15, 0) 100%);
+    }
+
+    header h1 {
+      font-size: clamp(1.05rem, 3.6vw, 1.55rem);
+      font-weight: 600;
+      letter-spacing: 0.24em;
+      text-transform: uppercase;
+      color: #d8f8ff;
+      text-shadow: 0 2px 14px rgba(45, 225, 255, 0.38), 0 1px 3px rgba(0, 0, 0, 0.9);
+      margin-bottom: 4px;
+    }
+
+    #hint {
+      font-size: clamp(0.76rem, 2.5vw, 0.94rem);
+      font-weight: 400;
+      letter-spacing: 0.06em;
+      color: #9fe7d8;
+      text-shadow: 0 1px 8px rgba(18, 214, 176, 0.35), 0 1px 2px rgba(0, 0, 0, 0.95);
+      transition: color 0.45s ease, text-shadow 0.45s ease, transform 0.35s ease;
+    }
+
+    #hint.bloom {
+      color: #fff2b2;
+      text-shadow: 0 0 14px rgba(255, 215, 100, 0.75), 0 1px 3px rgba(0, 0, 0, 0.95);
+    }
+
+    footer {
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      z-index: 10;
+      pointer-events: none;
+      text-align: center;
+      padding: 6px 16px clamp(8px, 1.8vh, 15px);
+      font-size: clamp(0.68rem, 2.1vw, 0.8rem);
+      letter-spacing: 0.22em;
+      text-transform: uppercase;
+      color: rgba(180, 215, 230, 0.68);
+      text-shadow: 0 1px 4px rgba(0, 0, 0, 0.9);
+      background: linear-gradient(to top, rgba(4, 8, 15, 0.65) 0%, rgba(4, 8, 15, 0) 100%);
+    }
+  </style>
+
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+      "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+    }
+  }
+  </script>
+</head>
+<body>
+  <header id="ui-header">
+    <h1>MUSHROOM FOREST</h1>
+    <p id="hint">Tap a mushroom to wake its glow</p>
+  </header>
+
+  <div id="canvas-container"></div>
+
+  <footer id="ui-footer">A tiny world</footer>
+
+  <script type="module">
+// argon p1 (Gemini 4 Argon rework)
+    import * as THREE from 'three';
+    import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+    // -------------------------------------------------------------------------
+    // Deterministic PRNG — mulberry32 seeded with 20261101 (seeded only)
+    // -------------------------------------------------------------------------
+    function mulberry32(a) {
+      return function () {
+        let t = (a += 0x6D2B79F5);
+        t = Math.imul(t ^ (t >>> 15), t | 1);
+        t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+        return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+      };
+    }
+
+    const SEED = 20261101;
+    const rand = mulberry32(SEED);
+    const randRange = (min, max) => min + rand() * (max - min);
+    const randInt = (min, max) => Math.floor(randRange(min, max + 1));
+
+    // -------------------------------------------------------------------------
+    // DOM & Renderer Setup
+    // -------------------------------------------------------------------------
+    const container = document.getElementById('canvas-container');
+    const hintEl = document.getElementById('hint');
+    const headerEl = document.getElementById('ui-header');
+    const footerEl = document.getElementById('ui-footer');
+
+    const renderer = new THREE.WebGLRenderer({
+      antialias: true,
+      powerPreference: 'high-performance',
+      alpha: true
+    });
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 1.15;
+    container.appendChild(renderer.domElement);
+
+    const scene = new THREE.Scene();
+    scene.fog = new THREE.FogExp2(0x091322, 0.022);
+
+    const camera = new THREE.PerspectiveCamera(36, window.innerWidth / window.innerHeight, 0.5, 120);
+    const controls = new OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.06;
+    controls.enablePan = false;
+    controls.minPolarAngle = 0.42;
+    controls.maxPolarAngle = Math.PI * 0.49;
+    controls.rotateSpeed = 0.75;
+    controls.zoomSpeed = 0.8;
+
+    // Root diorama group
+    const worldGroup = new THREE.Group();
+    scene.add(worldGroup);
+
+    // -------------------------------------------------------------------------
+    // Procedural Canvas Textures (Bark, Moss, Cap Spots, Gills, Soft Glow)
+    // -------------------------------------------------------------------------
+    function createGlowSpriteTexture() {
+      const c = document.createElement('canvas');
+      c.width = 128;
+      c.height = 128;
+      const ctx = c.getContext('2d');
+      const g = ctx.createRadialGradient(64, 64, 2, 64, 64, 62);
+      g.addColorStop(0.0, 'rgba(255, 255, 255, 1.0)');
+      g.addColorStop(0.25, 'rgba(220, 255, 250, 0.85)');
+      g.addColorStop(0.58, 'rgba(110, 220, 255, 0.25)');
+      g.addColorStop(1.0, 'rgba(0, 0, 0, 0.0)');
+      ctx.fillStyle = g;
+      ctx.fillRect(0, 0, 128, 128);
+      const tex = new THREE.CanvasTexture(c);
+      tex.needsUpdate = true;
+      return tex;
+    }
+
+    function createCapTexture(baseHex, rimHex, spotHex, seedOffset) {
+      const localRand = mulberry32(SEED + seedOffset);
+      const c = document.createElement('canvas');
+      c.width = 512;
+      c.height = 512;
+      const ctx = c.getContext('2d');
+
+      // Base vertical UV gradient (v=1 is apex, v=0 is cap rim)
+      const grad = ctx.createLinearGradient(0, 0, 0, 512);
+      grad.addColorStop(0.0, baseHex);
+      grad.addColorStop(0.68, rimHex);
+      grad.addColorStop(1.0, '#102132');
+      ctx.fillStyle = grad;
+      ctx.fillRect(0, 0, 512, 512);
+
+      // Subtle radial striations along the dome
+      ctx.strokeStyle = spotHex;
+      for (let i = 0; i < 140; i++) {
+        const x = (i / 140) * 512 + (localRand() - 0.5) * 4;
+        ctx.globalAlpha = 0.05 + localRand() * 0.08;
+        ctx.lineWidth = 1 + localRand() * 2.2;
+        ctx.beginPath();
+        ctx.moveTo(x, 0);
+        ctx.lineTo(x + (localRand() - 0.5) * 18, 512);
+        ctx.stroke();
+      }
+
+      // Bioluminescent organic spots & speckles
+      for (let i = 0; i < 95; i++) {
+        const u = localRand() * 512;
+        const v = 35 + localRand() * 430;
+        const radius = (3 + localRand() * 14) * (0.45 + 0.55 * (1 - v / 512));
+        const rg = ctx.createRadialGradient(u, v, 0.5, u, v, radius);
+        rg.addColorStop(0.0, '#ffffff');
+        rg.addColorStop(0.45, spotHex);
+        rg.addColorStop(1.0, 'rgba(0,0,0,0)');
+        ctx.globalAlpha = 0.35 + localRand() * 0.6;
+        ctx.fillStyle = rg;
+        ctx.beginPath();
+        ctx.arc(u, v, radius, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      // Fine luminous rim band near bottom edge
+      const rimGrad = ctx.createLinearGradient(0, 420, 0, 512);
+      rimGrad.addColorStop(0, 'rgba(0,0,0,0)');
+      rimGrad.addColorStop(0.7, spotHex);
+      rimGrad.addColorStop(1, '#ffffff');
+      ctx.globalAlpha = 0.42;
+      ctx.fillStyle = rimGrad;
+      ctx.fillRect(0, 420, 512, 92);
+
+      ctx.globalAlpha = 1.0;
+      const tex = new THREE.CanvasTexture(c);
+      tex.wrapS = THREE.RepeatWrapping;
+      tex.wrapT = THREE.ClampToEdgeWrapping;
+      tex.needsUpdate = true;
+      return tex;
+    }
+
+    function createGillTexture() {
+      const localRand = mulberry32(SEED + 901);
+      const c = document.createElement('canvas');
+      c.width = 512;
+      c.height = 256;
+      const ctx = c.getContext('2d');
+      ctx.fillStyle = '#1b1626';
+      ctx.fillRect(0, 0, 512, 256);
+
+      const ridges = 96;
+      for (let i = 0; i < ridges; i++) {
+        const x = (i / ridges) * 512;
+        const bright = 140 + Math.floor(localRand() * 95);
+        ctx.strokeStyle = `rgb(${bright}, ${Math.floor(bright * 0.92)}, ${Math.min(255, Math.floor(bright * 1.15))})`;
+        ctx.lineWidth = 2.4;
+        ctx.globalAlpha = 0.72;
+        ctx.beginPath();
+        ctx.moveTo(x, 0);
+        ctx.lineTo(x, 256);
+        ctx.stroke();
+
+        // Secondary short gill lamellulae
+        const mx = x + (512 / ridges) * 0.5;
+        ctx.lineWidth = 1.3;
+        ctx.globalAlpha = 0.45;
+        ctx.beginPath();
+        ctx.moveTo(mx, 90);
+        ctx.lineTo(mx, 256);
+        ctx.stroke();
+      }
+
+      const tex = new THREE.CanvasTexture(c);
+      tex.wrapS = THREE.RepeatWrapping;
+      tex.wrapT = THREE.ClampToEdgeWrapping;
+      tex.needsUpdate = true;
+      return tex;
+    }
+
+    function createBarkTexture() {
+      const localRand = mulberry32(SEED + 303);
+      const c = document.createElement('canvas');
+      c.width = 512;
+      c.height = 512;
+      const ctx = c.getContext('2d');
+      ctx.fillStyle = '#241a16';
+      ctx.fillRect(0, 0, 512, 512);
+
+      for (let i = 0; i < 260; i++) {
+        const x = localRand() * 512;
+        const y = localRand() * 512;
+        const h = 40 + localRand() * 140;
+        const w = 2 + localRand() * 7;
+        ctx.fillStyle = localRand() > 0.45 ? '#160f0c' : '#352620';
+        ctx.globalAlpha = 0.35 + localRand() * 0.4;
+        ctx.fillRect(x, y, w, h);
+      }
+
+      // Moss patches nestled in bark crevices
+      for (let i = 0; i < 90; i++) {
+        const x = localRand() * 512;
+        const y = localRand() * 512;
+        const r = 6 + localRand() * 22;
+        const g = ctx.createRadialGradient(x, y, 1, x, y, r);
+        g.addColorStop(0, 'rgba(58, 118, 66, 0.65)');
+        g.addColorStop(1, 'rgba(28, 65, 38, 0)');
+        ctx.fillStyle = g;
+        ctx.globalAlpha = 0.7;
+        ctx.beginPath();
+        ctx.arc(x, y, r, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      const tex = new THREE.CanvasTexture(c);
+      tex.wrapS = THREE.RepeatWrapping;
+      tex.wrapT = THREE.RepeatWrapping;
+      tex.repeat.set(2, 3);
+      tex.needsUpdate = true;
+      return tex;
+    }
+
+    function createMossTexture() {
+      const localRand = mulberry32(SEED + 505);
+      const c = document.createElement('canvas');
+      c.width = 512;
+      c.height = 512;
+      const ctx = c.getContext('2d');
+      ctx.fillStyle = '#183325';
+      ctx.fillRect(0, 0, 512, 512);
+
+      const palette = ['#214730', '#2d5e3a', '#15291e', '#3d7846', '#1c4236'];
+      for (let i = 0; i < 1600; i++) {
+        const x = localRand() * 512;
+        const y = localRand() * 512;
+        const r = 2 + localRand() * 10;
+        ctx.fillStyle = palette[Math.floor(localRand() * palette.length)];
+        ctx.globalAlpha = 0.25 + localRand() * 0.45;
+        ctx.beginPath();
+        ctx.arc(x, y, r, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      const tex = new THREE.CanvasTexture(c);
+      tex.wrapS = THREE.RepeatWrapping;
+      tex.wrapT = THREE.RepeatWrapping;
+      tex.repeat.set(3, 3);
+      tex.needsUpdate = true;
+      return tex;
+    }
+
+    const glowSpriteTex = createGlowSpriteTexture();
+    const gillTex = createGillTexture();
+    const barkTex = createBarkTexture();
+    const mossTex = createMossTexture();
+
+    // -------------------------------------------------------------------------
+    // Lighting — Rich Blue-Hour Ambience + Moon + Warm/Cyan Bioluminescence
+    // -------------------------------------------------------------------------
+    const hemiLight = new THREE.HemisphereLight(0x4b79b8, 0x101c16, 1.05);
+    scene.add(hemiLight);
+
+    const moonLight = new THREE.DirectionalLight(0x8cb8ff, 1.35);
+    moonLight.position.set(7.5, 14.5, 8.0);
+    moonLight.castShadow = true;
+    moonLight.shadow.mapSize.width = 2048;
+    moonLight.shadow.mapSize.height = 2048;
+    moonLight.shadow.camera.near = 2;
+    moonLight.shadow.camera.far = 32;
+    const d = 7.2;
+    moonLight.shadow.camera.left = -d;
+    moonLight.shadow.camera.right = d;
+    moonLight.shadow.camera.top = d;
+    moonLight.shadow.camera.bottom = -d;
+    moonLight.shadow.bias = -0.0005;
+    scene.add(moonLight);
+
+    const rimLight = new THREE.DirectionalLight(0x2ce6d0, 0.65);
+    rimLight.position.set(-8.5, 6.0, -7.0);
+    scene.add(rimLight);
+
+    // Central forest bloom light (intensifies as mushrooms wake & during full bloom)
+    const bloomLight = new THREE.PointLight(0x70ffe8, 0.4, 16, 1.4);
+    bloomLight.position.set(0, 3.0, 0.5);
+    worldGroup.add(bloomLight);
+
+    // Pond reflection upward fill light
+    const pondLight = new THREE.PointLight(0x28c7ff, 0.9, 6.5, 1.6);
+    pondLight.position.set(0.5, 0.35, 1.8);
+    worldGroup.add(pondLight);
+
+    // -------------------------------------------------------------------------
+    // Terrain Height Helper & Tiered Woodland Island Base
+    // -------------------------------------------------------------------------
+    function getGroundHeight(x, z) {
+      const r = Math.hypot(x, z);
+      const edgeFalloff = Math.max(0, 1 - Math.pow(r / 4.85, 3.2));
+      // Terraced hill rising toward the back-left (-x, -z) for vertical portrait stature
+      const backHill = Math.exp(-((x + 0.65) * (x + 0.65) + (z + 1.15) * (z + 1.15)) / 5.2) * 1.45;
+      const rightKnoll = Math.exp(-((x - 1.55) * (x - 1.55) + (z + 0.35) * (z + 0.35)) / 3.2) * 0.72;
+      // Winding stream/path depression through front-center
+      const streamChannel = Math.exp(-Math.pow(x - Math.sin(z * 0.85) * 0.55, 2) / 0.55) * 0.28;
+      const microUndulation = (Math.sin(x * 2.1 + z * 1.7) * 0.07 + Math.cos(x * 3.3 - z * 2.4) * 0.05);
+      return (backHill + rightKnoll - streamChannel + microUndulation + 0.18) * edgeFalloff;
+    }
+
+    function buildIslandBase() {
+      const baseGroup = new THREE.Group();
+
+      // 1. Top lush mossy terrain cushion
+      const topGeo = new THREE.CylinderGeometry(4.75, 4.9, 0.65, 72, 24);
+      const pos = topGeo.attributes.position;
+      for (let i = 0; i < pos.count; i++) {
+        let vx = pos.getX(i);
+        let vy = pos.getY(i);
+        let vz = pos.getZ(i);
+        const angle = Math.atan2(vz, vx);
+        const rad = Math.hypot(vx, vz);
+        // Organic scalloped ouline
+
+        const organicScale = 1 + Math.sin(angle * 5 + 0.6) * 0.045 + Math.cos(angle * 3 - 1.1) * 0.035;
+        vx *= organicScale;
+        vz *= organicScale;
+
+        const h = getGroundHeight(vx, vz);
+        if (vy > 0) {
+          vy = h + (vy - 0.325) * 0.2;
+        } else {
+          vy = -0.35 + Math.sin(angle * 7) * 0.08;
+        }
+        pos.setXYZ(i, vx, vy, vz);
+      }
+      topGeo.computeVertexNormals();
+
+      const mossMat = new THREE.MeshStandardMaterial({
+        map: mossTex,
+        bumpMap: mossTex,
+        bumpScale: 0.06,
+        roughness: 0.82,
+        metalness: 0.05
+      });
+      const topMesh = new THREE.Mesh(topGeo, mossMat);
+      topMesh.receiveShadow = true;
+      topMesh.castShadow = true;
+      baseGroup.add(topMesh);
+
+      // 2. Dark soil middle stratum
+      const soilGeo = new THREE.CylinderGeometry(4.82, 4.28, 1.35, 64, 8);
+      const sPos = soilGeo.attributes.position;
+      for (let i = 0; i < sPos.count; i++) {
+        let vx = sPos.getX(i);
+        let vy = sPos.getY(i);
+        let vz = sPos.getZ(i);
+        const angle = Math.atan2(vz, vx);
+        const organicScale = 1 + Math.sin(angle * 5 + 0.6) * 0.045 + Math.cos(angle * 3 - 1.1) * 0.035;
+        const ridge = Math.sin(vy * 4.5 + angle * 8) * 0.07;
+        vx = vx * organicScale + Math.cos(angle) * ridge;
+        vz = vz * organicScale + Math.sin(angle) * ridge;
+        sPos.setXYZ(i, vx, vy - 0.92, vz);
+      }
+      soilGeo.computeVertexNormals();
+      const soilMat = new THREE.MeshStandardMaterial({
+        color: 0x231815,
+        roughness: 0.92,
+        metalness: 0.04
+      });
+      const soilMesh = new THREE.Mesh(soilGeo, soilMat);
+      soilMesh.receiveShadow = true;
+      soilMesh.castShadow = true;
+      baseGroup.add(soilMesh);
+
+      // 3. Tapered basalt rock foundation slab at bottom (y down to -2.55)
+      const rockBaseGeo = new THREE.CylinderGeometry(4.26, 3.05, 1.05, 48, 6);
+      const rPos = rockBaseGeo.attributes.position;
+      for (let i = 0; i < rPos.count; i++) {
+        let vx = rPos.getX(i);
+        let vy = rPos.getY(i);
+        let vz = rPos.getZ(i);
+        const angle = Math.atan2(vz, vx);
+        const facet = 1 + Math.cos(angle * 9) * 0.038 + Math.sin(angle * 13) * 0.025;
+        vx *= facet;
+        vz *= facet;
+        rPos.setXYZ(i, vx, vy - 2.02, vz);
+      }
+      rockBaseGeo.computeVertexNormals();
+      const rockBaseMat = new THREE.MeshStandardMaterial({
+        color: 0x161d29,
+        roughness: 0.85,
+        metalness: 0.14,
+        flatShading: true
+      });
+      const rockBaseMesh = new THREE.Mesh(rockBaseGeo, rockBaseMat);
+      rockBaseMesh.receiveShadow = true;
+      baseGroup.add(rockBaseMesh);
+
+      // 4. Wet reflective forest pool / stream pocket in the foreground hollow
+      const poolGeo = new THREE.CircleGeometry(1.55, 40);
+      poolGeo.rotateX(-Math.PI / 2);
+      const poolMat = new THREE.MeshStandardMaterial({
+        color: 0x0d354c,
+        emissive: 0x082738,
+        emissiveIntensity: 0.65,
+        roughness: 0.08,
+        metalness: 0.78,
+        transparent: true,
+        opacity: 0.88
+      });
+      const poolMesh = new THREE.Mesh(poolGeo, poolMat);
+      poolMesh.position.set(0.35, 0.16, 1.75);
+      poolMesh.scale.set(0.95, 1, 1.25);
+      poolMesh.receiveShadow = true;
+      baseGroup.add(poolMesh);
+
+      // 5. Stepping stones & mossy boulders along the winding path and cliff
+      const stoneMat = new THREE.MeshStandardMaterial({
+        color: 0x2e3b4e,
+        roughness: 0.65,
+        metalness: 0.15,
+        flatShading: true
+      });
+      const pathCoords = [
+        [0.15, 3.65, 0.42],
+        [0.48, 2.95, 0.36],
+        [0.25, 2.25, 0.34],
+        [-0.18, 1.45, 0.38],
+        [-0.45, 0.72, 0.40],
+        [0.05, 0.02, 0.42]
+      ];
+      pathCoords.forEach(([px, pz, rad]) => {
+        const sg = new THREE.DodecahedronGeometry(rad, 1);
+        sg.scale(1.25, 0.36, 0.95);
+        const sm = new THREE.Mesh(sg, stoneMat);
+        const py = getGroundHeight(px, pz);
+        sm.position.set(px, py + 0.03, pz);
+        sm.rotation.y = randRange(0, Math.PI * 2);
+        sm.castShadow = true;
+        sm.receiveShadow = true;
+        baseGroup.add(sm);
+      });
+
+      // Larger terraced mossy boulders
+      const boulderSpecs = [
+        [-2.5, -1.6, 0.85, 0.75],
+        [2.4, -1.3, 0.72, 0.65],
+        [-3.1, 0.8, 0.62, 0.52],
+        [2.9, 1.1, 0.58, 0.48],
+        [-1.3, -2.8, 0.92, 0.82]
+      ];
+      boulderSpecs.forEach(([bx, bz, br, bh]) => {
+        const bg = new THREE.DodecahedronGeometry(br, 2);
+        const bp = bg.attributes.position;
+        for (let i = 0; i < bp.count; i++) {
+          const n = 1 + (rand() - 0.5) * 0.18;
+          bp.setXYZ(i, bp.getX(i) * n, bp.getY(i) * (bh / br) * n, bp.getZ(i) * n);
+        }
+        bg.computeVertexNormals();
+        const bm = new THREE.Mesh(bg, stoneMat);
+        bm.position.set(bx, getGroundHeight(bx, bz) + bh * 0.3, bz);
+        bm.rotation.set(randRange(-0.2, 0.2), randRange(0, Math.PI), randRange(-0.2, 0.2));
+        bm.castShadow = true;
+        bm.receiveShadow = true;
+        baseGroup.add(bm);
+      });
+
+      // 6. Plush moss cushions scattered across the forest floor
+      const tuftMat = new THREE.MeshStandardMaterial({
+        color: 0x2d6a3e,
+        roughness: 0.88,
+        metalness: 0.02
+      });
+      for (let i = 0; i < 65; i++) {
+        const angle = randRange(0, Math.PI * 2);
+        const dist = Math.sqrt(rand()) * 4.35;
+        const tx = Math.cos(angle) * dist;
+        const tz = Math.sin(angle) * dist;
+        const ty = getGroundHeight(tx, tz);
+        const tr = randRange(0.14, 0.38);
+        const tg = new THREE.SphereGeometry(tr, 10, 8);
+        tg.scale(1.2, 0.48, 1.1);
+        const tm = new THREE.Mesh(tg, tuftMat);
+        tm.position.set(tx, ty + tr * 0.12, tz);
+        tm.rotation.y = randRange(0, Math.PI * 2);
+        tm.receiveShadow = true;
+        baseGroup.add(tm);
+      }
+
+      worldGroup.add(baseGroup);
+    }
+
+    buildIslandBase();
+
+    // -------------------------------------------------------------------------
+    // Tall Ancient Woodland Tree, Mossy Fallen Log & Hanging Vines (Portrait Architecture)
+    // -------------------------------------------------------------------------
+    const hangingVines = [];
+
+    function buildWoodlandStructure() {
+      const treeGroup = new THREE.Group();
+      const woodMat = new THREE.MeshStandardMaterial({
+        map: barkTex,
+        bumpMap: barkTex,
+        bumpScale: 0.08,
+        roughness: 0.88,
+        metalness: 0.04
+      });
+
+      // Main gnarly trunk rising from the upper back terrace (-0.8, -1.7) up to y ~ 6.4
+      function buildTubeAlongCurve(points, rStart, rEnd, radialSegs = 16, tubularSegs = 36) {
+        const curve = new THREE.CatmullRomCurve3(points);
+        const frames = curve.computeFrenetFrames(tubularSegs, false);
+        const geo = new THREE.BufferGeometry();
+        const vertices = [];
+        const normals = [];
+        const uvs = [];
+        const indices = [];
+
+        for (let i = 0; i <= tubularSegs; i++) {
+          const u = i / tubularSegs;
+          const pt = curve.getPointAt(u);
+          const N = frames.normals[i];
+          const B = frames.binormals[i];
+          const radius = THREE.MathUtils.lerp(rStart, rEnd, Math.pow(u, 0.78));
+
+          for (let j = 0; j <= radialSegs; j++) {
+            const v = j / radialSegs;
+            const theta = v * Math.PI * 2;
+            const ridge = 1 + Math.sin(theta * 5 + u * 9) * 0.09 + Math.cos(theta * 3 - u * 6) * 0.06;
+            const r = radius * ridge;
+            const sin = Math.sin(theta);
+            const cos = Math.cos(theta);
+
+            const nx = cos * N.x + sin * B.x;
+            const ny = cos * N.y + sin * B.y;
+            const nz = cos * N.z + sin * B.z;
+
+            vertices.push(pt.x + r * nx, pt.y + r * ny, pt.z + r * nz);
+            normals.push(nx, ny, nz);
+            uvs.push(v * 2, u * 4);
+          }
+        }
+
+        for (let i = 0; i < tubularSegs; i++) {
+          for (let j = 0; j < radialSegs; j++) {
+            const a = i * (radialSegs + 1) + j;
+            const b = (i + 1) * (radialSegs + 1) + j;
+            const c = (i + 1) * (radialSegs + 1) + (j + 1);
+            const d = i * (radialSegs + 1) + (j + 1);
+            indices.push(a, b, d);
+            indices.push(b, c, d);
+          }
+        }
+
+        geo.setIndex(indices);
+        geo.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3));
+        geo.setAttribute('normal', new THREE.Float32BufferAttribute(normals, 3));
+        geo.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
+        geo.computeVertexNormals();
+        return { geo, curve };
+      }
+
+      // Primary vertical ancient spire trunk
+      const mainTrunkPts = [
+        new THREE.Vector3(-0.75, getGroundHeight(-0.75, -1.85) - 0.25, -1.85),
+        new THREE.Vector3(-0.95, 2.35, -1.95),
+        new THREE.Vector3(-0.65, 3.85, -1.55),
+        new THREE.Vector3(-0.35, 5.25, -1.05),
+        new THREE.Vector3(0.05, 6.25, -0.55)
+      ];
+      const { geo: trunkGeo } = buildTubeAlongCurve(mainTrunkPts, 0.68, 0.16, 18, 42);
+      const trunkMesh = new THREE.Mesh(trunkGeo, woodMat);
+      trunkMesh.castShadow = true;
+      trunkMesh.receiveShadow = true;
+      treeGroup.add(trunkMesh);
+
+      // Secondary overarching boughs framing the tall mushroom grove
+      const branches = [
+        {
+          pts: [
+            new THREE.Vector3(-0.72, 3.55, -1.65),
+            new THREE.Vector3(-1.85, 4.45, -1.15),
+            new THREE.Vector3(-2.65, 5.10, -0.35),
+            new THREE.Vector3(-2.95, 5.35, 0.35)
+          ],
+          r0: 0.34, r1: 0.08
+        },
+        {
+          pts: [
+            new THREE.Vector3(-0.52, 4.35, -1.35),
+            new THREE.Vector3(0.85, 5.05, -0.95),
+            new THREE.Vector3(1.95, 5.55, -0.25),
+            new THREE.Vector3(2.45, 5.65, 0.45)
+          ],
+          r0: 0.30, r1: 0.07
+        },
+        {
+          pts: [
+            new THREE.Vector3(-0.25, 5.45, -0.95),
+            new THREE.Vector3(-0.95, 6.15, -0.25),
+            new THREE.Vector3(-1.35, 6.45, 0.55)
+          ],
+          r0: 0.20, r1: 0.05
+        }
+      ];
+
+      branches.forEach((b) => {
+        const { geo } = buildTubeAlongCurve(b.pts, b.r0, b.r1, 12, 24);
+        const bm = new THREE.Mesh(geo, woodMat);
+        bm.castShadow = true;
+        bm.receiveShadow = true;
+        treeGroup.add(bm);
+      });
+
+      // Buttress roots gripping the mossy hillock
+      const roots = [
+        [
+          new THREE.Vector3(-0.65, 1.85, -1.75),
+          new THREE.Vector3(-1.65, 1.35, -1.15),
+          new THREE.Vector3(-2.55, getGroundHeight(-2.55, -0.45) - 0.1, -0.45)
+        ],
+        [
+          new THREE.Vector3(-0.55, 1.75, -1.65),
+          new THREE.Vector3(0.45, 1.25, -1.35),
+          new THREE.Vector3(1.35, getGroundHeight(1.35, -0.85) - 0.1, -0.85)
+        ],
+        [
+          new THREE.Vector3(-0.75, 1.65, -1.65),
+          new THREE.Vector3(-0.45, 1.15, -0.65),
+          new THREE.Vector3(-0.65, getGroundHeight(-0.65, 0.45) - 0.05, 0.45)
+        ]
+      ];
+      roots.forEach((rPts) => {
+        const { geo } = buildTubeAlongCurve(rPts, 0.28, 0.06, 10, 20);
+        const rm = new THREE.Mesh(geo, woodMat);
+        rm.castShadow = true;
+        rm.receiveShadow = true;
+        treeGroup.add(rm);
+      });
+
+      // Fallen mossy log arching across the right-middle terrace
+      const logPts = [
+        new THREE.Vector3(1.05, getGroundHeight(1.05, 1.25) + 0.18, 1.25),
+        new THREE.Vector3(1.95, getGroundHeight(1.95, 0.25) + 0.35, 0.25),
+        new THREE.Vector3(2.75, getGroundHeight(2.75, -0.75) + 0.22, -0.75)
+      ];
+      const { geo: logGeo } = buildTubeAlongCurve(logPts, 0.34, 0.25, 14, 22);
+      const logMesh = new THREE.Mesh(logGeo, woodMat);
+      logMesh.castShadow = true;
+      logMesh.receiveShadow = true;
+      treeGroup.add(logMesh);
+
+      // Lush moss blankets & glowing shelf polypores on the trunk and fallen log
+      const shelfMat = new THREE.MeshStandardMaterial({
+        color: 0x26657c,
+        emissive: 0x127894,
+        emissiveIntensity: 0.55,
+        roughness: 0.45
+      });
+      const shelfLocations = [
+        [-0.62, 2.55, -1.55, 0.32, 0.3],
+        [-0.82, 3.15, -1.62, 0.26, -0.4],
+        [-0.45, 4.05, -1.28, 0.24, 0.5],
+        [1.75, 0.98, 0.45, 0.22, 1.1],
+        [2.25, 1.02, -0.15, 0.25, 0.9]
+      ];
+      shelfLocations.forEach(([sx, sy, sz, sr, rotY]) => {
+        for (let k = 0; k < 3; k++) {
+          const sg = new THREE.CylinderGeometry(sr * (1 - k * 0.2), sr * 0.65 * (1 - k * 0.2), 0.05, 16, 1, false, 0, Math.PI * 1.3);
+          const sm = new THREE.Mesh(sg, shelfMat);
+          sm.position.set(sx + (k - 1) * 0.07, sy + k * 0.09, sz + (k - 1) * 0.05);
+          sm.rotation.y = rotY + k * 0.25;
+          sm.castShadow = true;
+          treeGroup.add(sm);
+        }
+      });
+
+      // Hanging glowing moss & canopy tendrils (stay safely below y = 6.4)
+      const vineAnchors = [
+        [-2.25, 4.85, -0.65, 1.45],
+        [-2.75, 5.18, 0.05, 1.35],
+        [-1.15, 6.20, 0.15, 1.55],
+        [0.02, 6.18, -0.55, 1.40],
+        [1.35, 5.28, -0.55, 1.50],
+        [2.15, 5.55, 0.08, 1.35],
+        [-1.75, 4.35, -1.15, 1.20]
+      ];
+
+      const vineMat = new THREE.MeshStandardMaterial({
+        color: 0x265c4b,
+        emissive: 0x166858,
+        emissiveIntensity: 0.45,
+        roughness: 0.75
+      });
+
+      vineAnchors.forEach(([vx, vy, vz, len], idx) => {
+        const pivot = new THREE.Group();
+        pivot.position.set(vx, vy, vz);
+        const beadCount = 7;
+        for (let b = 0; b < beadCount; b++) {
+          const t = b / beadCount;
+          const r = (1 - t * 0.6) * 0.07;
+          const bg = new THREE.SphereGeometry(r, 8, 8);
+          bg.scale(0.8, 2.3, 0.8);
+          const bm = new THREE.Mesh(bg, vineMat);
+          bm.position.set(
+            Math.sin(b * 1.3 + idx) * 0.03,
+            -t * len - 0.1,
+            Math.cos(b * 1.1 + idx) * 0.03
+          );
+          pivot.add(bm);
+        }
+        treeGroup.add(pivot);
+        hangingVines.push({
+          pivot,
+          phase: randRange(0, Math.PI * 2),
+          speed: randRange(0.9, 1.45)
+        });
+      });
+
+      worldGroup.add(treeGroup);
+    }
+
+    buildWoodlandStructure();
+
+    // -------------------------------------------------------------------------
+    // Procedural Woodland Ferns & Tiny Background Fungi Clusters
+    // -------------------------------------------------------------------------
+    const swayingFerns = [];
+
+    function buildFernsAndMiniFungi() {
+      const fernGroup = new THREE.Group();
+      const frondMat = new THREE.MeshStandardMaterial({
+        color: 0x2b6e44,
+        emissive: 0x0b2618,
+        emissiveIntensity: 0.35,
+        roughness: 0.65,
+        side: THREE.DoubleSide
+      });
+
+      const fernSpots = [
+        [-2.85, 1.65], [-3.25, -.35],
+ [-1.95, 2.65],
+        [2.75, 2.05], [3.15, -0.15], [1.65, -2.35],
+        [-0.15, -2.85], [-2.15, -2.05], [0.95, 2.85]
+      ];
+
+      fernSpots.forEach(([fx, fz]) => {
+        const cluster = new THREE.Group();
+        const fy = getGroundHeight(fx, fz);
+        cluster.position.set(fx, fy, fz);
+
+        const frondCount = randInt(5, 7);
+        for (let f = 0; f < frondCount; f++) {
+          const frondPivot = new THREE.Group();
+          const yaw = (f / frondCount) * Math.PI * 2 + randRange(-0.2, 0.2);
+          frondPivot.rotation.y = yaw;
+          frondPivot.rotation.x = randRange(0.28, 0.58);
+
+          const pairs = 7;
+          const length = randRange(0.65, 0.98);
+          for (let p = 0; p < pairs; p++) {
+            const u = (p + 1) / pairs;
+            const leafW = (1 - u * 0.65) * 0.14;
+            const leafL = (1 - u * 0.5) * 0.22;
+            const lg = new THREE.PlaneGeometry(leafW, leafL);
+            for (let side of [-1, 1]) {
+              const lm = new THREE.Mesh(lg, frondMat);
+              lm.position.set(side * leafL * 0.45, Math.sin(u * Math.PI * 0.6) * 0.14, u * length);
+              lm.rotation.x = -Math.PI * 0.42;
+              lm.rotation.z = side * 0.95;
+              lm.castShadow = true;
+              frondPivot.add(lm);
+            }
+          }
+          cluster.add(frondPivot);
+          swayingFerns.push({
+            pivot: frondPivot,
+            baseRotX: frondPivot.rotation.x,
+            phase: randRange(0, Math.PI * 2),
+            speed: randRange(1.2, 2.0)
+          });
+        }
+        fernGroup.add(cluster);
+      });
+
+      // Tiny background mushroom colonies (non-hero accent clusters)
+      const miniCapMat = new THREE.MeshStandardMaterial({
+        color: 0x38b8d6,
+        emissive: 0x166d85,
+        emissiveIntensity: 0.6,
+        roughness: 0.4
+      });
+      const miniStemMat = new THREE.MeshStandardMaterial({
+        color: 0xd9f2f7,
+        roughness: 0.6
+      });
+
+      const colonyCenters = [
+        [-2.35, -1.25], [2.25, -1.15], [-2.75, 0.95],
+        [2.55, 0.95], [-1.15, -2.45], [1.45, 1.35],
+        [-0.85, 2.75], [2.15, -0.05]
+      ];
+      colonyCenters.forEach(([cx, cz]) => {
+        const count = randInt(3, 5);
+        for (let m = 0; m < count; m++) {
+          const ox = cx + randRange(-0.28, 0.28);
+          const oz = cz + randRange(-0.28, 0.28);
+          const oy = getGroundHeight(ox, oz);
+          const h = randRange(0.22, 0.48);
+          const r = randRange(0.08, 0.16);
+
+          const sg = new THREE.CylinderGeometry(r * 0.22, r * 0.32, h, 8);
+          const sm = new THREE.Mesh(sg, miniStemMat);
+          sm.position.set(ox, oy + h * 0.5, oz);
+
+          const cg = new THREE.SphereGeometry(r, 12, 8, 0, Math.PI * 2, 0, Math.PI * 0.58);
+          const cm = new THREE.Mesh(cg, miniCapMat);
+          cm.position.set(ox, oy + h * 0.95, oz);
+
+          fernGroup.add(sm, cm);
+        }
+      });
+
+      worldGroup.add(fernGroup);
+    }
+
+    buildFernsAndMiniFungi();
+
+    // -------------------------------------------------------------------------
+    // Hero Mushrooms — 7 Distinct Species Profiles, Tall Portrait Stature, Hit Proxies
+    // -------------------------------------------------------------------------
+    const HERO_SPECIES = [
+      {
+        // 0: Grand Sovereign Canopy Parasol (Center-back upper terrace, towering focal point)
+        x: 0.15, z: -0.95,
+        stemHeight: 3.15, stemRadiusBottom: 0.28, stemRadiusTop: 0.15,
+        capRadius: 1.22, capHeight: 0.82,
+        shape: 'parasol',
+        baseHex: '#183654', rimHex: '#2ac7e8', spotHex: '#92fff8',
+        glowColor: new THREE.Color(0x38f6ff),
+        leanX: 0.18, leanZ: 0.22
+      },
+      {
+        // 1: Tall Golden Chanterelle Trumpet (Left upper terrace)
+        x: -1.95, z: -0.35,
+        stemHeight: 2.55, stemRadiusBottom: 0.24, stemRadiusTop: 0.16,
+        capRadius: 0.96, capHeight: 0.72,
+        shape: 'chanterelle',
+        baseHex: '#3b2416', rimHex: '#e68c24', spotHex: '#ffe680',
+        glowColor: new THREE.Color(0xffbd42),
+        leanX: -0.25, leanZ: 0.15
+      },
+      {
+        // 2: Tall Violet Mycena Bell (Right upper terrace)
+        x: 1.85, z: -0.65,
+        stemHeight: 2.75, stemRadiusBottom: 0.21, stemRadiusTop: 0.12,
+        capRadius: 0.88, capHeight: 0.98,
+        shape: 'bell',
+        baseHex: '#2c1847', rimHex: '#b34dff', spotHex: '#f4b8ff',
+        glowColor: new THREE.Color(0xd268ff),
+        leanX: 0.24, leanZ: 0.18
+      },
+      {
+        // 3: Crimson-Coral Amanita Dome (Mid-left mossy knoll)
+        x: -1.55, z: 1.45,
+        stemHeight: 1.95, stemRadiusBottom: 0.26, stemRadiusTop: 0.16,
+        capRadius: 0.98, capHeight: 0.68,
+        shape: 'dome',
+        baseHex: '#3d152a', rimHex: '#ff477e', spotHex: '#ffc4d9',
+        glowColor: new THREE.Color(0xff548e),
+        leanX: -0.18, leanZ: 0.22
+      },
+      {
+        // 4: Emerald Lagoon Lantern (Center-front beside the pool)
+        x: -0.35, z: 2.15,
+        stemHeight: 1.68, stemRadiusBottom: 0.21, stemRadiusTop: 0.13,
+        capRadius: 0.84, capHeight: 0.66,
+        shape: 'parasol',
+        baseHex: '#12382c', rimHex: '#1fe096', spotHex: '#a8ffe0',
+        glowColor: new THREE.Color(0x2effaa),
+        leanX: -0.08, leanZ: 0.18
+      },
+      {
+        // 5: Sapphire Morel Spire (Mid-right beside the fallen log)
+        x: 1.75, z: 1.55,
+        stemHeight: 2.05, stemRadiusBottom: 0.23, stemRadiusTop: 0.14,
+        capRadius: 0.86, capHeight: 0.84,
+        shape: 'bell',
+        baseHex: '#15254a', rimHex: '#3b82ff', spotHex: '#b0d8ff',
+        glowColor: new THREE.Color(0x529dff),
+        leanX: 0.22, leanZ: 0.20
+      },
+      {
+        // 6: Warm Amber Toadstool Sentinel (Front-right stepping stone edge)
+        x: 0.95, z: 2.85,
+        stemHeight: 1.45, stemRadiusBottom: 0.20, stemRadiusTop: 0.13,
+        capRadius: 0.78, capHeight: 0.56,
+        shape: 'dome',
+        baseHex: '#382210', rimHex: '#ff7b29', spotHex: '#ffdba8',
+        glowColor: new THREE.Color(0xff943d),
+        leanX: 0.14, leanZ: 0.16
+      }
+    ];
+
+    const heroMushrooms = [];
+    const hitProxies = [];
+
+    function buildCapGeometry(spec) {
+      const radialSegs = 48;
+      const heightSegs = 22;
+      const geo = new THREE.BufferGeometry();
+      const positions = [];
+      const uvs = [];
+      const indices = [];
+
+      for (let iy = 0; iy <= heightSegs; iy++) {
+        const v = iy / heightSegs; // 0 = apex, 1 = rim
+        let rNorm = 0;
+        let yNorm = 0;
+
+        if (spec.shape === 'bell') {
+          rNorm = Math.pow(Math.sin(v * Math.PI * 0.54), 0.82) + Math.pow(v, 3.2) * 0.18;
+          yNorm = Math.cos(v * Math.PI * 0.52);
+        } else if (spec.shape === 'chanterelle') {
+          rNorm = Math.pow(v, 0.72);
+          yNorm = (1 - Math.pow(v, 1.35)) * 0.65 + Math.pow(v, 2.4) * 0.38;
+        } else if (spec.shape === 'parasol') {
+          rNorm = Math.sin(v * Math.PI * 0.52) * (1 + 0.1 * Math.pow(v, 2));
+          yNorm = Math.cos(v * Math.PI * 0.5) * 0.88;
+        } else {
+          // dome
+          rNorm = Math.sin(v * Math.PI * 0.53);
+          yNorm = Math.cos(v * Math.PI * 0.53);
+        }
+
+        for (let ix = 0; ix <= radialSegs; ix++) {
+          const u = ix / radialSegs;
+          const theta = u * Math.PI * 2;
+          const wave = Math.sin(theta * 9) * 0.032 * Math.pow(v, 1.6) +
+                       Math.cos(theta * 5) * 0.024 * Math.pow(v, 1.4);
+          const rad = spec.capRadius * (rNorm + wave);
+          const px = Math.cos(theta) * rad;
+          const pz = Math.sin(theta) * rad;
+          const py = spec.capHeight * yNorm + Math.sin(theta * 11) * 0.022 * Math.pow(v, 2);
+
+          positions.push(px, py, pz);
+          uvs.push(u, v);
+        }
+      }
+
+      for (let iy = 0; iy < heightSegs; iy++) {
+        for (let ix = 0; ix < radialSegs; ix++) {
+          const a = iy * (radialSegs + 1) + ix;
+          const b = (iy + 1) * (radialSegs + 1) + ix;
+          const c = (iy + 1) * (radialSegs + 1) + (ix + 1);
+          const d = iy * (radialSegs + 1) + (ix + 1);
+          indices.push(a, d, b);
+          indices.push(b, d, c);
+        }
+      }
+
+      geo.setIndex(indices);
+      geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+      geo.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
+      geo.computeVertexNormals();
+      return geo;
+    }
+
+    function buildHeroMushrooms() {
+      HERO_SPECIES.forEach((spec, idx) => {
+        const groundY = getGroundHeight(spec.x, spec.z);
+        const basePos = new THREE.Vector3(spec.x, groundY - 0.08, spec.z);
+        const midPos = new THREE.Vector3(
+          spec.x + spec.leanX * 0.55,
+          groundY + spec.stemHeight * 0.52,
+          spec.z + spec.leanZ * 0.55
+        );
+        const topPos = new THREE.Vector3(
+          spec.x + spec.leanX,
+          groundY + spec.stemHeight,
+          spec.z + spec.leanZ
+        );
+
+        const group = new THREE.Group();
+        worldGroup.add(group);
+
+        // Curved fibrous stem
+        const stemCurve = new THREE.CatmullRomCurve3([basePos, midPos, topPos]);
+        const stemFrames = stemCurve.computeFrenetFrames(28, false);
+        const stemRadial = 18;
+        const stemTubular = 28;
+        const stemGeo = new THREE.BufferGeometry();
+        const sVerts = [];
+        const sUvs = [];
+        const sIndices = [];
+
+        for (let i = 0; i <= stemTubular; i++) {
+          const u = i / stemTubular;
+          const pt = stemCurve.getPointAt(u);
+          const N = stemFrames.normals[i];
+          const B = stemFrames.binormals[i];
+          // Bulbous base tapering to slender neck and flaring slightly at gill ring
+          const bulb = Math.exp(-u * 5.5) * 0.09;
+          const flare = Math.pow(u, 4) * 0.04;
+          const rBase = THREE.MathUtils.lerp(spec.stemRadiusBottom, spec.stemRadiusTop, u) + bulb + flare;
+
+          for (let j = 0; j <= stemRadial; j++) {
+            const v = j / stemRadial;
+            const theta = v * Math.PI * 2;
+            const fluting = 1 + Math.sin(theta * 8 + u * 3) * 0.04;
+            const r = rBase * fluting;
+            const nx = Math.cos(theta) * N.x + Math.sin(theta) * B.x;
+            const ny = Math.cos(theta) * N.y + Math.sin(theta) * B.y;
+            const nz = Math.cos(theta) * N.z + Math.sin(theta) * B.z;
+            sVerts.push(pt.x + r * nx, pt.y + r * ny, pt.z + r * nz);
+            sUvs.push(v, u);
+          }
+        }
+
+        for (let i = 0; i < stemTubular; i++) {
+          for (let j = 0; j < stemRadial; j++) {
+            const a = i * (stemRadial + 1) + j;
+            const b = (i + 1) * (stemRadial + 1) + j;
+            const c = (i + 1) * (stemRadial + 1) + (j + 1);
+            const d = i * (stemRadial + 1) + (j + 1);
+            sIndices.push(a, b, d);
+            sIndices.push(b, c, d);
+          }
+        }
+        stemGeo.setIndex(sIndices);
+        stemGeo.setAttribute('position', new THREE.Float32BufferAttribute(sVerts, 3));
+        stemGeo.setAttribute('uv', new THREE.Float32BufferAttribute(sUvs, 2));
+        stemGeo.computeVertexNormals();
+
+        const stemMat = new THREE.MeshStandardMaterial({
+          color: 0xdcebf2,
+          emissive: spec.glowColor.clone().multiplyScalar(0.18),
+          emissiveIntensity: 0.25,
+          roughness: 0.58,
+          metalness: 0.04
+        });
+        const stemMesh = new THREE.Mesh(stemGeo, stemMat);
+        stemMesh.castShadow = true;
+        stemMesh.receiveShadow = true;
+        group.add(stemMesh);
+
+        // Cap Assembly Pivot at top of stem
+        const capPivot = new THREE.Group();
+        capPivot.position.copy(topPos);
+        const tangent = stemCurve.getTangentAt(1).normalize();
+        const upVec = new THREE.Vector3(0, 1, 0);
+        capPivot.quaternion.setFromUnitVectors(upVec, tangent);
+        group.add(capPivot);
+
+        // Cap Top Surface
+        const capTex = createCapTexture(spec.baseHex, spec.rimHex, spec.spotHex, 100 + idx * 37);
+        const capGeo = buildCapGeometry(spec);
+        const capMat = new THREE.MeshStandardMaterial({
+          map: capTex,
+          emissiveMap: capTex,
+          emissive: spec.glowColor,
+          emissiveIntensity: 0.14,
+          roughness: 0.35,
+          metalness: 0.08,
+          side: THREE.DoubleSide
+        });
+        const capMesh = new THREE.Mesh(capGeo, capMat);
+        capMesh.castShadow = true;
+        capMesh.receiveShadow = true;
+        capPivot.add(capMesh);
+
+        // Translucent Luminous Gill Underside Cone
+        const gillGeo = new THREE.ConeGeometry(spec.capRadius * 0.94, spec.capHeight * 0.48, 44, 1, true);
+        gillGeo.translate(0, spec.capHeight * 0.2, 0);
+        const gillMat = new THREE.MeshStandardMaterial({
+          map: gillTex,
+          emissiveMap: gillTex,
+          emissive: spec.glowColor,
+          emissiveIntensity: 0.28,
+          roughness: 0.45,
+          side: THREE.DoubleSide
+        });
+        const gillMesh = new THREE.Mesh(gillGeo, gillMat);
+        capPivot.add(gillMesh);
+
+        // Delicate Skirt Ring (Annulus) below gills
+        const skirtGeo = new THREE.CylinderGeometry(spec.stemRadiusTop * 1.15, spec.stemRadiusTop * 2.1, 0.22, 20, 1, true);
+        const skirtMesh = new THREE.Mesh(skirtGeo, gillMat);
+        skirtMesh.position.set(0, -0.18, 0);
+        capPivot.add(skirtMesh);
+
+        // Soft Volumetric Aura Sprite under the cap
+        const spriteMat = new THREE.SpriteMaterial({
+          map: glowSpriteTex,
+          color: spec.glowColor,
+          transparent: true,
+          opacity: 0.15,
+          blending: THREE.AdditiveBlending,
+          depthWrite: false
+        });
+        const auraSprite = new THREE.Sprite(spriteMat);
+        auraSprite.position.set(0, spec.capHeight * 0.25, 0);
+        auraSprite.scale.set(spec.capRadius * 2.8, spec.capRadius * 2.2, 1);
+        capPivot.add(auraSprite);
+
+        // Dedicated PointLight per hero mushroom
+        const pointLight = new THREE.PointLight(spec.glowColor, 0.12, 5.8, 1.6);
+        pointLight.position.set(0, 0.12, 0);
+        capPivot.add(pointLight);
+
+        // Generous Invisible Hit Proxy covering stem + cap for effortless touch on portrait phones
+        const proxyHeight = spec.stemHeight + spec.capHeight + 0.65;
+        const proxyRadius = Math.max(spec.capRadius * 1.25, 0.92);
+        const proxyGeo = new THREE.CylinderGeometry(proxyRadius, proxyRadius * 0.85, proxyHeight, 14);
+        const proxyMat = new THREE.MeshBasicMaterial({ visible: false });
+        const proxyMesh = new THREE.Mesh(proxyGeo, proxyMat);
+        proxyMesh.position.set(
+          spec.x + spec.leanX * 0.6,
+          groundY + proxyHeight * 0.48,
+          spec.z + spec.leanZ * 0.6
+        );
+        proxyMesh.userData.mushroomIndex = idx;
+        worldGroup.add(proxyMesh);
+        hitProxies.push(proxyMesh);
+
+        heroMushrooms.push({
+          index: idx,
+          spec,
+          basePos,
+          topPos,
+          capPivot,
+       
+  baseQuat: capPivot.quaternion.clone(),
+          capMat,
+          gillMat,
+          stemMat,
+          auraSprite,
+          pointLight,
+          lit: false,
+          litStartTime: 0,
+          tapSpringStart: -99999,
+          glowLevel: 0 // 0 = unlit idle, 1 = fully lit
+        });
+      });
+    }
+
+    buildHeroMushrooms();
+
+    // -------------------------------------------------------------------------
+    // Glowing Mycelium Network Veins & Traveling Light Pulses
+    // -------------------------------------------------------------------------
+    const MYCELIUM_EDGES = [
+      [0, 1], [0, 2], [0, 3], [0, 4], [0, 5],
+      [1, 3], [3, 4], [4, 6], [5, 6], [2, 5], [4, 5]
+    ];
+
+    const myceliumStrands = [];
+    const activePulses = []; // Driven by performance.now()
+
+    function buildMyceliumNetwork() {
+      const strandGroup = new THREE.Group();
+
+      MYCELIUM_EDGES.forEach(([aIdx, bIdx]) => {
+        const mA = heroMushrooms[aIdx];
+        const mB = heroMushrooms[bIdx];
+        const p0 = mA.basePos.clone();
+        const p1 = mB.basePos.clone();
+
+        const ctrlPts = [];
+        const steps = 8;
+        for (let s = 0; s <= steps; s++) {
+          const u = s / steps;
+          const x = THREE.MathUtils.lerp(p0.x, p1.x, u) + Math.sin(u * Math.PI) * randRange(-0.28, 0.28);
+          const z = THREE.MathUtils.lerp(p0.z, p1.z, u) + Math.sin(u * Math.PI) * randRange(-0.28, 0.28);
+          const y = getGroundHeight(x, z) + 0.032;
+          ctrlPts.push(new THREE.Vector3(x, y, z));
+        }
+
+        const curve = new THREE.CatmullRomCurve3(ctrlPts);
+        const tubeGeo = new THREE.TubeGeometry(curve, 32, 0.028, 6, false);
+        const mixedColor = mA.spec.glowColor.clone().lerp(mB.spec.glowColor, 0.5);
+        const tubeMat = new THREE.MeshStandardMaterial({
+          color: 0x163840,
+          emissive: mixedColor,
+          emissiveIntensity: 0.16,
+          roughness: 0.4,
+          transparent: true,
+          opacity: 0.85
+        });
+        const tubeMesh = new THREE.Mesh(tubeGeo, tubeMat);
+        strandGroup.add(tubeMesh);
+
+        myceliumStrands.push({
+          aIdx,
+          bIdx,
+          curve,
+          tubeMat,
+          mixedColor
+        });
+      });
+
+      worldGroup.add(strandGroup);
+    }
+
+    buildMyceliumNetwork();
+
+    // Pool of reusable glowing pulse orbs that travel along mycelium curves
+    const pulsePool = [];
+    const pulseGroup = new THREE.Group();
+    worldGroup.add(pulseGroup);
+
+    function spawnMyceliumPulsesFrom(sourceIdx, nowMs) {
+      myceliumStrands.forEach((strand) => {
+        if (strand.aIdx === sourceIdx || strand.bIdx === sourceIdx) {
+          const forward = strand.aIdx === sourceIdx;
+          const color = heroMushrooms[sourceIdx].spec.glowColor;
+          // Spawn 3 staggered light packets per connected vein
+          for (let k = 0; k < 3; k++) {
+            let mesh = pulsePool.pop();
+            if (!mesh) {
+              const g = new THREE.SphereGeometry(0.085, 10, 10);
+              const m = new THREE.MeshBasicMaterial({
+                color: 0xffffff,
+                transparent: true,
+                opacity: 1,
+                blending: THREE.AdditiveBlending
+              });
+              mesh = new THREE.Mesh(g, m);
+            }
+            mesh.material.color.copy(color).lerp(new THREE.Color(0xffffff), 0.45);
+            mesh.visible = true;
+            pulseGroup.add(mesh);
+
+            activePulses.push({
+              mesh,
+              strand,
+              forward,
+              startTime: nowMs + k * 140,
+              duration: 1250 + k * 120
+            });
+          }
+        }
+      });
+    }
+
+    // -------------------------------------------------------------------------
+    // Spore Burst Particle System (Wall-Clock performance.now() Driven)
+    // -------------------------------------------------------------------------
+    const activeSporeBursts = [];
+    const sporeBurstGroup = new THREE.Group();
+    worldGroup.add(sporeBurstGroup);
+
+    function spawnSporeBurst(mushroom, nowMs, count = 42) {
+      const positions = new Float32Array(count * 3);
+      const velocities = [];
+      const origin = mushroom.topPos.clone();
+      origin.y += mushroom.spec.capHeight * 0.35;
+
+      for (let i = 0; i < count; i++) {
+        positions[i * 3] = origin.x + randRange(-0.25, 0.25);
+        positions[i * 3 + 1] = origin.y + randRange(-0.1, 0.2);
+        positions[i * 3 + 2] = origin.z + randRange(-0.25, 0.25);
+
+        const theta = randRange(0, Math.PI * 2);
+        const speed = randRange(0.45, 1.55);
+        velocities.push({
+          x0: positions[i * 3],
+          y0: positions[i * 3 + 1],
+          z0: positions[i * 3 + 2],
+          vx: Math.cos(theta) * speed,
+          vy: randRange(0.55, 1.65),
+          vz: Math.sin(theta) * speed,
+          swirlPhase: randRange(0, Math.PI * 2)
+        });
+      }
+
+      const geo = new THREE.BufferGeometry();
+      geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+      const mat = new THREE.PointsMaterial({
+        map: glowSpriteTex,
+        color: mushroom.spec.glowColor.clone().lerp(new THREE.Color(0xffffff), 0.35),
+        size: 0.34,
+        transparent: true,
+        opacity: 1.0,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false
+      });
+
+      const points = new THREE.Points(geo, mat);
+      sporeBurstGroup.add(points);
+
+      activeSporeBursts.push({
+        points,
+        geo,
+        mat,
+        velocities,
+        startTime: nowMs,
+        duration: 2400 // 2.4 seconds lifetime via performance.now()
+      });
+    }
+
+    // -------------------------------------------------------------------------
+    // Drifting Fireflies & Ambient Forest Spores (Strictly Bounded Below Header)
+    // -------------------------------------------------------------------------
+    const fireflies = [];
+    const fireflyGroup = new THREE.Group();
+    worldGroup.add(fireflyGroup);
+
+    function buildFireflies() {
+      const ffCount = 34;
+      for (let i = 0; i < ffCount; i++) {
+        const isWarm = i % 3 !== 0;
+        const color = isWarm ? new THREE.Color(0xffe478) : new THREE.Color(0x52fff0);
+        const mat = new THREE.SpriteMaterial({
+          map: glowSpriteTex,
+          color,
+          transparent: true,
+          opacity: 0.85,
+          blending: THREE.AdditiveBlending,
+          depthWrite: false
+        });
+        const sprite = new THREE.Sprite(mat);
+        const baseScale = randRange(0.24, 0.44);
+        sprite.scale.set(baseScale, baseScale, 1);
+
+        const angle = randRange(0, Math.PI * 2);
+        const radius = randRange(0.7, 4.1);
+        // Keep fireflies bounded between y = 0.7 and y = 5.8 so even at peak bob they stay below y = 6.25
+        const baseY = randRange(0.85, 5.55);
+
+        fireflyGroup.add(sprite);
+        fireflies.push({
+          sprite,
+          mat,
+          baseScale,
+          angle0: angle,
+          radius,
+          baseY,
+          orbitSpeed: randRange(0.18, 0.48) * (rand() > 0.5 ? 1 : -1),
+          bobSpeed: randRange(1.1, 2.3),
+          bobAmp: randRange(0.15, 0.42),
+          blinkSpeed: randRange(2.0, 4.2),
+          phase: randRange(0, Math.PI * 2)
+        });
+      }
+    }
+
+    buildFireflies();
+
+    // -------------------------------------------------------------------------
+    // Interaction State Machine — Wake Glow, Network Stirs, Full Forest Bloom
+    // -------------------------------------------------------------------------
+    const HINT_IDLE = 'Tap a mushroom to wake its glow';
+    const HINT_STIRS = 'The network stirs - light them all';
+    const HINT_BLOOM = 'The whole forest blooms as one';
+
+    const BLOOM_HOLD_MS = 7000;  // Hold full synchronized bloom for 7 seconds
+    const BLOOM_FADE_MS = 20000; // Fade gently over 20 seconds, then reset
+
+    let bloomState = 'collecting'; // 'collecting' | 'holding' | 'fading'
+    let bloomStartTime = 0;
+    let lastBurstCycleSecond = -1;
+
+    function updateHintText(text, isBloom = false) {
+      if (hintEl.textContent !== text) {
+        hintEl.textContent = text;
+      }
+      hintEl.classList.toggle('bloom', isBloom);
+    }
+
+    function triggerMushroomTap(mIdx, nowMs) {
+      const m = heroMushrooms[mIdx];
+      m.tapSpringStart = nowMs;
+
+      // If we are in the middle of the 20s fade and the user taps an unlit-feeling mushroom,
+      // or if we are collecting, wake it and send pulses + spores
+      if (bloomState === 'fading') {
+        // Start a fresh cycle seamlessly with this mushroom as the first lit one
+        heroMushrooms.forEach((hm) => {
+          hm.lit = false;
+          hm.glowLevel = 0;
+        });
+        bloomState = 'collecting';
+      }
+
+      if (!m.lit) {
+        m.lit = true;
+        m.litStartTime = nowMs;
+      }
+
+      spawnMyceliumPulsesFrom(mIdx, nowMs);
+      spawnSporeBurst(m, nowMs, 45);
+
+      const litCount = heroMushrooms.filter((hm) => hm.lit).length;
+      if (litCount === heroMushrooms.length && bloomState === 'collecting') {
+        bloomState = 'holding';
+        bloomStartTime = nowMs;
+        lastBurstCycleSecond = 0;
+        updateHintText(HINT_BLOOM, true);
+
+        // Synchronized celebratory pulse & spore shower across all mushrooms
+        heroMushrooms.forEach((hm, idx) => {
+          spawnMyceliumPulsesFrom(idx, nowMs + idx * 80);
+          spawnSporeBurst(hm, nowMs + idx * 90, 32);
+        });
+      } else if (bloomState === 'collecting' && litCount > 0) {
+        updateHintText(HINT_STIRS, false);
+      }
+    }
+
+    // Raycasting with clean drag vs tap discrimination
+    const raycaster = new THREE.Raycaster();
+    const pointerNDC = new THREE.Vector2();
+    let pointerDownPos = { x: 0, y: 0 };
+    let pointerDownTime = 0;
+    let activePointerId = null;
+
+    renderer.domElement.addEventListener('pointerdown', (e) => {
+      activePointerId = e.pointerId;
+      pointerDownPos.x = e.clientX;
+      pointerDownPos.y = e.clientY;
+      pointerDownTime = performance.now();
+    });
+
+    renderer.domElement.addEventListener('pointerup', (e) => {
+      if (activePointerId !== null && e.pointerId !== activePointerId) return;
+      const nowMs = performance.now();
+      const dx = e.clientX - pointerDownPos.x;
+      const dy = e.clientY - pointerDownPos.y;
+      const dist = Math.hypot(dx, dy);
+      const elapsed = nowMs - pointerDownTime;
+
+      // Distinguish tap from OrbitControls drag
+      if (dist < 14 && elapsed < 550) {
+        const rect = renderer.domElement.getBoundingClientRect();
+        pointerNDC.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+        pointerNDC.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+
+        raycaster.setFromCamera(pointerNDC, camera);
+        const hits = raycaster.intersectObjects(hitProxies, false);
+        if (hits.length > 0) {
+          const hitIdx = hits[0].object.userData.mushroomIndex;
+          if (typeof hitIdx === 'number') {
+            triggerMushroomTap(hitIdx, nowMs);
+          }
+        }
+      }
+      activePointerId = null;
+    });
+
+    // -------------------------------------------------------------------------
+    // Aspect-Aware Automatic Camera Framing (Portrait Phones & Desktop)
+    // -------------------------------------------------------------------------
+    // Key 3D envelope points of the diorama (base bottom, widest base rim, and top canopy/firefly ceiling)
+    const ENVELOPE_POINTS = [];
+    for (let i = 0; i < 16; i++) {
+      const a = (i / 16) * Math.PI * 2;
+      // Widest moss & soil rim (radius 5.05)
+      ENVELOPE_POINTS.push(new THREE.Vector3(Math.cos(a) * 5.05, 0.2, Math.sin(a) * 5.05));
+      ENVELOPE_POINTS.push(new THREE.Vector3(Math.cos(a) * 4.95, -1.5, Math.sin(a) * 4.95));
+      // Bottom of rock pedestal (y = -2.65)
+      ENVELOPE_POINTS.push(new THREE.Vector3(Math.cos(a) * 3.35, -2.65, Math.sin(a) * 3.35));
+      // Upper canopy / highest firefly & spore ceiling (y = 6.75)
+      ENVELOPE_POINTS.push(new THREE.Vector3(Math.cos(a) * 3.55, 6.75, Math.sin(a) * 3.55));
+    }
+
+    function fitCameraToViewport() {
+      const vw = window.innerWidth;
+      const vh = window.innerHeight;
+      renderer.setSize(vw, vh);
+      camera.aspect = vw / vh;
+
+      // Measure actual header and footer heights in pixels
+      const headerRect = headerEl.getBoundingClientRect();
+      const footerRect = footerEl.getBoundingClientRect();
+
+      // Generous safe margins below header/hint and above footer
+      const topSafePx = Math.max(headerRect.bottom + Math.max(18, vh * 0.032), vh * 0.13);
+      const bottomSafePx = Math.min(footerRect.top - Math.max(12, vh * 0.022), vh * 0.93);
+
+      // Convert pixel bounds to NDC Y in [-1, 1] (where +1 is top of screen, -1 is bottom)
+      const topMaxNDC = 1 - (topSafePx / vh) * 2;
+      const bottomMinNDC = 1 - (bottomSafePx / vh) * 2;
+      const targetCenterNDCY = (topMaxNDC + bottomMinNDC) * 0.5;
+      const usableHalfHeightNDC = Math.max(0.25, (topMaxNDC - bottomMinNDC) * 0.5);
+
+      // On portrait phones (e.g. 390x844, 320x700), fit the base slab to 92-94% of viewport width
+      const isPortrait = vw < vh;
+      const desiredWidthFraction = isPortrait ? 0.93 : 0.84;
+
+      // Maintain current camera viewing direction (or default 3/4 elevated view on first load)
+      const viewDir = new THREE.Vector3();
+      if (camera.position.lengthSq() < 0.01) {
+        viewDir.set(0.28, 0.36, 0.89).normalize();
+      } else {
+        viewDir.copy(camera.position).sub(controls.target).normalize();
+      }
+
+      // Compute camera-space coordinates relative to world origin
+      const up = new THREE.Vector3(0, 1, 0);
+      const right = new THREE.Vector3().crossVectors(up, viewDir).normalize();
+      const camUp = new THREE.Vector3().crossVectors(viewDir, right).normalize();
+
+      const fovRad = THREE.MathUtils.degToRad(camera.fov);
+      const tanHalfFov = Math.tan(fovRad * 0.5);
+      const tanHalfHorizFov = tanHalfFov * camera.aspect;
+
+      // Iteratively solve for targetY and camera distance so that:
+      // 1) Horizontal base width spans desiredWidthFraction (93% on portrait)
+      // 2) Vertical top & bottom stay strictly inside [bottomMinNDC, topMaxNDC]
+      let targetY = 1.85;
+      let dist = 18.0;
+
+      for (let iter = 0; iter < 6; iter++) {
+        let maxAbsX = 0;
+        let maxTopY = -Infinity;
+        let minBotY = Infinity;
+        let distForWidth = 0;
+        let distForHeight = 0;
+
+        for (let i = 0; i < ENVELOPE_POINTS.length; i++) {
+          const p = ENVELOPE_POINTS[i];
+          const rx = p.x;
+          const ry = p.y - targetY;
+          const rz = p.z;
+
+          const cx = rx * right.x + ry * right.y + rz * right.z;
+          const cy = rx * camUp.x + ry * camUp.y + rz * camUp.z;
+          const cz = rx * viewDir.x + ry * viewDir.y + rz * viewDir.z; // offset toward camera
+
+          const reqDistX = Math.abs(cx) / (tanHalfHorizFov * desiredWidthFraction) + cz;
+          if (reqDistX > distForWidth) distForWidth = reqDistX;
+
+          if (cy > maxTopY) maxTopY = cy;
+          if (cy < minBotY) minBotY = cy;
+
+          const reqDistY = Math.abs(cy) / (tanHalfFov * usableHalfHeightNDC) + cz;
+          if (reqDistY > distForHeight) distForHeight = reqDistY;
+        }
+
+        dist = Math.max(distForWidth, distForHeight);
+
+        // Shift targetY so the vertical midpoint of the 3D envelope aligns with targetCenterNDCY
+        const midCy = (maxTopY + minBotY) * 0.5;
+        const desiredCyOffset = targetCenterNDCY * dist * tanHalfFov;
+        targetY += (midCy - desiredCyOffset) * 0.82;
+      }
+
+      controls.target.set(0, targetY, 0);
+      camera.position.copy(controls.target).addScaledVector(viewDir, dist);
+      controls.minDistance = dist * 0.65;
+      controls.maxDistance = dist * 1.45;
+      camera.updateProjectionMatrix();
+      controls.update();
+    }
+
+    fitCameraToViewport();
+    window.addEventListener('resize', fitCameraToViewport);
+
+    // -------------------------------------------------------------------------
+    // Main Animation Loop (Wall-Clock performance.now() Driven)
+    // -------------------------------------------------------------------------
+    function animate(nowMs) {
+      requestAnimationFrame(animate);
+      const tSec = nowMs * 0.001;
+
+      // 1. Update Synchronized Forest Bloom State Machine (7s Hold -> 20s Fade -> Reset)
+      let globalBloomFactor = 0;
+      if (bloomState === 'holding') {
+        const elapsed = nowMs - bloomStartTime;
+        globalBloomFactor = 1.0;
+
+        // Periodic gentle spore & pulse waves during the 7-second full bloom
+        const secIndex = Math.floor(elapsed / 1800);
+        if (secIndex > lastBurstCycleSecond && elapsed < BLOOM_HOLD_MS) {
+          lastBurstCycleSecond = secIndex;
+          const mIdx = secIndex % heroMushrooms.length;
+          spawnMyceliumPulsesFrom(mIdx, nowMs);
+          spawnSporeBurst(heroMushrooms[mIdx], nowMs, 26);
+        }
+
+        if (elapsed >= BLOOM_HOLD_MS) {
+          bloomState = 'fading';
+          bloomStartTime = nowMs;
+        }
+      } else if (bloomState === 'fading') {
+        const fadeElapsed = nowMs - bloomStartTime;
+        if (fadeElapsed >= BLOOM_FADE_MS) {
+          // Complete reset to unlit state and restore idle hint
+          bloomState = 'collecting';
+          globalBloomFactor = 0;
+          heroMushrooms.forEach((hm) => {
+            hm.lit = false;
+            hm.glowLevel = 0;
+          });
+          updateHintText(HINT_IDLE, false);
+        } else {
+          const u = fadeElapsed / BLOOM_FADE_MS;
+          // Smooth cosine ease-out over the 20 seconds
+          globalBloomFactor = 0.5 * (1 + Math.cos(u * Math.PI));
+        }
+      }
+
+      // 2. Update Hero Mushrooms (Glow, Tap Spring Bounce, Gentle Breathing)
+      let totalGlowSum = 0;
+      heroMushrooms.forEach((m, idx) => {
+        if (bloomState === 'collecting') {
+          if (m.lit) {
+            const wakeElapsed = Math.max(0, nowMs - m.litStartTime);
+            m.glowLevel = Math.min(1, wakeElapsed / 550);
+          } else {
+            m.glowLevel = 0;
+          }
+        } else {
+          // During holding or fading
+          m.glowLevel = globalBloomFactor;
+        }
+
+        totalGlowSum += m.glowLevel;
+
+        // Subtle bioluminescent breathing pulse
+        const breath = 1 + Math.sin(tSec * 2.2 + idx * 1.1) * 0.12;
+        const g = m.glowLevel;
+
+        m.capMat.emissiveIntensity = (0.14 + g * 1.45) * breath;
+        m.gillMat.emissiveIntensity = (0.26 + g * 1.75) * breath;
+        m.stemMat.emissiveIntensity = (0.22 + g * 0.95) * breath;
+        m.auraSprite.material.opacity = (0.12 + g * 0.62) * breath;
+        m.pointLight.intensity = (0.12 + g * 2.25) * breath;
+
+        // Elastic cap spring animation when tapped (driven by performance.now())
+        const tapElapsed = nowMs - m.tapSpringStart;
+        let scaleSquash = 1.0;
+        let tiltWobble = 0.0;
+        if (tapElapsed >= 0 && tapElapsed < 900) {
+          const s = tapElapsed / 900;
+          const decay = Math.exp(-s * 4.5);
+          scaleSquash = 1 + Math.sin(s * Math.PI * 5) * 0.16 * decay;
+          tiltWobble = Math.sin(s * Math.PI * 4) * 0.12 * decay;
+        }
+
+        const idleSway = Math.sin(tSec * 1.1 + idx * 0.9) * 0.025;
+        m.capPivot.scale.set(
+          1 / Math.sqrt(scaleSquash),
+          scaleSquash,
+          1 / Math.sqrt(scaleSquash)
+        );
+        m.capPivot.quaternion.copy(m.baseQuat);
+        m.capPivot.rotateZ(idleSway + tiltWobble);
+      });
+
+      const avgGlow = totalGlowSum / heroMushrooms.length;
+      bloomLight.intensity = 0.35 + avgGlow * 2.1 + (bloomState === 'holding' ? 0.65 : 0);
+      pondLight.intensity = 0.85 + avgGlow * 1.15;
+
+      // 3. Update Mycelium Strands & Traveling Light Pulses (wall-clock driven)
+      myceliumStrands.forEach((strand, sIdx) => {
+        const endA = heroMushrooms[strand.aIdx].glowLevel;
+        const endB = heroMushrooms[strand.bIdx].glowLevel;
+        const strandGlow = (endA + endB) * 0.5;
+        const shimmer = 0.85 + Math.sin(tSec * 3.0 + sIdx) * 0.15;
+        strand.tubeMat.emissiveIntensity = (0.16 + strandGlow * 1.55) * shimmer;
+      });
+
+      for (let i = activePulses.length - 1; i >= 0; i--) {
+        const p = activePulses[i];
+        if (nowMs < p.startTime) {
+          p.mesh.visible = false;
+          continue;
+        }
+        const elapsed = nowMs - p.startTime;
+        if (elapsed >= p.duration) {
+          pulseGroup.remove(p.mesh);
+          pulsePool.push(p.mesh);
+          activePulses.splice(i, 1);
+          continue;
+        }
+        p.mesh.visible = true;
+        const uRaw = elapsed / p.duration;
+        const u = p.forward ? uRaw : 1 - uRaw;
+        const pos = p.strand.curve.getPointAt(u);
+        p.mesh.position.copy(pos);
+        const env = Math.sin(uRaw * Math.PI);
+        p.mesh.scale.setScalar(0.65 + env * 0.85);
+        p.mesh.material.opacity = env;
+      }
+
+      // 4. Update Spore Bursts (wall-clock driven)
+      for (let i = activeSporeBursts.length - 1; i >= 0; i--) {
+        const b = activeSporeBursts[i];
+        const elapsed = nowMs - b.startTime;
+        if (elapsed >= b.duration) {
+          sporeBurstGroup.remove(b.points);
+          b.geo.dispose();
+          b.mat.dispose();
+          activeSporeBursts.splice(i, 1);
+          continue;
+        }
+
+        const dtSec = elapsed * 0.001;
+        const progress = elapsed / b.duration;
+        const attr = b.geo.attributes.position;
+        const arr = attr.array;
+
+        for (let k = 0; k < b.velocities.length; k++) {
+          const v = b.velocities[k];
+          const damping = 1 - progress * 0.45;
+          arr[k * 3] = v.x0 + v.vx * dtSec * damping + Math.sin(dtSec * 3.2 + v.swirlPhase) * 0.12;
+          // Keep spores capped safely below y = 6.35 so they never touch header/hint
+          arr[k * 3 + 1] = Math.min(6.35, v.y0 + v.vy * dtSec - 0.18 * dtSec * dtSec);
+          arr[k * 3 + 2] = v.z0 + v.vz * dtSec * damping + Math.cos(dtSec * 2.8 + v.swirlPhase) * 0.12;
+        }
+        attr.needsUpdate = true;
+        b.mat.opacity = Math.sin((1 - progress) * Math.PI * 0.5);
+      }
+
+      // 5. Update Drifting Fireflies & Hanging Moss / Ferns
+      fireflies.forEach((ff) => {
+        const a = ff.angle0 + tSec * ff.orbitSpeed;
+        const r = ff.radius + Math.sin(tSec * 0.7 + ff.phase) * 0.35;
+        const x = Math.cos(a) * r;
+        const z = Math.sin(a) * r;
+        const y = Math.min(6.15, ff.baseY + Math.sin(tSec * ff.bobSpeed + ff.phase) * ff.bobAmp);
+
+        ff.sprite.position.set(x, y, z);
+        const blink = 0.35 + 0.65 * Math.pow(0.5 + 0.5 * Math.sin(tSec * ff.blinkSpeed + ff.phase), 2);
+        ff.mat.opacity = blink * (0.75 + avgGlow * 0.25);
+        const s = ff.baseScale * (0.8 + blink * 0.45);
+        ff.sprite.scale.set(s, s, 1);
+      });
+
+      hangingVines.forEach((v) => {
+        v.pivot.rotation.z = Math.sin(tSec * v.speed + v.phase) * 0.055;
+        v.pivot.rotation.x = Math.cos(tSec * v.speed * 0.8 + v.phase) * 0.04;
+      });
+
+      swayingFerns.forEach((f) => {
+        f.pivot.rotation.x = f.baseRotX + Math.sin(tSec * f.speed + f.phase) * 0.045;
+      });
+
+      controls.update();
+      renderer.render(scene, camera);
+    }
+
+    requestAnimationFrame(animate);
+  </script>
+</body>
+</html>
