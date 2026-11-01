@@ -359,7 +359,7 @@ const FIT_PTS = [];
 for (const x of [-8.4, 8.4]) for (const y of [-SLAB_H, 0.9]) for (const z of [-8.4, 8.4])
   FIT_PTS.push(new THREE.Vector3(x, y, z));
 for (const g of GEYSERS)
-  FIT_PTS.push(new THREE.Vector3(g.x, g.ch + g.power * 0.62, g.z));  // jet apex
+  FIT_PTS.push(new THREE.Vector3(g.x, g.ch + g.power * g.power / (2 * 6.2) + 0.6, g.z));  // true ballistic apex + margin
 function fitDir() {
   const a = innerWidth / innerHeight;
   if (a < 0.62) return new THREE.Vector3(0.1, 0.42, 1).normalize();
@@ -487,6 +487,7 @@ function animate() {
   renderer.render(scene, camera);
 }
 animate();
+// pass 4: fit covers true ballistic apex (power^2/2g + margin) - grand's peak no longer exits frame
 // pass 3: eruption density - bigger droplets, tighter spread, 220-particle burst + 16/frame sustained jet
 // pass 2: readability - cones darker than ground (were invisible cream-on-cream), wider/deeper orange
 //         mat rings, quieter sinter patchwork, wider dark vents
