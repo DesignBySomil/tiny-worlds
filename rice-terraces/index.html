@@ -326,7 +326,7 @@ FIT_PTS.push(new THREE.Vector3(0, terraceTopY(N_LEVELS - 1) + 0.5, Z_BACK));
 // ---------- camera fit ----------
 function fitDir() {
   const a = innerWidth / innerHeight;
-  if (a < 0.62) return new THREE.Vector3(0.09, 0.37, 1).normalize();
+  if (a < 0.62) return new THREE.Vector3(0.06, 0.62, 1).normalize();
   if (a < 0.9) return new THREE.Vector3(0.44, 0.4, 1).normalize();
   return new THREE.Vector3(0.62, 0.42, 1).normalize();
 }
@@ -357,7 +357,7 @@ function frameInitialCamera() {
 frameInitialCamera();
 
 // ---------- hint ----------
-const HINTS = { idle: 'Tap the top paddy to release the water', flow: 'Water flows down the terraces' };
+const HINTS = { idle: 'Tap the top paddy', flow: 'Water flows down the terraces' };
 function setHint(k) {
   hintEl.textContent = HINTS[k];
   hintEl.classList.toggle('faded', k !== 'idle');
@@ -447,8 +447,8 @@ function animate() {
   renderer.render(scene, camera);
 }
 animate();
-// rice-terraces p4: palm off pond corner to right bank. p3: steps descend toward viewer, pond-corner palms on mud, larger rice; 8 stepped paddies, mirror/planted water, rippling cascade from top paddy
-// to reservoir, egret hops, hut, farmer, palms. marker:rice-p4
+// rice-terraces p5: portrait bird's-angle fit, short hint. p4: steps descend toward viewer, pond-corner palms on mud, larger rice; 8 stepped paddies, mirror/planted water, rippling cascade from top paddy
+// to reservoir, egret hops, hut, farmer, palms. marker:rice-p5
 </script>
 </body>
 </html>
