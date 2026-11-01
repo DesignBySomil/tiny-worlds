@@ -336,10 +336,10 @@ const pines = [];
 
 // ---------- night sky: stars, moon, shooting stars ----------
 {
-  const N = 560; const pos = new Float32Array(N * 3);
+  const N = 1600; const pos = new Float32Array(N * 3);
   for (let i = 0; i < N; i++) {
-    const a = rng() * Math.PI * 2, e = Math.asin(rand(0.14, 1));
-    const r = rand(60, 85);
+    const a = rng() * Math.PI * 2, e = Math.asin(rand(0.10, 0.64));
+    const r = rand(92, 130);
     pos[i*3] = Math.cos(a) * Math.cos(e) * r;
     pos[i*3+1] = Math.sin(e) * r;
     pos[i*3+2] = Math.sin(a) * Math.cos(e) * r;
@@ -347,23 +347,9 @@ const pines = [];
   const g = new THREE.BufferGeometry();
   g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
   const stars = new THREE.Points(g, new THREE.PointsMaterial({
-    color: 0xdde6ff, size: 1.15, sizeAttenuation: true, transparent: true,
+    color: 0xdde6ff, size: 1.5, sizeAttenuation: true, transparent: true,
     opacity: 1.0, blending: THREE.AdditiveBlending, depthWrite: false, fog: false }));
   scene.add(stars);
-}
-const moon = new THREE.Mesh(new THREE.CircleGeometry(2.6, 24),
-  new THREE.MeshBasicMaterial({ color: 0xf4f1ff, fog: false }));
-moon.position.set(-20, 15, -35); moon.lookAt(0, 0, 0); scene.add(moon);
-{
-  const cv = document.createElement('canvas'); cv.width = cv.height = 128;
-  const cx = cv.getContext('2d');
-  const grad = cx.createRadialGradient(64, 64, 8, 64, 64, 62);
-  grad.addColorStop(0, 'rgba(210,220,255,0.4)'); grad.addColorStop(1, 'rgba(210,220,255,0)');
-  cx.fillStyle = grad; cx.fillRect(0, 0, 128, 128);
-  const halo = new THREE.Sprite(new THREE.SpriteMaterial({
-    map: new THREE.CanvasTexture(cv), transparent: true, opacity: 0.55,
-    blending: THREE.AdditiveBlending, depthWrite: false, fog: false }));
-  halo.scale.set(13, 13, 1); halo.position.copy(moon.position); scene.add(halo);
 }
 const shooters = [];
 for (let i = 0; i < 2; i++) {
@@ -580,6 +566,7 @@ function animate() {
   renderer.render(scene, camera);
 }
 animate();
+// pass 5: star band where sky is visible, dropped off-frame moon
 // pass 4: bigger stars, taller curtain sweep
 // pass 3: curtain-scale aurora (farther+taller, ray stripes), moon in frame, star fog fix
 // pass 2: hero aurora - brighter/closer ribbons, brighter stars+moon, lifted night exposure, icy pond
