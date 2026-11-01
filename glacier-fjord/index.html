@@ -43,7 +43,7 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 
-// pass 1
+// pass 2
 const container = document.getElementById('app');
 const hintEl = document.getElementById('hint');
 const scene = new THREE.Scene();
@@ -327,7 +327,7 @@ let fitBox = collectFit();
 function fitCamera() {
   const center = fitBox.getCenter(new THREE.Vector3());
   controls.target.copy(center);
-  const dir = new THREE.Vector3(0.35, 0.62, 1).normalize();
+  const dir = new THREE.Vector3(0.08, 0.85, 1).normalize();
   // fit through live camera basis
   const corners = [];
   for (const x of [fitBox.min.x, fitBox.max.x])
@@ -345,7 +345,7 @@ function fitCamera() {
     const d = -p.z;
     need = Math.max(need, d + Math.abs(p.y) / Math.tan(vFov), d + Math.abs(p.x) / Math.tan(hFov));
   }
-  const dist = need * 1.04 + 0.4;
+  const dist = need * 1.02 + 0.2;
   camera.position.copy(center).addScaledVector(dir, dist);
   camera.lookAt(center); controls.update();
 }
