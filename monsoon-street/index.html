@@ -1,0 +1,470 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Monsoon Street - a tiny world</title>
+<style>
+  html, body { margin:0; padding:0; height:100%; background:#46586d; overflow:hidden;
+    font-family: Georgia, 'Times New Roman', serif; }
+  #app { position:fixed; inset:0; }
+  header { position:fixed; top:0; left:0; right:0; text-align:center; pointer-events:none;
+    padding: max(18px, env(safe-area-inset-top)) 16px 18px; z-index:5;
+    background: linear-gradient(rgba(14,20,30,.66), rgba(14,20,30,.32) 55%, rgba(14,20,30,0)); }
+  header h1 { margin:0; font-size:15px; letter-spacing:.42em; font-weight:400;
+    color:#f2f6fa; text-transform:uppercase; text-shadow:0 1px 8px rgba(10,16,24,.8); }
+  header .rule { width:44px; height:1px; background:rgba(242,246,250,.55); margin:9px auto; }
+  #hint { display:inline-block; font-size:11.5px; letter-spacing:.24em; text-transform:uppercase;
+    color:#f4f8fc; transition:opacity 1.2s ease; padding:5px 12px; border-radius:3px;
+    background:rgba(14,22,32,.5);
+    text-shadow:0 1px 3px rgba(8,12,20,.98), 0 0 8px rgba(8,12,20,.95), 0 0 18px rgba(8,12,20,.85); }
+  #hint.faded { opacity:.45; }
+  footer { position:fixed; bottom:0; left:0; right:0; text-align:center; pointer-events:none;
+    padding:0 16px max(14px, env(safe-area-inset-bottom)); z-index:5;
+    font-size:10px; letter-spacing:.34em; text-transform:uppercase; color:rgba(242,246,250,.6); }
+  canvas { display:block; touch-action:none; }
+  @media (max-width: 380px) {
+    header h1 { font-size:12px; letter-spacing:.3em; }
+    #hint { font-size:10px; letter-spacing:.2em; }
+  }
+</style>
+</head>
+<body>
+<div id="app"></div>
+<header>
+  <h1>Monsoon Street</h1>
+  <div class="rule"></div>
+  <span id="hint"></span>
+</header>
+<footer>A tiny world</footer>
+<script type="importmap">
+{ "imports": {
+  "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+  "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+} }
+</script>
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+// pass 1
+const container = document.getElementById('app');
+const hintEl = document.getElementById('hint');
+const scene = new THREE.Scene();
+const SKY = new THREE.Color(0x46586d);
+const SKY_FLASH = new THREE.Color(0xc4d4e8);
+scene.background = SKY.clone();
+scene.fog = new THREE.Fog(0x46586d, 26, 80);
+
+const camera = new THREE.PerspectiveCamera(38, innerWidth/innerHeight, 0.1, 240);
+function pickFov() {
+  const a = innerWidth / innerHeight;
+  camera.fov = a >= 0.9 ? 38 : (a >= 0.62 ? 46 : 58);
+  camera.updateProjectionMatrix();
+}
+pickFov();
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setSize(innerWidth, innerHeight);
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+container.appendChild(renderer.domElement);
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true; controls.dampingFactor = 0.06;
+controls.enablePan = false; controls.maxPolarAngle = Math.PI * 0.52;
+
+const skyLight = new THREE.DirectionalLight(0xbdd0e4, 1.7);
+skyLight.position.set(6, 10, 5); skyLight.castShadow = true;
+skyLight.shadow.mapSize.set(1024, 1024);
+skyLight.shadow.camera.left = -10; skyLight.shadow.camera.right = 10;
+skyLight.shadow.camera.top = 10; skyLight.shadow.camera.bottom = -10;
+skyLight.shadow.camera.far = 60; skyLight.shadow.bias = -0.0006;
+scene.add(skyLight);
+scene.add(new THREE.AmbientLight(0x8fa4bc, 0.85));
+const lampLight = new THREE.PointLight(0xffc46a, 12, 9, 1.8);
+lampLight.position.set(1.35, 2.35, -1.6);
+scene.add(lampLight);
+
+// seeded rng
+function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;}}
+const rng = mulberry32(20261101);
+function rand(a,b){return a+(b-a)*rng();}
+
+function makeSoftTexture(inner, outer) {
+  const c = document.createElement('canvas'); c.width = c.height = 64;
+  const g = c.getContext('2d');
+  const gr = g.createRadialGradient(32,32,2,32,32,30);
+  gr.addColorStop(0, inner); gr.addColorStop(1, outer);
+  g.fillStyle = gr; g.fillRect(0,0,64,64);
+  return new THREE.CanvasTexture(c);
+}
+
+// ---------- slab ----------
+const slabGroup = new THREE.Group(); scene.add(slabGroup);
+{
+  const top = new THREE.Mesh(new THREE.BoxGeometry(6.5, 0.5, 6.5),
+    new THREE.MeshStandardMaterial({ color: 0x39424e, roughness: 0.85 }));
+  top.position.y = -0.25; top.receiveShadow = true; slabGroup.add(top);
+  const mid = new THREE.Mesh(new THREE.BoxGeometry(5.9, 0.7, 5.9),
+    new THREE.MeshStandardMaterial({ color: 0x2c333d, roughness: 0.9 }));
+  mid.position.y = -0.85; slabGroup.add(mid);
+  const base = new THREE.Mesh(new THREE.BoxGeometry(5.2, 1.1, 5.2),
+    new THREE.MeshStandardMaterial({ color: 0x21272f, roughness: 0.95 }));
+  base.position.y = -1.75; slabGroup.add(base);
+}
+
+// ---------- wet street ----------
+{
+  const street = new THREE.Mesh(new THREE.BoxGeometry(2.3, 0.06, 6.3),
+    new THREE.MeshStandardMaterial({ color: 0x272d36, roughness: 0.35, metalness: 0.35 }));
+  street.position.y = 0.03; street.receiveShadow = true; slabGroup.add(street);
+  // curbs
+  for (const sx of [-1, 1]) {
+    const curb = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.12, 6.3),
+      new THREE.MeshStandardMaterial({ color: 0x4a5462, roughness: 0.8 }));
+    curb.position.set(sx * 1.24, 0.06, 0); curb.receiveShadow = true; slabGroup.add(curb);
+  }
+  // lane dashes, worn
+  for (let i = -3; i <= 3; i++) {
+    const dash = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.012, 0.42),
+      new THREE.MeshStandardMaterial({ color: 0x9aa48e, roughness: 0.7 }));
+    dash.position.set(0, 0.068, i * 0.9); slabGroup.add(dash);
+  }
+}
+
+// ---------- puddles ----------
+const puddles = [];
+for (const [x, z, r] of [[-0.6, 1.4, 0.5], [0.7, 0.4, 0.38], [-0.4, -1.6, 0.44], [0.62, -2.4, 0.3], [-0.85, 2.6, 0.34]]) {
+  const p = new THREE.Mesh(new THREE.CircleGeometry(r, 20),
+    new THREE.MeshStandardMaterial({ color: 0x5a6f84, roughness: 0.08, metalness: 0.85 }));
+  p.rotation.x = -Math.PI / 2; p.position.set(x, 0.068, z);
+  slabGroup.add(p); puddles.push(p);
+}
+
+// ---------- buildings ----------
+const WIN = new THREE.MeshStandardMaterial({ color: 0xffd27a, emissive: 0xffb84d, emissiveIntensity: 1.6, roughness: 0.4 });
+const WIN_DIM = new THREE.MeshStandardMaterial({ color: 0x33404e, roughness: 0.6 });
+function makeBuilding(x, z, w, h, d, color, rot) {
+  const g = new THREE.Group(); g.position.set(x, 0, z); g.rotation.y = rot || 0;
+  const body = new THREE.Mesh(new THREE.BoxGeometry(w, h, d),
+    new THREE.MeshStandardMaterial({ color, roughness: 0.85 }));
+  body.position.y = h / 2; body.castShadow = true; body.receiveShadow = true; g.add(body);
+  // windows grid on street face (+z local)
+  const rows = Math.max(1, Math.floor(h / 0.75));
+  const cols = Math.max(1, Math.floor(w / 0.55));
+  for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) {
+    const lit = rng() < 0.55;
+    const win = new THREE.Mesh(new THREE.PlaneGeometry(0.2, 0.28), lit ? WIN : WIN_DIM);
+    win.position.set(-w/2 + 0.32 + c * 0.55, 0.5 + r * 0.75, d/2 + 0.006);
+    g.add(win);
+  }
+  // awning over ground floor
+  const awn = new THREE.Mesh(new THREE.BoxGeometry(w * 0.85, 0.05, 0.5),
+    new THREE.MeshStandardMaterial({ color: [0xa8442e, 0x2e6e68, 0xb8892e][Math.floor(rng()*3)], roughness: 0.7 }));
+  awn.position.set(0, 0.85, d/2 + 0.26); awn.rotation.x = 0.25; awn.castShadow = true; g.add(awn);
+  // sign board
+  const sign = new THREE.Mesh(new THREE.BoxGeometry(w * 0.6, 0.18, 0.05),
+    new THREE.MeshStandardMaterial({ color: 0xeadfc2, emissive: 0x8a7a4a, emissiveIntensity: 0.35, roughness: 0.6 }));
+  sign.position.set(0, 1.12, d/2 + 0.03); g.add(sign);
+  slabGroup.add(g);
+  return g;
+}
+makeBuilding(-2.35, -1.7, 1.7, 2.9, 1.5, 0x7a5a44, 0.1);
+makeBuilding(-2.3, 0.6, 1.9, 2.1, 1.6, 0x5f7370, -0.06);
+makeBuilding(-2.4, 2.5, 1.5, 2.5, 1.3, 0x8a6248, 0.14);
+makeBuilding(2.35, -2.2, 1.6, 2.4, 1.4, 0x6e5a68, -0.12);
+makeBuilding(2.3, -0.2, 1.8, 3.2, 1.5, 0x54646e, 0.05);
+makeBuilding(2.4, 1.9, 1.6, 1.9, 1.4, 0x7c6a4c, -0.1);
+
+// ---------- streetlamp ----------
+{
+  const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.06, 2.3, 8),
+    new THREE.MeshStandardMaterial({ color: 0x22282e, roughness: 0.5, metalness: 0.6 }));
+  pole.position.set(1.35, 1.15, -1.6); pole.castShadow = true; slabGroup.add(pole);
+  const arm = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.05, 0.05), pole.material);
+  arm.position.set(1.13, 2.28, -1.6); slabGroup.add(arm);
+  const bulb = new THREE.Mesh(new THREE.SphereGeometry(0.09, 10, 8),
+    new THREE.MeshStandardMaterial({ color: 0xffd98a, emissive: 0xffc46a, emissiveIntensity: 2.4 }));
+  bulb.position.set(0.9, 2.24, -1.6); slabGroup.add(bulb);
+  const glow = new THREE.Sprite(new THREE.SpriteMaterial({
+    map: makeSoftTexture('rgba(255,205,120,0.85)', 'rgba(255,205,120,0)'), transparent: true, opacity: 0.85, depthWrite: false }));
+  glow.scale.set(1.1, 1.1, 1); glow.position.copy(bulb.position); slabGroup.add(glow);
+}
+
+// ---------- string lights between buildings ----------
+{
+  const bulbMat = new THREE.MeshStandardMaterial({ color: 0xffe2a0, emissive: 0xffc46a, emissiveIntensity: 2.2 });
+  const wireMat = new THREE.MeshStandardMaterial({ color: 0x181c22, roughness: 0.6 });
+  for (const [z, sag] of [[-1.1, 0.35], [0.9, 0.45], [2.6, 0.3]]) {
+    const N = 9;
+    let prev = null;
+    for (let i = 0; i <= N; i++) {
+      const t = i / N;
+      const x = -1.55 + t * 3.1;
+      const y = 2.35 - Math.sin(t * Math.PI) * sag;
+      const pt = new THREE.Vector3(x, y, z + Math.sin(t * 5) * 0.05);
+      if (prev) {
+        const seg = new THREE.Vector3().subVectors(pt, prev);
+        const wire = new THREE.Mesh(new THREE.CylinderGeometry(0.008, 0.008, seg.length(), 4), wireMat);
+        wire.position.copy(prev).addScaledVector(seg, 0.5);
+        wire.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0), seg.clone().normalize());
+        slabGroup.add(wire);
+      }
+      if (i > 0 && i < N) {
+        const b = new THREE.Mesh(new THREE.SphereGeometry(0.035, 6, 5), bulbMat);
+        b.position.copy(pt).y -= 0.07; slabGroup.add(b);
+      }
+      prev = pt;
+    }
+  }
+}
+
+// ---------- umbrella figures ----------
+const umbrellas = [];
+function makeUmbrella(x, z, canopy, coat) {
+  const g = new THREE.Group(); g.position.set(x, 0.06, z); g.rotation.y = rand(0, 6.3);
+  const body = new THREE.Mesh(new THREE.CapsuleGeometry(0.09, 0.22, 4, 8),
+    new THREE.MeshStandardMaterial({ color: coat, roughness: 0.8 }));
+  body.position.y = 0.28; body.castShadow = true; g.add(body);
+  const head = new THREE.Mesh(new THREE.SphereGeometry(0.07, 8, 7),
+    new THREE.MeshStandardMaterial({ color: 0xc9a184, roughness: 0.7 }));
+  head.position.y = 0.5; g.add(head);
+  const stick = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.012, 0.5, 5),
+    new THREE.MeshStandardMaterial({ color: 0x333a42, roughness: 0.5 }));
+  stick.position.set(0.1, 0.62, 0); stick.rotation.z = -0.18; g.add(stick);
+  const can = new THREE.Mesh(new THREE.ConeGeometry(0.34, 0.2, 10),
+    new THREE.MeshStandardMaterial({ color: canopy, roughness: 0.55 }));
+  can.position.set(0.15, 0.9, 0); can.rotation.z = -0.18; can.castShadow = true; g.add(can);
+  slabGroup.add(g);
+  umbrellas.push({ g, ph: rand(0, 6.3), bx: x, bz: z });
+}
+makeUmbrella(-0.55, 0.9, 0xc23b2e, 0x3a4552);
+makeUmbrella(0.6, -0.9, 0xd9a52e, 0x2e4a44);
+makeUmbrella(-0.3, -2.5, 0x2e7e8c, 0x4a3a52);
+
+// ---------- paper boat in a puddle ----------
+const boat = new THREE.Group();
+{
+  const hullMat = new THREE.MeshStandardMaterial({ color: 0xf2efe4, roughness: 0.6, side: THREE.DoubleSide });
+  const hull = new THREE.Mesh(new THREE.ConeGeometry(0.12, 0.09, 4), hullMat);
+  hull.scale.set(1.5, 1, 0.8); hull.rotation.y = Math.PI / 4; boat.add(hull);
+  const sail = new THREE.Mesh(new THREE.ConeGeometry(0.06, 0.12, 4), hullMat);
+  sail.position.y = 0.09; boat.add(sail);
+  boat.position.set(-0.6, 0.1, 1.4);
+  slabGroup.add(boat);
+}
+
+// ---------- rain (instanced streaks) ----------
+const RAIN_N = 190;
+const rainGeo = new THREE.CylinderGeometry(0.006, 0.006, 0.34, 3);
+const rainMat = new THREE.MeshBasicMaterial({ color: 0xaebfd4, transparent: true, opacity: 0.5 });
+const rain = new THREE.InstancedMesh(rainGeo, rainMat, RAIN_N);
+rain.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+scene.add(rain);
+const drops = [];
+for (let i = 0; i < RAIN_N; i++) {
+  drops.push({ x: rand(-4.5, 4.5), y: rand(0, 7), z: rand(-4, 4), spd: rand(5.5, 8) });
+}
+const dummy = new THREE.Object3D();
+const rainTilt = 0.14;
+
+// ---------- splash pops on the street ----------
+const splashes = [];
+const splashTex = makeSoftTexture('rgba(200,220,240,0.9)', 'rgba(200,220,240,0)');
+for (let i = 0; i < 14; i++) {
+  const mat = new THREE.SpriteMaterial({ map: splashTex, transparent: true, opacity: 0, depthWrite: false });
+  const s = new THREE.Sprite(mat); s.scale.set(0.1, 0.06, 1);
+  s.position.set(rand(-1, 1), 0.1, rand(-3, 3));
+  slabGroup.add(s);
+  splashes.push({ s, t0: rand(0, 1), dur: rand(0.35, 0.6), x: s.position.x, z: s.position.z });
+}
+
+// ---------- clouds ----------
+const clouds = [];
+{
+  const cTex = makeSoftTexture('rgba(52,64,80,0.9)', 'rgba(52,64,80,0)');
+  for (let i = 0; i < 6; i++) {
+    const mat = new THREE.SpriteMaterial({ map: cTex, transparent: true, opacity: rand(0.5, 0.75), depthWrite: false });
+    const s = new THREE.Sprite(mat);
+    const sc = rand(2.2, 3.8); s.scale.set(sc * 1.7, sc, 1);
+    s.position.set(rand(-5, 5), rand(4.4, 6), rand(-4, -1));
+    scene.add(s);
+    clouds.push({ s, spd: rand(0.08, 0.2) });
+  }
+}
+
+// ---------- lightning bolt ----------
+const bolt = new THREE.Group();
+{
+  const mat = new THREE.MeshBasicMaterial({ color: 0xf4f8ff });
+  let p = new THREE.Vector3(-1.4, 5.6, -3.2);
+  for (let i = 0; i < 6; i++) {
+    const np = p.clone().add(new THREE.Vector3(rand(-0.55, 0.55), -rand(0.5, 0.85), 0));
+    const seg = new THREE.Vector3().subVectors(np, p);
+    const m = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.012, seg.length(), 4), mat);
+    m.position.copy(p).addScaledVector(seg, 0.5);
+    m.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0), seg.clone().normalize());
+    bolt.add(m);
+    p = np;
+  }
+  bolt.visible = false;
+  scene.add(bolt);
+}
+
+// ---------- hint ----------
+const hintIdle = 'Tap for thunder';
+const hintStorm = 'Thunder rolls';
+let hintOwner = 'idle';
+function setHint(text, owner) { hintEl.textContent = text; hintEl.classList.remove('faded'); hintOwner = owner; }
+function resetHintIf(owner) { if (hintOwner === owner) setHint(hintIdle, 'idle'); }
+setHint(hintIdle, 'idle');
+
+let storm = { active: false, t0: 0 };
+let lastTap = 0;
+function thunder(now) {
+  lastTap = now;
+  storm.active = true; storm.t0 = now;
+  setHint(hintStorm, 'user');
+  bolt.visible = true;
+  setTimeout(() => resetHintIf('user'), 4600);
+}
+
+// ---------- interaction ----------
+const ray = new THREE.Raycaster();
+const ptr = new THREE.Vector2();
+const stormProxy = new THREE.Mesh(new THREE.BoxGeometry(6.5, 5.5, 6.5),
+  new THREE.MeshBasicMaterial({ visible: false }));
+stormProxy.position.y = 1.4; scene.add(stormProxy);
+let downX = 0, downY = 0;
+renderer.domElement.addEventListener('pointerdown', e => { downX = e.clientX; downY = e.clientY; });
+renderer.domElement.addEventListener('pointerup', e => {
+  if (Math.hypot(e.clientX - downX, e.clientY - downY) > 8) return;
+  ptr.x = (e.clientX / innerWidth) * 2 - 1;
+  ptr.y = -(e.clientY / innerHeight) * 2 + 1;
+  ray.setFromCamera(ptr, camera);
+  const hits = ray.intersectObjects([stormProxy], false);
+  if (hits.length) {
+    const now = performance.now() / 1000;
+    if (now - lastTap > 0.5) thunder(now);
+  }
+});
+
+// ---------- camera containment ----------
+const fitBox = new THREE.Box3(
+  new THREE.Vector3(-3.2, -2.35, -3.2),
+  new THREE.Vector3(3.2, 4.6, 3.2));
+function fitCamera() {
+  const center = fitBox.getCenter(new THREE.Vector3());
+  controls.target.copy(center);
+  const dir = new THREE.Vector3(0.16, 0.6, 1).normalize();
+  const corners = [];
+  for (const x of [fitBox.min.x, fitBox.max.x])
+    for (const y of [fitBox.min.y, fitBox.max.y])
+      for (const z of [fitBox.min.z, fitBox.max.z])
+        corners.push(new THREE.Vector3(x, y, z));
+  const probe = new THREE.PerspectiveCamera(camera.fov, camera.aspect, 0.1, 240);
+  probe.position.copy(center).addScaledVector(dir, 0.001); probe.lookAt(center); probe.updateMatrixWorld();
+  const inv = probe.matrixWorldInverse;
+  let need = 0;
+  const vFov = THREE.MathUtils.degToRad(camera.fov) / 2;
+  const hFov = Math.atan(Math.tan(vFov) * camera.aspect);
+  for (const c of corners) {
+    const p = c.clone().applyMatrix4(inv);
+    const d = -p.z;
+    need = Math.max(need, d + Math.abs(p.y) / Math.tan(vFov), d + Math.abs(p.x) / Math.tan(hFov));
+  }
+  const dist = need * 1.1 + 0.2;
+  camera.position.copy(center).addScaledVector(dir, dist);
+  controls.target.y += -0.35;
+  camera.position.y += -0.35;
+  camera.lookAt(controls.target); controls.update();
+}
+fitCamera();
+addEventListener('resize', () => {
+  camera.aspect = innerWidth / innerHeight; pickFov();
+  renderer.setSize(innerWidth, innerHeight); fitCamera();
+});
+
+// ---------- animate ----------
+const clock = new THREE.Clock();
+const ndcV = new THREE.Vector3();
+function animate() {
+  requestAnimationFrame(animate);
+  const dt = Math.min(clock.getDelta(), 0.3);
+  const now = performance.now() / 1000;
+  const stormBoost = storm.active ? Math.max(0, 1 - (now - storm.t0) / 4.4) : 0;
+  if (storm.active && now - storm.t0 > 4.6) storm.active = false;
+
+  // lightning flash: two blinks in the first 0.8s
+  let flash = 0;
+  if (storm.active) {
+    const ft = now - storm.t0;
+    if (ft < 0.14) flash = 1;
+    else if (ft < 0.26) flash = 0.15;
+    else if (ft < 0.44) flash = 0.85;
+    else if (ft < 0.8) flash = Math.max(0, 0.85 - (ft - 0.44) * 2.4);
+    bolt.visible = ft < 0.8;
+  }
+  scene.background.copy(SKY).lerp(SKY_FLASH, flash);
+  scene.fog.color.copy(scene.background);
+  skyLight.intensity = 1.7 + flash * 3.2;
+
+  // rain
+  const rainSpeed = 1 + stormBoost * 1.1;
+  rainMat.opacity = 0.5 + stormBoost * 0.25;
+  for (let i = 0; i < RAIN_N; i++) {
+    const d = drops[i];
+    d.y -= d.spd * rainSpeed * dt;
+    if (d.y < 0) { d.y = rand(5.5, 7.5); d.x = rand(-4.5, 4.5); d.z = rand(-4, 4); }
+    dummy.position.set(d.x + d.y * rainTilt, d.y, d.z);
+    dummy.rotation.z = -rainTilt;
+    dummy.updateMatrix();
+    rain.setMatrixAt(i, dummy.matrix);
+  }
+  rain.instanceMatrix.needsUpdate = true;
+
+  // splashes pop on the street (wall-clock)
+  for (const sp of splashes) {
+    const t = (now - sp.t0) / sp.dur;
+    if (t >= 1) {
+      sp.t0 = now + rand(0, 0.5) / (1 + stormBoost * 2);
+      sp.s.position.x = sp.x = rand(-1, 1); sp.s.position.z = sp.z = rand(-3, 3);
+      continue;
+    }
+    if (t < 0) continue;
+    const k = Math.sin(t * Math.PI);
+    sp.s.material.opacity = k * (0.5 + stormBoost * 0.3);
+    const sc = 0.06 + t * 0.14;
+    sp.s.scale.set(sc, sc * 0.6, 1);
+  }
+
+  // clouds drift, faded in title band
+  for (const c of clouds) {
+    c.s.position.x += c.spd * (1 + stormBoost) * dt;
+    if (c.s.position.x > 6.5) c.s.position.x = -6.5;
+    ndcV.copy(c.s.position).project(camera);
+    const inBand = ndcV.y > 0.45 && Math.abs(ndcV.x) < 0.62;
+    c.s.material.opacity = inBand ? 0.12 : 0.62;
+  }
+
+  // umbrellas bob along the street
+  for (const u of umbrellas) {
+    u.g.position.y = 0.06 + Math.abs(Math.sin(now * 2.2 + u.ph)) * 0.02;
+    u.g.rotation.z = Math.sin(now * 1.6 + u.ph) * 0.03;
+  }
+
+  // paper boat bobs in its puddle
+  boat.position.y = 0.1 + Math.sin(now * 1.8) * 0.015;
+  boat.rotation.z = Math.sin(now * 1.3) * 0.08;
+  boat.rotation.x = Math.cos(now * 1.6) * 0.05;
+
+  // warm windows flicker very slightly during lightning
+  WIN.emissiveIntensity = 1.6 + flash * 0.8;
+
+  controls.update();
+  renderer.render(scene, camera);
+}
+animate();
+</script>
+</body>
+</html>
