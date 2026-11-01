@@ -336,10 +336,18 @@ const pines = [];
 
 // ---------- distant night plain + far pines (fills below-horizon void) ----------
 {
-  const plain = new THREE.Mesh(new THREE.CircleGeometry(220, 40),
-    new THREE.MeshStandardMaterial({ color: 0x1a2748, roughness: 1, flatShading: true }));
-  plain.rotation.x = -Math.PI/2; plain.position.y = -1.42; scene.add(plain);
-  const farMat = new THREE.MeshStandardMaterial({ color: 0x16233d, roughness: 1, flatShading: true });
+  const plainG = new THREE.PlaneGeometry(440, 440, 44, 44);
+  plainG.rotateX(-Math.PI/2);
+  const pp = plainG.attributes.position;
+  for (let i = 0; i < pp.count; i++) {
+    const x = pp.getX(i), z = pp.getZ(i);
+    pp.setY(i, 0.9 * n2(x * 0.045, z * 0.045, 8.8));
+  }
+  plainG.computeVertexNormals();
+  const plain = new THREE.Mesh(plainG,
+    new THREE.MeshStandardMaterial({ color: 0x2c3d66, roughness: 1, flatShading: true }));
+  plain.position.y = -1.62; scene.add(plain);
+  const farMat = new THREE.MeshStandardMaterial({ color: 0x1b2b4a, roughness: 1, flatShading: true });
   for (let i = 0; i < 30; i++) {
     const a = rng() * Math.PI * 2, d = rand(24, 75);
     const h = rand(1.6, 3.4) + d * 0.03;
@@ -581,6 +589,7 @@ function animate() {
   renderer.render(scene, camera);
 }
 animate();
+// pass 8: moonlit undulating plain grounds the far pines
 // pass 7: far pines smaller/farther/bluer (pass 6 oversized monoliths)
 // pass 6: distant plain + far pine ring + denser star band
 // pass 5: star band where sky is visible, dropped off-frame moon
