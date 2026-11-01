@@ -47,15 +47,15 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 
-// pass 1
+// pass 2
 function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;}}
 const rand = mulberry32(20261101);
 
 const container = document.getElementById('app');
 const hintEl = document.getElementById('hint');
 const scene = new THREE.Scene();
-scene.background = new THREE.Color(0x0d2036);
-scene.fog = new THREE.Fog(0x0d2036, 14, 46);
+scene.background = new THREE.Color(0x14304e);
+scene.fog = new THREE.Fog(0x14304e, 16, 52);
 
 const camera = new THREE.PerspectiveCamera(38, innerWidth/innerHeight, 0.1, 240);
 function pickFov() {
@@ -75,39 +75,39 @@ controls.enableDamping = true; controls.dampingFactor = 0.06;
 controls.enablePan = false; controls.maxPolarAngle = Math.PI * 0.55;
 
 // lights: raised ~20% over first instinct for the dark scene
-const moon = new THREE.DirectionalLight(0x9fc4e8, 1.35);
+const moon = new THREE.DirectionalLight(0xa8ccf0, 1.9);
 moon.position.set(4, 12, 5); moon.castShadow = true;
 moon.shadow.mapSize.set(1024, 1024);
 moon.shadow.camera.left = -10; moon.shadow.camera.right = 10;
 moon.shadow.camera.top = 10; moon.shadow.camera.bottom = -10;
 moon.shadow.camera.far = 60;
 scene.add(moon);
-scene.add(new THREE.AmbientLight(0x2c4a6a, 1.1));
-const hemi = new THREE.HemisphereLight(0x4a7aa8, 0x0c1420, 0.65);
+scene.add(new THREE.AmbientLight(0x3a5c82, 1.7));
+const hemi = new THREE.HemisphereLight(0x5c8cbc, 0x14202e, 0.95);
 scene.add(hemi);
 
 // ---------- materials ----------
 const M = {
-  sand: new THREE.MeshStandardMaterial({ color: 0xb8a888, roughness: .95 }),
-  slab: new THREE.MeshStandardMaterial({ color: 0x24344a, roughness: .95 }),
-  rock: new THREE.MeshStandardMaterial({ color: 0x3a4c64, roughness: .95 }),
-  rockDark: new THREE.MeshStandardMaterial({ color: 0x2a3a50, roughness: .95 }),
+  sand: new THREE.MeshStandardMaterial({ color: 0xd0bd98, roughness: .95 }),
+  slab: new THREE.MeshStandardMaterial({ color: 0x36506e, roughness: .95 }),
+  rock: new THREE.MeshStandardMaterial({ color: 0x54708e, roughness: .95 }),
+  rockDark: new THREE.MeshStandardMaterial({ color: 0x42597a, roughness: .95 }),
   vent: new THREE.MeshStandardMaterial({ color: 0x2e2a28, roughness: 1 }),
-  ventGlow: new THREE.MeshStandardMaterial({ color: 0x33221a, emissive: 0xff7a30, emissiveIntensity: 1.6 }),
+  ventGlow: new THREE.MeshStandardMaterial({ color: 0x33221a, emissive: 0xff8a40, emissiveIntensity: 2.4 }),
   fish: new THREE.MeshStandardMaterial({ color: 0x1c2836, roughness: .7 }),
   fishBelly: new THREE.MeshStandardMaterial({ color: 0x4a5f74, roughness: .7 }),
-  lure: new THREE.MeshStandardMaterial({ color: 0x223311, emissive: 0xbfff60, emissiveIntensity: 2.2 }),
+  lure: new THREE.MeshStandardMaterial({ color: 0x223311, emissive: 0xc8ff70, emissiveIntensity: 3.0 }),
   teeth: new THREE.MeshStandardMaterial({ color: 0xd8e2ea, roughness: .5 }),
-  jelly: new THREE.MeshBasicMaterial({ color: 0x9fc8ff, transparent: true, opacity: .38, side: THREE.DoubleSide }),
+  jelly: new THREE.MeshBasicMaterial({ color: 0x9fc8ff, transparent: true, opacity: .52, side: THREE.DoubleSide }),
   jellyCore: new THREE.MeshBasicMaterial({ color: 0xd8eaff, transparent: true, opacity: .5 }),
   bubble: new THREE.MeshBasicMaterial({ color: 0xcfe8ff, transparent: true, opacity: .5 }),
   snow: new THREE.MeshBasicMaterial({ color: 0xdceaf8, transparent: true, opacity: .55 }),
-  smallFish: new THREE.MeshStandardMaterial({ color: 0xaac4da, roughness: .6 }),
+  smallFish: new THREE.MeshStandardMaterial({ color: 0xc4dcf0, emissive: 0x3a5a78, emissiveIntensity: 0.5, roughness: .6 }),
   plume: new THREE.MeshBasicMaterial({ color: 0x8a949e, transparent: true, opacity: .4 }),
   coral: new THREE.MeshStandardMaterial({ color: 0xe0708a, roughness: .8 }),
   coral2: new THREE.MeshStandardMaterial({ color: 0x7ac0b8, roughness: .8 }),
   star: new THREE.MeshStandardMaterial({ color: 0xd8905a, roughness: .85 }),
-  shaft: new THREE.MeshBasicMaterial({ color: 0x9cc8ee, transparent: true, opacity: .10, side: THREE.DoubleSide, depthWrite: false }),
+  shaft: new THREE.MeshBasicMaterial({ color: 0xa8d0f4, transparent: true, opacity: .14, side: THREE.DoubleSide, depthWrite: false }),
 };
 
 // ---------- diorama base ----------
@@ -140,9 +140,9 @@ function makeWall(x, z, rotY, w, h) {
   scene.add(g);
   return g;
 }
-makeWall(-4.6, -1.2, 0.5, 3.4, 5.2);
-makeWall(4.7, -1.0, -0.55, 3.4, 5.6);
-makeWall(0, -4.2, 0, 8.0, 4.6);
+makeWall(-5.0, -1.4, 0.5, 3.0, 3.9);
+makeWall(5.1, -1.2, -0.55, 3.0, 4.2);
+makeWall(0, -4.9, 0, 8.0, 3.6);
 
 // ---------- hydrothermal vents ----------
 const ventTops = [];
@@ -199,7 +199,7 @@ for (let i = 0; i < SNOW_N; i++) {
   snowSeed.push({ x: (rand() - 0.5) * 11, y: rand() * 8, z: (rand() - 0.5) * 8, sp: 0.12 + rand() * 0.18, ph: rand() * 9 });
 }
 snowGeo.setAttribute('position', new THREE.BufferAttribute(snowPos, 3));
-const snow = new THREE.Points(snowGeo, new THREE.PointsMaterial({ color: 0xdceaf8, size: 0.045, transparent: true, opacity: 0.6, depthWrite: false }));
+const snow = new THREE.Points(snowGeo, new THREE.PointsMaterial({ color: 0xdceaf8, size: 0.06, transparent: true, opacity: 0.75, depthWrite: false }));
 scene.add(snow);
 
 // ---------- bubbles ----------
@@ -214,8 +214,8 @@ for (let i = 0; i < BUB_N; i++) {
 
 // ---------- light shafts ----------
 for (let i = 0; i < 3; i++) {
-  const sh = new THREE.Mesh(new THREE.PlaneGeometry(1.4 + rand(), 9), M.shaft);
-  sh.position.set(-2.5 + i * 2.4, 2.6, -2.2 + rand());
+  const sh = new THREE.Mesh(new THREE.PlaneGeometry(1.1 + rand() * 0.7, 6.5), M.shaft);
+  sh.position.set(-2.2 + i * 2.2, 1.8, -3.0 + rand() * 0.5);
   sh.rotation.z = 0.18 + rand() * 0.1;
   sh.rotation.y = (rand() - 0.5) * 0.4;
   scene.add(sh);
@@ -258,14 +258,15 @@ const angler = new THREE.Group();
   const stalk = new THREE.Mesh(new THREE.CylinderGeometry(0.015, 0.02, 0.5, 5), M.fish);
   stalk.position.set(0.32, 0.5, 0); stalk.rotation.z = -0.7;
   angler.add(stalk);
-  var lureMesh = new THREE.Mesh(new THREE.SphereGeometry(0.075, 8, 8), M.lure);
+  var lureMesh = new THREE.Mesh(new THREE.SphereGeometry(0.095, 8, 8), M.lure);
   lureMesh.position.set(0.55, 0.72, 0);
   angler.add(lureMesh);
-  var lureLight = new THREE.PointLight(0xbfff60, 1.6, 4);
+  var lureLight = new THREE.PointLight(0xc8ff70, 2.2, 6);
   lureLight.position.copy(lureMesh.position);
   angler.add(lureLight);
 }
-const ANGLER_HOME = new THREE.Vector3(-0.3, 0.15, 1.3);
+const ANGLER_HOME = new THREE.Vector3(-0.3, 0.1, 1.8);
+angler.scale.setScalar(1.3);
 angler.position.copy(ANGLER_HOME);
 angler.rotation.y = -0.5;
 scene.add(angler);
@@ -353,7 +354,7 @@ for (let i = 0; i < 10; i++) {
 // ---------- fitCamera ----------
 const fitBox = new THREE.Box3(
   new THREE.Vector3(-5.4, -2.35, -4.4),
-  new THREE.Vector3(5.4, 4.0, 3.4));
+  new THREE.Vector3(5.6, 3.8, 3.4));
 const fitDir = new THREE.Vector3(0.34, 0.4, 1).normalize();
 function fitCamera() {
   const center = fitBox.getCenter(new THREE.Vector3());
@@ -485,7 +486,7 @@ function animate() {
   for (const j of jellies) {
     const pulse = 1 + Math.sin(now * 1.6 + j.ph) * 0.14;
     j.bell.scale.set(pulse, 1 / pulse, pulse);
-    j.g.position.y = j.baseY + Math.sin(now * 0.35 + j.ph) * 0.5 + ((now * j.drift * 0.12 + j.ph) % 1.6);
+    j.g.position.y = j.baseY + Math.sin(now * 0.35 + j.ph) * 0.55;
     j.g.position.x += Math.sin(now * 0.22 + j.ph) * 0.0015;
   }
 
