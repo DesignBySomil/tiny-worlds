@@ -119,15 +119,15 @@ const slabGroup = new THREE.Group(); scene.add(slabGroup);
 const fish = [];
 {
   const deep = new THREE.Mesh(new THREE.PlaneGeometry(11, 11),
-    new THREE.MeshStandardMaterial({ color: 0x4a7ca6, roughness: 0.8 }));
+    new THREE.MeshStandardMaterial({ color: 0x35638f, roughness: 0.75, fog: false });
   deep.rotation.x = -Math.PI/2; deep.position.y = -0.25; slabGroup.add(deep);
-  const bubbleMat = new THREE.MeshBasicMaterial({ color: 0xeef8ff, transparent: true, opacity: 0.85 });
+  const bubbleMat = new THREE.MeshBasicMaterial({ color: 0xeef8ff, transparent: true, opacity: 0.9, fog: false });
   for (let i = 0; i < 40; i++) {
     const b = new THREE.Mesh(new THREE.SphereGeometry(rand(0.03, 0.08), 5, 4), bubbleMat);
     b.position.set(rand(-5, 5), rand(-0.3, -0.08), rand(-5, 5));
     slabGroup.add(b);
   }
-  const fishMat = new THREE.MeshBasicMaterial({ color: 0x3a5f7e, transparent: true, opacity: 0.9 });
+  const fishMat = new THREE.MeshBasicMaterial({ color: 0x2e5070, transparent: true, opacity: 0.95, fog: false });
   for (let i = 0; i < 8; i++) {
     const f = new THREE.Group();
     const body = new THREE.Mesh(new THREE.ConeGeometry(0.13, 0.6, 5), fishMat);
@@ -142,7 +142,7 @@ const fish = [];
 
 // ---------- ice sheet (translucent, low-freq snow dust patches) ----------
 const iceMat = new THREE.MeshStandardMaterial({
-  color: 0xb9d9ee, roughness: 0.15, metalness: 0.05, transparent: true, opacity: 0.6, flatShading: true });
+  color: 0x9cc8e8, roughness: 0.12, metalness: 0.05, transparent: true, opacity: 0.42, flatShading: true, fog: false });
 let iceMesh;
 {
   const g = new THREE.PlaneGeometry(SLAB_HALF*2 - 0.24, SLAB_HALF*2 - 0.24, 52, 52);
@@ -473,6 +473,7 @@ function animate() {
   renderer.render(scene, camera);
 }
 animate();
+// pass 3: bluer ice (fog-free deep layer, lower opacity)
 // pass 2: readable ice (translucent blue, visible fish/bubbles), bigger skaters + fishing cluster
 // pass 1: frozen-lake initial build - translucent ice over dark water with bubbles
 // + 6 drifting fish, 2 gliding skaters, skate trail tubes, tap = spreading crack
