@@ -118,8 +118,13 @@ const slabGroup = new THREE.Group(); scene.add(slabGroup);
 // ---------- under-ice world: dark water, bubbles, fish ----------
 const fish = [];
 {
+  const dcv = document.createElement('canvas'); dcv.width = dcv.height = 256;
+  const dctx = dcv.getContext('2d');
+  const dg = dctx.createRadialGradient(128, 128, 8, 128, 128, 128);
+  dg.addColorStop(0, '#0b2b52'); dg.addColorStop(0.55, '#16477e'); dg.addColorStop(1, '#3d7ab3');
+  dctx.fillStyle = dg; dctx.fillRect(0, 0, 256, 256);
   const deep = new THREE.Mesh(new THREE.PlaneGeometry(11, 11),
-    new THREE.MeshStandardMaterial({ color: 0x2b6cb0, roughness: 0.7, emissive: 0x14385e, emissiveIntensity: 0.5, fog: false }));
+    new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(dcv), fog: false }));
   deep.rotation.x = -Math.PI/2; deep.position.y = -0.25; slabGroup.add(deep);
   const bubbleMat = new THREE.MeshBasicMaterial({ color: 0xeef8ff, transparent: true, opacity: 0.9, fog: false });
   for (let i = 0; i < 40; i++) {
@@ -142,7 +147,7 @@ const fish = [];
 
 // ---------- ice sheet (translucent, low-freq snow dust patches) ----------
 const iceMat = new THREE.MeshStandardMaterial({
-  color: 0x7fb8e0, roughness: 0.1, metalness: 0.05, transparent: true, opacity: 0.32, flatShading: true, fog: false });
+  color: 0x8fc3e8, roughness: 0.1, metalness: 0.05, transparent: true, opacity: 0.28, flatShading: true, fog: false });
 let iceMesh;
 {
   const g = new THREE.PlaneGeometry(SLAB_HALF*2 - 0.24, SLAB_HALF*2 - 0.24, 52, 52);
@@ -473,6 +478,7 @@ function animate() {
   renderer.render(scene, camera);
 }
 animate();
+// pass 5: unlit radial-gradient deep water (reads true blue)
 // pass 4: saturated blue ice, emissive deep water
 // pass 3b: fix dropped paren
 // pass 3: bluer ice (fog-free deep layer, lower opacity)
