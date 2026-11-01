@@ -115,10 +115,11 @@ sandGeo.rotateX(-Math.PI / 2);
     const x = p.getX(i), z = p.getZ(i);
     const e = Math.max(Math.abs(x), Math.abs(z)) / 8;
     p.setY(i, (Math.sin(x*3.1)*Math.sin(z*2.7+1.3)) * 0.05 * (e > 0.94 ? 0.2 : 1));
-    const g = Math.sin(x * 12.1 + 1.7) * Math.sin(z * 13.3 + 0.4) * 0.5
-            + 0.5 * Math.sin(x * 25.7 + z * 21.3 + 2.2);
+    // pass 2: dune ripple bands (wavelength ~2.6 units >> vertex spacing) - the earlier
+    // high-frequency grain aliased into a checkerboard at this mesh resolution
+    const g = 0.5 + 0.5 * Math.sin(x * 2.4 + Math.sin(z * 1.7) * 1.2);
     const c = sand.clone();
-    c.offsetHSL(rand(-0.004, 0.004), rand(-0.01, 0.01), g * 0.014 + rand(-0.008, 0.008));
+    c.offsetHSL(rand(-0.003, 0.003), rand(-0.006, 0.006), g * 0.022 + rand(-0.006, 0.006));
     cols.push(c.r, c.g, c.b);
   }
   sandGeo.setAttribute('color', new THREE.Float32BufferAttribute(cols, 3));
@@ -159,9 +160,9 @@ function staghorn(x, z, color, scale = 1) {
       branch(end.x, end.y, end.z, nd, len * rand(0.6, 0.78), rad * 0.66, depth - 1);
     }
   }
-  branch(x, 0, z, new THREE.Vector3(rand(-0.15,0.15), 1, rand(-0.15,0.15)).normalize(), 0.85 * scale, 0.13 * scale, 3);
+  branch(x, 0, z, new THREE.Vector3(rand(-0.15,0.15), 1, rand(-0.15,0.15)).normalize(), 1.3 * scale, 0.19 * scale, 3);
   scene.add(g);
-  regTap(g, x, 1.2 * scale, z, 1.5 * scale, { name: 'staghorn', x, z });
+  regTap(g, x, 1.7 * scale, z, 2.0 * scale, { name: 'staghorn', x, z });
   return g;
 }
 
@@ -206,7 +207,7 @@ function seaFan(x, z, color, r, rotY) {
 function sponges(x, z, count) {
   const g = new THREE.Group();
   for (let i = 0; i < count; i++) {
-    const h = rand(0.5, 1.3), r = rand(0.12, 0.22);
+    const h = rand(0.8, 1.9), r = rand(0.15, 0.27);
     const m = new THREE.Mesh(new THREE.CylinderGeometry(r * 0.85, r, h, 7, 1, true),
       new THREE.MeshStandardMaterial({ color: i % 2 ? PAL.sponge : PAL.spongeDeep, roughness: 0.8, side: THREE.DoubleSide }));
     const a = rand(0, 6.28), rr = rand(0, 0.55);
@@ -223,15 +224,15 @@ function sponges(x, z, count) {
 const tentacles = [];
 function anemone(x, z) {
   const g = new THREE.Group();
-  const base = new THREE.Mesh(new THREE.CylinderGeometry(0.34, 0.42, 0.3, 9),
+  const base = new THREE.Mesh(new THREE.CylinderGeometry(0.46, 0.56, 0.4, 9),
     new THREE.MeshStandardMaterial({ color: 0xc88a6a, roughness: 0.9 }));
   base.position.set(x, 0.15, z); base.castShadow = true; g.add(base);
   const tMat = new THREE.MeshStandardMaterial({ color: PAL.anemone, roughness: 0.7 });
   const tipMat = new THREE.MeshStandardMaterial({ color: PAL.anemoneTip, roughness: 0.7 });
   for (let i = 0; i < 16; i++) {
-    const a = (i / 16) * Math.PI * 2, rr = 0.08 + (i % 3) * 0.09;
-    const t = new THREE.Mesh(new THREE.ConeGeometry(0.05, 0.55, 5), tMat);
-    t.position.set(x + Math.cos(a) * rr, 0.55, z + Math.sin(a) * rr);
+    const a = (i / 16) * Math.PI * 2, rr = 0.1 + (i % 3) * 0.12;
+    const t = new THREE.Mesh(new THREE.ConeGeometry(0.06, 0.72, 5), tMat);
+    t.position.set(x + Math.cos(a) * rr, 0.7, z + Math.sin(a) * rr);
     g.add(t); tentacles.push({ mesh: t, ph: rand(0, 6.28) });
     const tip = new THREE.Mesh(new THREE.SphereGeometry(0.045, 6, 5), tipMat);
     tip.position.set(0, 0.3, 0); t.add(tip);
@@ -242,14 +243,16 @@ function anemone(x, z) {
 }
 
 // ---------- reef layout ----------
-staghorn(-4.6, -3.2, PAL.stagOrange, 1.25);
-staghorn(3.8, 2.4, PAL.stagPink, 1.05);
-staghorn(5.2, -3.8, PAL.stagPurple, 0.9);
-brain(-1.2, 1.6, PAL.brainGreen, 1.15);
-brain(2.2, -1.8, PAL.brainGold, 0.85);
-seaFan(-5.6, 1.8, PAL.fanRed, 1.5, 0.5);
-seaFan(0.6, -4.6, PAL.fanMagenta, 1.25, -0.4);
-seaFan(5.8, 0.4, PAL.fanRed, 1.1, 2.2);
+staghorn(-4.6, -3.2, PAL.stagOrange, 1.3);
+staghorn(3.8, 2.4, PAL.stagPink, 1.15);
+staghorn(5.2, -3.8, PAL.stagPurple, 1.0);
+staghorn(-2.2, 4.4, PAL.stagPink, 0.85);
+brain(-1.2, 1.6, PAL.brainGreen, 1.55);
+brain(2.2, -1.8, PAL.brainGold, 1.15);
+brain(-6.2, -0.6, PAL.brainGold, 0.9);
+seaFan(-5.6, 1.8, PAL.fanRed, 1.9, 0.5);
+seaFan(0.6, -4.6, PAL.fanMagenta, 1.6, -0.4);
+seaFan(5.8, 0.4, PAL.fanRed, 1.45, 2.2);
 sponges(-2.8, -4.4, 6);
 sponges(1.4, 4.6, 5);
 anemone(-0.4, -0.6);
@@ -343,7 +346,7 @@ function makeFish(bodyCol, finCol, s = 1) {
 const school = [];
 const SCHOOL_N = 9;
 for (let i = 0; i < SCHOOL_N; i++) {
-  const f = makeFish(i % 3 === 0 ? PAL.fishYellow : PAL.fishBlue, i % 3 === 0 ? PAL.fishBlue : PAL.fishYellow, rand(0.8, 1.1));
+  const f = makeFish(i % 3 === 0 ? PAL.fishYellow : PAL.fishBlue, i % 3 === 0 ? PAL.fishBlue : PAL.fishYellow, rand(1.0, 1.35));
   scene.add(f);
   school.push({
     mesh: f,
@@ -383,7 +386,8 @@ const FIT_PTS = [];
 for (const x of [-8.4, 8.4]) for (const y of [-SLAB_H, 1.2]) for (const z of [-8.4, 8.4])
   FIT_PTS.push(new THREE.Vector3(x, y, z));
 FIT_PTS.push(new THREE.Vector3(0, 7.4, 0));            // bubble apex
-FIT_PTS.push(new THREE.Vector3(-5.6, 2.0, 1.8));       // fan tops
+FIT_PTS.push(new THREE.Vector3(-5.6, 2.6, 1.8));       // fan tops
+FIT_PTS.push(new THREE.Vector3(-4.6, 3.6, -3.2));      // staghorn crowns
 FIT_PTS.push(new THREE.Vector3(5.8, 1.8, 0.4));
 for (const f of school)
   FIT_PTS.push(new THREE.Vector3(f.home.x + 4.5, 4.2, f.home.z));
@@ -529,6 +533,8 @@ function animate() {
   renderer.render(scene, camera);
 }
 animate();
+// pass 2: sand checkerboard killed (high-freq grain aliased at 56x56; now dune ripple
+//         bands), corals to hero scale (bigger staghorn/brain/fan/sponge/anemone), bigger fish
 // pass 1: first coral-reef build - sand/rock cutaway slab, staghorn/brain/fan/sponge/anemone
 //         corals, 9-fish school with tap-to-call + auto wander, clownfish pair, bubbles,
 //         god-ray shafts, marine snow, uniform fine-grain sand, point-set fit + square-on portrait
