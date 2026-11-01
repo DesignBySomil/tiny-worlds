@@ -50,6 +50,8 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 //          fake radial contact shadow under the islet instead
 // pass 5: the patches were never acne - wave troughs dipped below the strata top face (y=0) and the grey slab
 //          poked through the water. Sea raised to y=0.28 (trough 0.04 > 0), waterline dependents moved with it
+// pass 6: foam as soft lacy texture patches (flat cutout discs), lighter readable strata, moon moved front-right
+//          as key light for sea facets / tower / strata
 // pass 1: first lighthouse-night build - marine night palette, striped tower on rocky islet, drag beam sweep, tap fog, course-correcting ships, exact corner-fit camera
 
 const PAL = {
@@ -81,7 +83,7 @@ controls.maxPolarAngle = Math.PI * 0.52; controls.enablePan = false;
 
 // ---------- lights ----------
 const moon = new THREE.DirectionalLight(0xa9c0d8, 1.35);
-moon.position.set(8, 12, -6);
+moon.position.set(9, 11, 5);
 moon.castShadow = true;
 moon.shadow.mapSize.set(2048, 2048);
 moon.shadow.camera.left = -14; moon.shadow.camera.right = 14;
@@ -89,7 +91,7 @@ moon.shadow.camera.top = 14; moon.shadow.camera.bottom = -14;
 moon.shadow.camera.far = 60; moon.shadow.bias = -0.0001; moon.shadow.normalBias = 0.06;
 scene.add(moon);
 scene.add(new THREE.HemisphereLight(0x3a5068, 0x14222a, 1.15));
-const fill = new THREE.DirectionalLight(0x6a8299, 0.5);
+const fill = new THREE.DirectionalLight(0x6a8299, 0.35);
 fill.position.set(4, 5, 12); scene.add(fill);
 const lampLight = new THREE.PointLight(PAL.beam, 40, 34, 1.6);
 scene.add(lampLight);
@@ -113,9 +115,9 @@ function strata(h, y, color) {
     new THREE.MeshStandardMaterial({ color, roughness: 0.95 }));
   m.position.y = y; m.receiveShadow = true; slabGroup.add(m);
 }
-strata(0.9, -SLAB_H + 0.45, 0x2b3038);
-strata(1.1, -SLAB_H + 0.9 + 0.55, 0x353b43);
-strata(1.2, -SLAB_H + 2.0 + 0.6, 0x424a52);
+strata(0.9, -SLAB_H + 0.45, 0x39424d);
+strata(1.1, -SLAB_H + 0.9 + 0.55, 0x455060);
+strata(1.2, -SLAB_H + 2.0 + 0.6, 0x525f6e);
 
 // animated sea surface
 const seaGeo = new THREE.PlaneGeometry(SLAB, SLAB, 64, 64);
@@ -155,19 +157,23 @@ for (const [x,y,z,s,m] of ROCKS) {
 
 // foam ring + flecks
 const foamFlecks = [];
-function foamBlob(r) {
-  const g = new THREE.CircleGeometry(r, 10);
-  const p = g.attributes.position;
-  for (let i = 1; i < p.count; i++) {  // skip center vertex
-    const j = 0.6 + Math.random()*0.8;
-    p.setXY(i, p.getX(i)*j, p.getY(i)*j);
+function foamTex() {
+  const c = document.createElement('canvas'); c.width = c.height = 128;
+  const g = c.getContext('2d');
+  for (let i = 0; i < 26; i++) {  // cluster of soft specks -> lacy irregular patch
+    const x = 34 + Math.random()*60, y = 34 + Math.random()*60, r = 4 + Math.random()*14;
+    const gr = g.createRadialGradient(x, y, 0, x, y, r);
+    gr.addColorStop(0, 'rgba(228,244,240,0.55)'); gr.addColorStop(1, 'rgba(228,244,240,0)');
+    g.fillStyle = gr; g.beginPath(); g.arc(x, y, r, 0, 7); g.fill();
   }
-  return new THREE.Mesh(g, new THREE.MeshBasicMaterial({ color: 0xe4f4f0,
-    transparent: true, opacity: 0.25 + Math.random()*0.4 }));
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t;
 }
-for (let i = 0; i < 16; i++) {
-  const a = Math.random()*Math.PI*2, r = 2.35 + Math.random()*1.1;
-  const f = foamBlob(0.14 + Math.random()*0.3);
+const foamMap = foamTex();
+for (let i = 0; i < 20; i++) {
+  const a = Math.random()*Math.PI*2, r = 2.35 + Math.random()*1.2;
+  const f = new THREE.Mesh(new THREE.CircleGeometry(0.2 + Math.random()*0.3, 10),
+    new THREE.MeshBasicMaterial({ map: foamMap, transparent: true, depthWrite: false,
+      opacity: 0.3 + Math.random()*0.4 }));
   f.rotation.x = -Math.PI/2; f.rotation.z = Math.random()*Math.PI*2;
   f.position.set(Math.cos(a)*r, 0.32 + Math.random()*0.02, Math.sin(a)*r);
   slabGroup.add(f); foamFlecks.push(f);
@@ -380,7 +386,7 @@ function animate() {
 
   // foam: each patch breathes on its own phase, occasional drift
   foamFlecks.forEach((f,i) => {
-    f.material.opacity = 0.2 + 0.35*Math.abs(Math.sin(t*0.9 + i*1.7));
+    f.material.opacity = 0.15 + 0.4*Math.abs(Math.sin(t*0.9 + i*1.7));
     f.rotation.z += dt * 0.05 * (i % 2 ? 1 : -1);
   });
 
