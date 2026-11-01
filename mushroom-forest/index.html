@@ -312,6 +312,17 @@ for (const pl of PLACEMENTS) {
     glowColor: new THREE.Color(pl.glow), sporeColor: pl.spore, breathePhase: rand(0, 6.28),
     x: pl.x, z: pl.z };
   group.traverse(o => { if (o.isMesh) { o.userData.msh = m; tapTargets.push(o); } });
+  // pass 10: forgiving invisible hit proxy per group - thin stems/caps are
+  // frustrating tap targets on phones (same lesson as the volcano crater)
+  {
+    const bb = new THREE.Box3().setFromObject(group);
+    const c = bb.getCenter(new THREE.Vector3());
+    const size = bb.getSize(new THREE.Vector3());
+    const proxy = new THREE.Mesh(new THREE.SphereGeometry(Math.max(size.x, size.y, size.z) * 0.62 + 0.35, 8, 6),
+      new THREE.MeshBasicMaterial({ visible: false }));
+    proxy.position.copy(c); proxy.userData.msh = m;
+    scene.add(proxy); tapTargets.push(proxy);
+  }
   MSH.push(m);
   mycRootsFront.push(pl.x); mycRootsRight.push(pl.z);
 }
@@ -530,6 +541,7 @@ Promise.all(['BirchTree_Dead_1.glb', 'BirchTree_Dead_3.glb', 'Rock_Moss_1.glb',
   });
 
 // pass markers for deploy verification
+// pass 10: invisible forgiving hit proxies per mushroom (phone tap usability)
 // pass 9: QA hook uses per-group bbox center (fixed-height probe missed short teal caps)
 // pass 8: temporary QA projection hook (to be removed pre-acceptance)
 // pass 7: moon half-disc fix - glow sprite moved off the disc plane (z-fight line)
