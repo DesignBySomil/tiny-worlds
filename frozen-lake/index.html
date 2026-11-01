@@ -119,7 +119,7 @@ const slabGroup = new THREE.Group(); scene.add(slabGroup);
 const fish = [];
 {
   const deep = new THREE.Mesh(new THREE.PlaneGeometry(11, 11),
-    new THREE.MeshStandardMaterial({ color: 0x35638f, roughness: 0.75, fog: false }));
+    new THREE.MeshStandardMaterial({ color: 0x2b6cb0, roughness: 0.7, emissive: 0x14385e, emissiveIntensity: 0.5, fog: false }));
   deep.rotation.x = -Math.PI/2; deep.position.y = -0.25; slabGroup.add(deep);
   const bubbleMat = new THREE.MeshBasicMaterial({ color: 0xeef8ff, transparent: true, opacity: 0.9, fog: false });
   for (let i = 0; i < 40; i++) {
@@ -142,7 +142,7 @@ const fish = [];
 
 // ---------- ice sheet (translucent, low-freq snow dust patches) ----------
 const iceMat = new THREE.MeshStandardMaterial({
-  color: 0x9cc8e8, roughness: 0.12, metalness: 0.05, transparent: true, opacity: 0.42, flatShading: true, fog: false });
+  color: 0x7fb8e0, roughness: 0.1, metalness: 0.05, transparent: true, opacity: 0.32, flatShading: true, fog: false });
 let iceMesh;
 {
   const g = new THREE.PlaneGeometry(SLAB_HALF*2 - 0.24, SLAB_HALF*2 - 0.24, 52, 52);
@@ -473,6 +473,7 @@ function animate() {
   renderer.render(scene, camera);
 }
 animate();
+// pass 4: saturated blue ice, emissive deep water
 // pass 3b: fix dropped paren
 // pass 3: bluer ice (fog-free deep layer, lower opacity)
 // pass 2: readable ice (translucent blue, visible fish/bubbles), bigger skaters + fishing cluster
