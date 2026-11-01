@@ -337,13 +337,13 @@ const pines = [];
 // ---------- distant night plain + far pines (fills below-horizon void) ----------
 {
   const plain = new THREE.Mesh(new THREE.CircleGeometry(220, 40),
-    new THREE.MeshStandardMaterial({ color: 0x16203e, roughness: 1, flatShading: true }));
+    new THREE.MeshStandardMaterial({ color: 0x1a2748, roughness: 1, flatShading: true }));
   plain.rotation.x = -Math.PI/2; plain.position.y = -1.42; scene.add(plain);
-  const farMat = new THREE.MeshStandardMaterial({ color: 0x0e1a2e, roughness: 1, flatShading: true });
-  for (let i = 0; i < 26; i++) {
-    const a = rng() * Math.PI * 2, d = rand(16, 60);
-    const h = rand(2.5, 7) * (d > 30 ? 1.6 : 1);
-    const t = new THREE.Mesh(new THREE.ConeGeometry(h * 0.32, h, 6), farMat);
+  const farMat = new THREE.MeshStandardMaterial({ color: 0x16233d, roughness: 1, flatShading: true });
+  for (let i = 0; i < 30; i++) {
+    const a = rng() * Math.PI * 2, d = rand(24, 75);
+    const h = rand(1.6, 3.4) + d * 0.03;
+    const t = new THREE.Mesh(new THREE.ConeGeometry(h * 0.34, h, 6), farMat);
     t.position.set(Math.cos(a) * d, -1.42 + h / 2, Math.sin(a) * d);
     scene.add(t);
   }
@@ -581,7 +581,7 @@ function animate() {
   renderer.render(scene, camera);
 }
 animate();
-// pass 6: distant plain + far pine ring + denser star band\n// pass 5: star band where sky is visible, dropped off-frame moon
+// pass 7: far pines smaller/farther/bluer (pass 6 oversized monoliths)\n// pass 6: distant plain + far pine ring + denser star band\n// pass 5: star band where sky is visible, dropped off-frame moon
 // pass 4: bigger stars, taller curtain sweep
 // pass 3: curtain-scale aurora (farther+taller, ray stripes), moon in frame, star fog fix
 // pass 2: hero aurora - brighter/closer ribbons, brighter stars+moon, lifted night exposure, icy pond
