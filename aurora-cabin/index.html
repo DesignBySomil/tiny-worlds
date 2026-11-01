@@ -345,7 +345,7 @@ const pines = [];
   }
   plainG.computeVertexNormals();
   const plain = new THREE.Mesh(plainG,
-    new THREE.MeshStandardMaterial({ color: 0x2c3d66, roughness: 1, flatShading: true }));
+    new THREE.MeshStandardMaterial({ color: 0x44588c, roughness: 1, flatShading: true }));
   plain.position.y = -1.62; scene.add(plain);
   const farMat = new THREE.MeshStandardMaterial({ color: 0x1b2b4a, roughness: 1, flatShading: true });
   for (let i = 0; i < 30; i++) {
@@ -589,6 +589,7 @@ function animate() {
   renderer.render(scene, camera);
 }
 animate();
+// pass 9: brighter moonlit plain (read vs sky)
 // pass 8: moonlit undulating plain grounds the far pines
 // pass 7: far pines smaller/farther/bluer (pass 6 oversized monoliths)
 // pass 6: distant plain + far pine ring + denser star band
