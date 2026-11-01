@@ -56,6 +56,10 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 //          (left half of the sea read sparse and dead). Also: the 'flat pale patch' main flagged was a low rock's
 //          flatShading top face catching the key light - submerged and darkened those two rocks
 // pass 8: TEMP __qa hook (removed pre-acceptance) to identify the persistent pale flat patch by raycast
+// pass 9: the pale patch WAS the beam's light pool - a uniform hard-edged circle. Now a soft radial-gradient
+//          glow, elongated along the beam, with a gentle shimmer
+// pass 10: fog was pitch-black and total - now density 0.026 with the haze color lifting luminous grey
+// pass 11: invisible lamp-room tap proxy - at 320px the raw lamp/lens meshes were too small to tap reliably
 // pass 1: first lighthouse-night build - marine night palette, striped tower on rocky islet, drag beam sweep, tap fog, course-correcting ships, exact corner-fit camera
 
 const PAL = {
@@ -255,6 +259,10 @@ const roof = new THREE.Mesh(new THREE.ConeGeometry(0.62, 0.6, 14),
 roof.position.y = BASE_Y + 6.45; roof.castShadow = true; tower.add(roof);
 const LENS_Y = BASE_Y + 5.72;
 lampLight.position.set(0, LENS_Y, 0);
+// forgiving invisible tap target around the lamp room (tight so it doesn't blanket the tower)
+const lampProxy = new THREE.Mesh(new THREE.SphereGeometry(1.0, 8, 8),
+  new THREE.MeshBasicMaterial({ visible: false }));
+lampProxy.position.y = LENS_Y; tower.add(lampProxy);
 
 // keeper's hut
 const hut = new THREE.Group();
@@ -391,7 +399,7 @@ function hitsTower(e) {
   toNDC(e); ray.setFromCamera(ndc, camera);
   const hits = ray.intersectObject(tower, true);
   if (!hits.length) return false;
-  hitLamp = hits[0].object === lampRoom || hits[0].object === lens;
+  hitLamp = hits[0].object === lampRoom || hits[0].object === lens || hits[0].object === lampProxy;
   return true;
 }
 renderer.domElement.addEventListener('pointerdown', (e) => {
