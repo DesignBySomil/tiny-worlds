@@ -348,12 +348,12 @@ const pines = [];
   g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
   const stars = new THREE.Points(g, new THREE.PointsMaterial({
     color: 0xdde6ff, size: 0.85, sizeAttenuation: true, transparent: true,
-    opacity: 0.9, blending: THREE.AdditiveBlending, depthWrite: false }));
+    opacity: 0.9, blending: THREE.AdditiveBlending, depthWrite: false, fog: false }));
   scene.add(stars);
 }
 const moon = new THREE.Mesh(new THREE.CircleGeometry(2.6, 24),
   new THREE.MeshBasicMaterial({ color: 0xf4f1ff, fog: false }));
-moon.position.set(14, 26, -44); moon.lookAt(0, 0, 0); scene.add(moon);
+moon.position.set(-20, 15, -35); moon.lookAt(0, 0, 0); scene.add(moon);
 {
   const cv = document.createElement('canvas'); cv.width = cv.height = 128;
   const cx = cv.getContext('2d');
@@ -400,11 +400,11 @@ const ribbons = [];
 let auroraBoost = 1, boostTarget = 1, boostHold = 0;
 {
   const RIBS = [
-    { y: 13.5, z: -18, op: 0.75, spd: 0.55, ph: 0.0, hue: [0.30, 0.85] },  // green -> violet
-    { y: 16.5, z: -24, op: 0.60, spd: 0.38, ph: 2.1, hue: [0.45, 0.72] },  // teal -> violet
-    { y: 19.5, z: -31, op: 0.50, spd: 0.27, ph: 4.4, hue: [0.28, 0.55] }   // green -> teal
+    { y: 16, z: -38, op: 0.80, spd: 0.55, ph: 0.0, hue: [0.30, 0.85] },  // green -> violet
+    { y: 19, z: -46, op: 0.65, spd: 0.38, ph: 2.1, hue: [0.45, 0.72] },  // teal -> violet
+    { y: 22, z: -55, op: 0.55, spd: 0.27, ph: 4.4, hue: [0.28, 0.55] }   // green -> teal
   ];
-  const W = 130, H = 14, SX = 110, SY = 10;
+  const W = 160, H = 17, SX = 130, SY = 12;
   for (const R of RIBS) {
     const g = new THREE.PlaneGeometry(W, H, SX, SY);
     const p = g.attributes.position;
@@ -419,7 +419,9 @@ let auroraBoost = 1, boostTarget = 1, boostHold = 0;
       base[i*3+2] = -6 * Math.cos((x / (W/2)) * Math.PI * 0.5);  // arc away at the ends
       const gpos = (y + H/2) / H;
       tmp.copy(cA).lerp(cB, gpos);
-      const fall = Math.pow(Math.sin(Math.PI * gpos), 0.75);      // soft edges for additive
+      let fall = Math.pow(Math.sin(Math.PI * gpos), 0.75);      // soft edges for additive
+      const rayk = 0.55 + 0.45 * Math.sin(x * 0.55 + R.ph * 3) + 0.25 * Math.sin(x * 1.7 + R.ph);  // vertical rays
+      fall *= Math.max(0.15, rayk);
       colors[i*3] = tmp.r * fall; colors[i*3+1] = tmp.g * fall; colors[i*3+2] = tmp.b * fall;
     }
     g.setAttribute('color', new THREE.BufferAttribute(colors, 3));
@@ -442,7 +444,7 @@ function auroraStep(t) {
     for (let i = 0; i < p.count; i++) {
       const x = base[i*3], yl = base[i*3+1];
       const taper = 1 - Math.pow(Math.abs(yl) / 6.5, 2) * 0.35;
-      const wave = (Math.sin(x * 0.10 + t * R.spd + R.ph) * 1.7
+      const wave = (Math.sin(x * 0.07 + t * R.spd + R.ph) * 1.7
                   + Math.sin(x * 0.023 - t * R.spd * 0.45 + R.ph * 2) * 3.1) * taper * amp;
       p.setY(i, yl * 0.9 + wave);
       p.setZ(i, base[i*3+2] + Math.sin(x * 0.05 + t * 0.33 + R.ph) * 2.1 * taper);
@@ -578,6 +580,7 @@ function animate() {
   renderer.render(scene, camera);
 }
 animate();
+// pass 3: curtain-scale aurora (farther+taller, ray stripes), moon in frame, star fog fix
 // pass 2: hero aurora - brighter/closer ribbons, brighter stars+moon, lifted night exposure, icy pond
 // pass 1: aurora-cabin initial build - log cabin, 14 snow pines, frozen pond, fence,
 // lantern, woodpile, 3 seeded aurora ribbons, stars, moon, chimney smoke, shooting
