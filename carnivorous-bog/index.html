@@ -1,542 +1,1746 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Carnivorous Bog - a tiny world</title>
-<style>
-  html, body { margin:0; padding:0; height:100%; background:#17352d; overflow:hidden;
-    font-family: Georgia, 'Times New Roman', serif; }
-  #app { position:fixed; inset:0; }
-  header { position:fixed; top:0; left:0; right:0; text-align:center; pointer-events:none;
-    padding: max(18px, env(safe-area-inset-top)) 16px 18px; z-index:5;
-    background: linear-gradient(rgba(4,18,14,.66), rgba(4,18,14,.32) 55%, rgba(4,18,14,0)); }
-  header h1 { margin:0; font-size:15px; letter-spacing:.42em; font-weight:400;
-    color:#eef7ef; text-transform:uppercase; text-shadow:0 1px 8px rgba(2,14,10,.8); }
-  header .rule { width:44px; height:1px; background:rgba(238,247,239,.55); margin:9px auto; }
-  #hint { display:inline-block; font-size:11.5px; letter-spacing:.24em; text-transform:uppercase;
-    color:#f4fbf4; transition:opacity 1.2s ease; padding:5px 12px; border-radius:3px;
-    background:rgba(4,20,15,.5);
-    text-shadow:0 1px 3px rgba(2,14,10,.98), 0 0 8px rgba(2,14,10,.95), 0 0 18px rgba(2,14,10,.85); }
-  #hint.faded { opacity:.45; }
-  footer { position:fixed; bottom:0; left:0; right:0; text-align:center; pointer-events:none;
-    padding:0 16px max(14px, env(safe-area-inset-bottom)); z-index:5;
-    font-size:10px; letter-spacing:.34em; text-transform:uppercase; color:rgba(238,247,239,.6); }
-  canvas { display:block; touch-action:none; }
-  @media (max-width: 380px) {
-    header h1 { font-size:12px; letter-spacing:.3em; }
-    #hint { font-size:10px; letter-spacing:.2em; }
-  }
-</style>
-</head>
-<body>
-<div id="app"></div>
-<header>
-  <h1>Carnivorous Bog</h1>
-  <div class="rule"></div>
-  <span id="hint"></span>
-</header>
-<footer>A tiny world</footer>
-<script type="importmap">
-{ "imports": {
-  "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
-  "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
-} }
-</script>
-<script type="module">
-import * as THREE from 'three';
-import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-
-// pass 8
-const container = document.getElementById('app');
-const hintEl = document.getElementById('hint');
-const scene = new THREE.Scene();
-scene.background = new THREE.Color(0x17352d);
-scene.fog = new THREE.Fog(0x17352d, 30, 95);
-
-const camera = new THREE.PerspectiveCamera(38, innerWidth/innerHeight, 0.1, 240);
-function pickFov() {
-  const a = innerWidth / innerHeight;
-  camera.fov = a >= 0.9 ? 38 : (a >= 0.62 ? 46 : 58);
-  camera.updateProjectionMatrix();
-}
-pickFov();
-const renderer = new THREE.WebGLRenderer({ antialias: true });
-renderer.setSize(innerWidth, innerHeight);
-renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
-renderer.shadowMap.enabled = true;
-renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-container.appendChild(renderer.domElement);
-const controls = new OrbitControls(camera, renderer.domElement);
-controls.enableDamping = true; controls.dampingFactor = 0.06;
-controls.enablePan = false; controls.maxPolarAngle = Math.PI * 0.52;
-
-const sun = new THREE.DirectionalLight(0xeaf6da, 2.3);
-sun.position.set(7, 11, 5); sun.castShadow = true;
-sun.shadow.mapSize.set(1024, 1024);
-sun.shadow.camera.left = -12; sun.shadow.camera.right = 12;
-sun.shadow.camera.top = 12; sun.shadow.camera.bottom = -12;
-sun.shadow.camera.far = 60; sun.shadow.bias = -0.0006;
-scene.add(sun);
-scene.add(new THREE.HemisphereLight(0xa8d8c0, 0x22301e, 1.65));
-const glow = new THREE.PointLight(0xffd890, 0.55, 22);
-glow.position.set(0, 2.6, 1.5); scene.add(glow);
-
-function mulberry32(a) {
-  return function() {
-    a |= 0; a = a + 0x6D2B79F5 | 0;
-    let t = Math.imul(a ^ a >>> 15, 1 | a);
-    t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
-    return ((t ^ t >>> 14) >>> 0) / 4294967296;
-  };
-}
-const rng = mulberry32(20261101);
-function rand(a, b) { return a + rng() * (b - a); }
-
-function makeSoftTexture(inner, outer) {
-  const c = document.createElement('canvas'); c.width = c.height = 128;
-  const ctx = c.getContext('2d');
-  const g = ctx.createRadialGradient(64, 64, 4, 64, 64, 62);
-  g.addColorStop(0, inner); g.addColorStop(1, outer);
-  ctx.fillStyle = g; ctx.fillRect(0, 0, 128, 128);
-  return new THREE.CanvasTexture(c);
-}
-
-// ---------- slab ----------
-const SLAB_H = 1.4;
-const slabGroup = new THREE.Group(); scene.add(slabGroup);
-{
-  const top = new THREE.Mesh(new THREE.BoxGeometry(6.5, 0.22, 6.5), new THREE.MeshStandardMaterial({ color: 0x51663f, roughness: 0.95 }));
-  top.position.y = -0.11; top.receiveShadow = true; slabGroup.add(top);
-  const mid = new THREE.Mesh(new THREE.BoxGeometry(6.5, SLAB_H, 6.5),
-    new THREE.MeshStandardMaterial({ color: 0x2c3822, roughness: 1 }));
-  mid.position.y = -SLAB_H/2 - 0.2; slabGroup.add(mid);
-  const base = new THREE.Mesh(new THREE.BoxGeometry(6.9, 0.5, 6.9),
-    new THREE.MeshStandardMaterial({ color: 0x1a2417, roughness: 1 }));
-  base.position.y = -SLAB_H - 0.45; slabGroup.add(base);
-}
-
-// ---------- pools ----------
-const pools = [
-  { x: -1.35, z: 1.0, r: 0.9 },
-  { x: 1.4, z: -0.35, r: 0.75 },
-  { x: 0.2, z: 1.95, r: 0.6 },
-];
-const poolMat = new THREE.MeshStandardMaterial({ color: 0x14423c, roughness: 0.12, metalness: 0.55 });
-const rimMat = new THREE.MeshStandardMaterial({ color: 0x22321c, roughness: 1 });
-for (const p of pools) {
-  const rim = new THREE.Mesh(new THREE.RingGeometry(p.r, p.r + 0.22, 28), rimMat);
-  rim.rotation.x = -Math.PI/2; rim.position.set(p.x, 0.015, p.z); rim.receiveShadow = true; slabGroup.add(rim);
-  const w = new THREE.Mesh(new THREE.CircleGeometry(p.r, 28), poolMat);
-  w.rotation.x = -Math.PI/2; w.position.set(p.x, 0.035, p.z); w.receiveShadow = true; slabGroup.add(w);
-}
-
-// ---------- moss mounds + grass ----------
-{
-  const mossA = new THREE.MeshStandardMaterial({ color: 0x51683a, roughness: 1 });
-  const mossB = new THREE.MeshStandardMaterial({ color: 0x5e7442, roughness: 1 });
-  const mossC = new THREE.MeshStandardMaterial({ color: 0x42542f, roughness: 1 });
-  const mats = [mossA, mossB, mossC];
-  let placed = 0, guard = 0;
-  while (placed < 16 && guard++ < 200) {
-    const x = rand(-2.6, 2.6), z = rand(-2.6, 2.6);
-    let ok = true;
-    for (const p of pools) if (Math.hypot(x - p.x, z - p.z) < p.r + 0.5) ok = false;
-    if (!ok) continue;
-    const r = rand(0.5, 1.15);
-    const m = new THREE.Mesh(new THREE.SphereGeometry(r, 12, 9), mats[placed % 3]);
-    m.scale.y = rand(0.32, 0.5); m.position.set(x, 0, z);
-    m.castShadow = true; m.receiveShadow = true; slabGroup.add(m); placed++;
-  }
-  const grassMat = new THREE.MeshStandardMaterial({ color: 0x3c5230, roughness: 1 });
-  for (let i = 0; i < 34; i++) {
-    const g = new THREE.Mesh(new THREE.ConeGeometry(rand(0.04, 0.09), rand(0.3, 0.62), 5), grassMat);
-    const near = pools[i % pools.length];
-    const a = rand(0, Math.PI * 2), d = near.r + rand(0.25, 1.4);
-    let x = near.x + Math.cos(a) * d, z = near.z + Math.sin(a) * d;
-    if (Math.abs(x) > 2.7 || Math.abs(z) > 2.7) { x = rand(-2.6, 2.6); z = rand(-2.6, 2.6); }
-    g.position.set(x, rand(0.15, 0.3), z); g.rotation.z = rand(-0.15, 0.15);
-    slabGroup.add(g);
-  }
-  const reedMat = new THREE.MeshStandardMaterial({ color: 0x4a6238, roughness: 1 });
-  const tipMat = new THREE.MeshStandardMaterial({ color: 0x6b4a2e, roughness: 0.9 });
-  for (let i = 0; i < 8; i++) {
-    const near = pools[i % pools.length];
-    const a = rand(0, Math.PI * 2), d = near.r + rand(0.12, 0.5);
-    const x = near.x + Math.cos(a) * d, z = near.z + Math.sin(a) * d;
-    if (Math.abs(x) > 2.7 || Math.abs(z) > 2.7) continue;
-    const h = rand(1.3, 2.1);
-    const reed = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.035, h, 5), reedMat);
-    reed.position.set(x, h/2, z); reed.rotation.z = rand(-0.08, 0.08); reed.castShadow = true;
-    slabGroup.add(reed);
-    const tip = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.22, 6), tipMat);
-    tip.position.set(x, h + 0.08, z); tip.rotation.z = reed.rotation.z; slabGroup.add(tip);
-  }
-}
-
-// ---------- venus flytraps ----------
-const OPEN_A = 0.58, CLOSE_A = 1.45;
-const traps = [];
-const trapProxies = [];
-function makeFlytrap(x, z, R, yaw) {
-  const root = new THREE.Group(); root.position.set(x, 0, z); root.rotation.y = yaw;
-  slabGroup.add(root);
-  // base leaves
-  const leafMat = new THREE.MeshStandardMaterial({ color: 0x4f7a3a, roughness: 0.8 });
-  for (let i = 0; i < 4; i++) {
-    const leaf = new THREE.Mesh(new THREE.SphereGeometry(0.3, 8, 6), leafMat);
-    leaf.scale.set(1, 0.18, 1.9);
-    const a = i * Math.PI / 2 + rand(-0.3, 0.3);
-    leaf.position.set(Math.cos(a) * 0.42, 0.05, Math.sin(a) * 0.42);
-    leaf.rotation.y = -a + Math.PI/2; leaf.castShadow = true;
-    root.add(leaf);
-  }
-  // curved stem
-  const top = new THREE.Vector3(rand(-0.25, 0.25), rand(1.8, 2.2), rand(-0.15, 0.15));
-  const curve = new THREE.QuadraticBezierCurve3(
-    new THREE.Vector3(0, 0, 0),
-    new THREE.Vector3(top.x * 0.3, top.y * 0.55, top.z * 0.3 + 0.3),
-    top);
-  const stem = new THREE.Mesh(new THREE.TubeGeometry(curve, 8, 0.07, 6), leafMat);
-  stem.castShadow = true; root.add(stem);
-  // head
-  const head = new THREE.Group(); head.position.copy(top);
-  head.rotation.x = -0.85; head.rotation.y = -yaw + rand(-0.22, 0.22);
-  root.add(head);
-  const green = new THREE.MeshStandardMaterial({ color: 0x5d8a42, roughness: 0.55, side: THREE.DoubleSide });
-  const pink = new THREE.MeshStandardMaterial({ color: 0xe8608a, roughness: 0.4, emissive: 0x8a2040, emissiveIntensity: 0.7 });
-  const lobeGeo = new THREE.SphereGeometry(1, 20, 14, 0, Math.PI);
-  lobeGeo.rotateY(Math.PI / 2);           // bulge +x, rim circle in yz plane
-  lobeGeo.scale(0.72, 1.0, 1.18);
-  const cilGeo = new THREE.ConeGeometry(0.028, 0.2, 5);
-  const pivots = [];
-  for (const side of [1, -1]) {
-    const pivot = new THREE.Group(); head.add(pivot);
-    const ls = new THREE.Group(); ls.rotation.y = side === -1 ? Math.PI : 0; pivot.add(ls);
-    const lobe = new THREE.Mesh(lobeGeo, green);
-    lobe.scale.setScalar(R); lobe.castShadow = true; ls.add(lobe);
-    const inner = new THREE.Mesh(lobeGeo, pink);
-    inner.scale.setScalar(R * 0.97); inner.position.x = R * 0.06; ls.add(inner);
-    const nC = 10;
-    for (let i = 0; i < nC; i++) {
-      const a = (i / nC) * Math.PI * 2;
-      const py = Math.sin(a) * R, pz = Math.cos(a) * R * 1.17;
-      const dir = new THREE.Vector3(0.4, Math.sin(a), Math.cos(a)).normalize();
-      const cil = new THREE.Mesh(cilGeo, green);
-      cil.scale.setScalar(R / 0.55);
-      cil.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir);
-      cil.position.set(0, py, pz).addScaledVector(dir, 0.08);
-      ls.add(cil);
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Carnivorous bog — a tiny world</title>
+  <style>
+    :root {
+      --bg-top: #07191e;
+      --bg-mid: #0d282e;
+      --bg-bot: #050f12;
+      --text-main: #e6f4f1;
+      --text-sub: #8ab8b2;
+      --text-hint: #b8e2dc;
+      --accent: #ff6b8b;
     }
-    pivots.push(pivot);
-  }
-  const proxy = new THREE.Mesh(new THREE.SphereGeometry(Math.max(1.15, R * 2.1), 8, 6),
-    new THREE.MeshBasicMaterial({ visible: false }));
-  head.add(proxy); trapProxies.push(proxy);
-  const trap = { root, head, pivots, proxy, R, state: 'open', tState: 0 };
-  proxy.userData.trap = trap;
-  traps.push(trap);
-  return trap;
-}
-makeFlytrap(-1.9, -1.2, 0.72, 0.5);
-makeFlytrap(-0.4, -1.75, 0.64, -0.3);
-makeFlytrap(1.1, -1.4, 0.7, 0.2);
-makeFlytrap(2.1, 0.95, 0.6, -0.6);
-function setTrapAngles(trap, k) {
-  const a = OPEN_A + (CLOSE_A - OPEN_A) * k;
-  trap.pivots[0].rotation.z = a;
-  trap.pivots[1].rotation.z = -a;
-}
-for (const t of traps) setTrapAngles(t, 0);
-
-// ---------- pitcher plants ----------
-function makePitcher(x, z, s, yaw) {
-  const g = new THREE.Group(); g.position.set(x, 0, z); g.rotation.y = yaw; g.scale.setScalar(s);
-  const pts = [];
-  const prof = [[0.02,0],[0.16,0.05],[0.24,0.5],[0.3,1.2],[0.34,1.8],[0.3,2.05],[0.35,2.14]];
-  for (const [r, y] of prof) pts.push(new THREE.Vector2(r, y));
-  const tube = new THREE.Mesh(new THREE.LatheGeometry(pts, 16),
-    new THREE.MeshStandardMaterial({ color: 0x718f3f, roughness: 0.55, side: THREE.DoubleSide }));
-  tube.castShadow = true; g.add(tube);
-  const rim = new THREE.Mesh(new THREE.TorusGeometry(0.33, 0.05, 8, 18),
-    new THREE.MeshStandardMaterial({ color: 0x8a3040, roughness: 0.5 }));
-  rim.rotation.x = Math.PI/2; rim.position.y = 2.14; g.add(rim);
-  const hood = new THREE.Mesh(new THREE.SphereGeometry(0.42, 12, 8, 0, Math.PI*2, 0, Math.PI/2),
-    new THREE.MeshStandardMaterial({ color: 0x9c3a48, roughness: 0.5, side: THREE.DoubleSide }));
-  hood.scale.set(1, 0.55, 1); hood.position.set(0, 2.62, 0.22); hood.rotation.x = 0.5; hood.castShadow = true;
-  g.add(hood);
-  const stalk = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 0.5, 5),
-    new THREE.MeshStandardMaterial({ color: 0x718f3f, roughness: 0.6 }));
-  stalk.position.set(0, 2.35, 0.12); stalk.rotation.x = 0.55; g.add(stalk);
-  slabGroup.add(g);
-}
-makePitcher(-2.3, 1.55, 1.35, 0.4);
-makePitcher(0.7, -0.75, 1.05, -0.5);
-makePitcher(2.3, -0.7, 1.2, 0.9);
-
-// ---------- sundews ----------
-function makeSundew(x, z, s) {
-  const g = new THREE.Group(); g.position.set(x, 0.06, z); g.scale.setScalar(s);
-  const leafMat = new THREE.MeshStandardMaterial({ color: 0x9c4438, roughness: 0.6 });
-  const tipMat = new THREE.MeshStandardMaterial({ color: 0xffc35a, emissive: 0xff9a2e, emissiveIntensity: 1.2 });
-  const nL = 8;
-  for (let i = 0; i < nL; i++) {
-    const a = (i / nL) * Math.PI * 2;
-    const leaf = new THREE.Mesh(new THREE.SphereGeometry(0.17, 8, 6), leafMat);
-    leaf.scale.set(0.6, 0.22, 1.5);
-    leaf.position.set(Math.cos(a) * 0.24, 0.04, Math.sin(a) * 0.24);
-    leaf.rotation.y = -a + Math.PI/2; leaf.castShadow = true;
-    g.add(leaf);
-    for (let j = 0; j < 3; j++) {
-      const d = 0.12 + j * 0.14;
-      const ten = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.012, 0.12, 4), tipMat);
-      ten.position.set(Math.cos(a) * d, 0.12, Math.sin(a) * d);
-      g.add(ten);
-      const tip = new THREE.Mesh(new THREE.SphereGeometry(0.028, 6, 5), tipMat);
-      tip.position.set(Math.cos(a) * d, 0.19, Math.sin(a) * d);
-      g.add(tip);
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      user-select: none;
+      -webkit-user-select: none;
+      -webkit-touch-callout: none;
     }
-  }
-  slabGroup.add(g);
-}
-makeSundew(0.7, 1.4, 2.0);
-makeSundew(-2.3, 0.2, 1.7);
-makeSundew(-0.9, 0.2, 1.6);
-
-// ---------- the fly ----------
-const fly = { state: 'orbit', t0: 0, from: new THREE.Vector3(), to: new THREE.Vector3(),
-  anchorTrap: traps[0], respawnAt: 0, phase: rand(0, 6) };
-{
-  const g = new THREE.Group();
-  const body = new THREE.Mesh(new THREE.SphereGeometry(0.06, 8, 6),
-    new THREE.MeshStandardMaterial({ color: 0x201812, roughness: 0.6 }));
-  g.add(body);
-  const wingMat = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.45, side: THREE.DoubleSide });
-  const wL = new THREE.Mesh(new THREE.PlaneGeometry(0.12, 0.07), wingMat); wL.position.set(-0.05, 0.05, 0); g.add(wL);
-  const wR = wL.clone(); wR.position.x = 0.05; g.add(wR);
-  fly.group = g; fly.wL = wL; fly.wR = wR;
-  scene.add(g);
-}
-function flyOrbitPos(now, out) {
-  const a = now * 2.2 + fly.phase;
-  const h = new THREE.Vector3(); fly.anchorTrap.head.getWorldPosition(h);
-  out.set(h.x + Math.cos(a) * 0.85, h.y + 0.75 + Math.sin(now * 3.1 + fly.phase) * 0.18, h.z + Math.sin(a) * 0.85);
-  return out;
-}
-
-// ---------- hint ----------
-const hintIdle = 'Tap a flytrap';
-const hintSnap = 'Snap!';
-let hintOwner = 'idle';
-function setHint(text, owner) { hintEl.textContent = text; hintEl.classList.remove('faded'); hintOwner = owner; }
-function resetHintIf(owner) { if (hintOwner === owner) setHint(hintIdle, 'idle'); }
-setHint(hintIdle, 'idle');
-
-// ---------- trap trigger ----------
-let lastTap = 0;
-function snapTrap(trap, now) {
-  if (trap.state !== 'open') return;
-  lastTap = now;
-  trap.state = 'closing'; trap.tState = now;
-  setHint(hintSnap, 'user');
-  if (fly.state === 'orbit') {
-    fly.state = 'incoming'; fly.t0 = now;
-    fly.group.getWorldPosition(fly.from);
-    fly.from.copy(fly.group.position);
-    trap.head.getWorldPosition(fly.to); fly.to.y += 0.1;
-  }
-}
-
-// ---------- interaction ----------
-const ray = new THREE.Raycaster();
-const ptr = new THREE.Vector2();
-let downX = 0, downY = 0;
-renderer.domElement.addEventListener('pointerdown', e => { downX = e.clientX; downY = e.clientY; });
-renderer.domElement.addEventListener('pointerup', e => {
-  if (Math.hypot(e.clientX - downX, e.clientY - downY) > 8) return;
-  ptr.x = (e.clientX / innerWidth) * 2 - 1;
-  ptr.y = -(e.clientY / innerHeight) * 2 + 1;
-  ray.setFromCamera(ptr, camera);
-  const hits = ray.intersectObjects(trapProxies, false);
-  if (hits.length) {
-    const now = performance.now() / 1000;
-    if (now - lastTap > 0.5) snapTrap(hits[0].object.userData.trap, now);
-  }
-});
-
-// ---------- fireflies + mist + bubbles ----------
-const fireflies = [];
-{
-  const tex = makeSoftTexture('rgba(255,233,160,1)', 'rgba(255,233,160,0)');
-  for (let i = 0; i < 16; i++) {
-    const mat = new THREE.SpriteMaterial({ map: tex, color: 0xffd977, transparent: true, opacity: 0.6, depthWrite: false });
-    const s = new THREE.Sprite(mat);
-    const sc = rand(0.14, 0.24); s.scale.set(sc, sc, 1);
-    scene.add(s);
-    fireflies.push({ s, ax: rand(-3.4, 3.4), ay: rand(1, 4.6), az: rand(-3.2, 3.2),
-      r: rand(0.6, 1.5), spd: rand(0.3, 0.8), ph: rand(0, 6.3) });
-  }
-}
-const mists = [];
-{
-  const tex = makeSoftTexture('rgba(169,198,178,0.9)', 'rgba(169,198,178,0)');
-  for (let i = 0; i < 6; i++) {
-    const mat = new THREE.SpriteMaterial({ map: tex, transparent: true, opacity: 0.13, depthWrite: false });
-    const s = new THREE.Sprite(mat);
-    s.scale.set(rand(5, 8), rand(2, 3), 1);
-    s.position.set(rand(-6, 6), rand(0.4, 1.0), rand(-4, 4));
-    scene.add(s);
-    mists.push({ s, spd: rand(0.1, 0.22) * (i % 2 ? 1 : -1) });
-  }
-}
-const bubbles = [];
-{
-  const bm = new THREE.MeshStandardMaterial({ color: 0x2a5a50, roughness: 0.3, emissive: 0x0e2a24, emissiveIntensity: 0.6 });
-  for (let i = 0; i < 5; i++) {
-    const b = new THREE.Mesh(new THREE.SphereGeometry(rand(0.04, 0.07), 8, 6), bm);
-    const p = pools[0];
-    const a = rand(0, Math.PI*2), d = rand(0, p.r * 0.6);
-    b.position.set(p.x + Math.cos(a) * d, 0.04, p.z + Math.sin(a) * d);
-    slabGroup.add(b);
-    bubbles.push({ m: b, per: rand(2.6, 4.2), off: rand(0, 4), y0: 0.04 });
-  }
-}
-
-
-// ---------- dead bog tree ----------
-function makeBogTree(x, z) {
-  const g = new THREE.Group(); g.position.set(x, 0, z); g.rotation.y = rand(-0.4, 0.4);
-  const bark = new THREE.MeshStandardMaterial({ color: 0x4a3a2a, roughness: 0.95 });
-  const mossMat = new THREE.MeshStandardMaterial({ color: 0x5a7040, roughness: 1 });
-  const t1 = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.18, 2.0, 7), bark);
-  t1.position.y = 1.0; t1.rotation.z = 0.08; t1.castShadow = true; g.add(t1);
-  const t2 = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.09, 1.7, 6), bark);
-  t2.position.set(0.16, 2.65, 0); t2.rotation.z = 0.22; t2.castShadow = true; g.add(t2);
-  for (let i = 0; i < 5; i++) {
-    const bl = rand(0.6, 1.2);
-    const br = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.05, bl, 5), bark);
-    const a = rand(0, Math.PI * 2), y = rand(1.7, 3.4);
-    br.position.set(Math.cos(a) * 0.15, y, Math.sin(a) * 0.15);
-    br.rotation.z = rand(0.8, 1.3) * (i % 2 ? 1 : -1); br.rotation.y = a;
-    br.castShadow = true; g.add(br);
-    const moss = new THREE.Mesh(new THREE.ConeGeometry(0.1, rand(0.35, 0.6), 5), mossMat);
-    moss.rotation.x = Math.PI;
-    moss.position.set(br.position.x + Math.sin(br.rotation.z) * bl * 0.45, y - 0.3,
-      br.position.z + Math.cos(a) * bl * 0.3);
-    g.add(moss);
-  }
-  slabGroup.add(g);
-}
-makeBogTree(-2.5, 2.3);
-
-// ---------- camera containment ----------
-const fitBox = new THREE.Box3(
-  new THREE.Vector3(-3.2, -2.35, -3.2),
-  new THREE.Vector3(3.2, 4.3, 3.2));
-function fitCamera() {
-  const center = fitBox.getCenter(new THREE.Vector3());
-  controls.target.copy(center);
-  const dir = new THREE.Vector3(0.14, 0.68, 1).normalize();
-  const corners = [];
-  for (const x of [fitBox.min.x, fitBox.max.x])
-    for (const y of [fitBox.min.y, fitBox.max.y])
-      for (const z of [fitBox.min.z, fitBox.max.z])
-        corners.push(new THREE.Vector3(x, y, z));
-  const probe = new THREE.PerspectiveCamera(camera.fov, camera.aspect, 0.1, 240);
-  probe.position.copy(center).addScaledVector(dir, 0.001); probe.lookAt(center); probe.updateMatrixWorld();
-  const inv = probe.matrixWorldInverse;
-  let need = 0;
-  const vFov = THREE.MathUtils.degToRad(camera.fov) / 2;
-  const hFov = Math.atan(Math.tan(vFov) * camera.aspect);
-  for (const c of corners) {
-    const p = c.clone().applyMatrix4(inv);
-    const d = -p.z;
-    need = Math.max(need, d + Math.abs(p.y) / Math.tan(vFov), d + Math.abs(p.x) / Math.tan(hFov));
-  }
-  const dist = need * 1.1 + 0.2;
-  camera.position.copy(center).addScaledVector(dir, dist);
-  controls.target.y += -0.35;
-  camera.position.y += -0.35;
-  camera.lookAt(controls.target); controls.update();
-}
-fitCamera();
-addEventListener('resize', () => {
-  camera.aspect = innerWidth / innerHeight; pickFov();
-  renderer.setSize(innerWidth, innerHeight); fitCamera();
-});
-
-// ---------- animate ----------
-const clock = new THREE.Clock();
-const ndcV = new THREE.Vector3();
-const tmpV = new THREE.Vector3();
-function animate() {
-  requestAnimationFrame(animate);
-  const dt = Math.min(clock.getDelta(), 0.3);
-  const now = performance.now() / 1000;
-  // trap state machines (wall clock)
-  for (const t of traps) {
-    if (t.state === 'closing') {
-      const snapStart = t.tState + 0.3;
-      const k = Math.min(1, Math.max(0, (now - snapStart) / 0.18));
-      setTrapAngles(t, k * k);
-      if (k >= 1) { t.state = 'shut'; if (fly.state === 'incoming') fly.state = 'eaten'; }
-    } else if (t.state === 'shut') {
-      if (now - t.tState > 2.0) t.state = 'opening';
-    } else if (t.state === 'opening') {
-      const k = Math.min(1, (now - t.tState - 2.0) / 1.7);
-      const e = 1 - Math.pow(1 - k, 3);
-      setTrapAngles(t, 1 - e);
-      if (k >= 1) {
-        t.state = 'open';
-        resetHintIf('user');
-        if (fly.state === 'eaten') {
-          fly.state = 'orbit'; fly.group.visible = true;
-          fly.anchorTrap = traps[Math.floor(rand(0, traps.length)) % traps.length];
-          fly.phase = rand(0, 6.3);
-        }
+    html, body {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: radial-gradient(circle at 50% 42%, var(--bg-mid) 0%, var(--bg-top) 55%, var(--bg-bot) 100%);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      color: var(--text-main);
+    }
+    #app {
+      position: relative;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+    }
+    canvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+      outline: none;
+      cursor: grab;
+      touch-action: none;
+    }
+    canvas:active {
+      cursor: grabbing;
+    }
+    .hud-header {
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      padding: 14px 16px 10px;
+      text-align: center;
+      pointer-events: none;
+      z-index: 10;
+      background: linear-gradient(to bottom, rgba(5, 15, 18, 0.88) 0%, rgba(5, 15, 18, 0.55) 70%, rgba(5, 15, 18, 0) 100%);
+    }
+    .title {
+      font-size: clamp(1.15rem, 3.5vw, 1.5rem);
+      font-weight: 700;
+      letter-spacing: 0.03em;
+      color: var(--text-main);
+      text-shadow: 0 2px 10px rgba(0, 0, 0, 0.65);
+      line-height: 1.15;
+    }
+    .subtitle {
+      font-size: clamp(0.72rem, 2.2vw, 0.85rem);
+      font-weight: 500;
+      text-transform: uppercase;
+      letter-spacing: 0.16em;
+      color: var(--text-sub);
+      margin-top: 2px;
+      text-shadow: 0 1px 6px rgba(0, 0, 0, 0.65);
+    }
+    .hint-pill {
+      display: inline-block;
+      margin-top: 7px;
+      padding: 4px 12px;
+      border-radius: 999px;
+      background: rgba(13, 40, 46, 0.78);
+      border: 1px solid rgba(138, 184, 178, 0.28);
+      color: var(--text-hint);
+      font-size: clamp(0.68rem, 2vw, 0.78rem);
+      letter-spacing: 0.02em;
+      backdrop-filter: blur(4px);
+      -webkit-backdrop-filter: blur(4px);
+      box-shadow: 0 2px 8px rgba(0,0,0,0.35);
+    }
+    .hud-footer {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      padding: 10px 16px 12px;
+      text-align: center;
+      pointer-events: none;
+      z-index: 10;
+      background: linear-gradient(to top, rgba(5, 15, 18, 0.85) 0%, rgba(5, 15, 18, 0.45) 65%, rgba(5, 15, 18, 0) 100%);
+    }
+    .footer-text {
+      font-size: clamp(0.68rem, 2vw, 0.76rem);
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: rgba(138, 184, 178, 0.75);
+      text-shadow: 0 1px 4px rgba(0, 0, 0, 0.7);
+    }
+    #fallback {
+      display: none;
+      position: absolute;
+      inset: 0;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+      text-align: center;
+      background: #07191e;
+      color: #e6f4f1;
+      z-index: 100;
+      font-size: 0.95rem;
+      line-height: 1.5;
+    }
+  </style>
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+        "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
       }
     }
-  }
-  // fly
-  if (fly.state === 'orbit') {
-    flyOrbitPos(now, tmpV); fly.group.position.copy(tmpV);
-  } else if (fly.state === 'incoming') {
-    const k = Math.min(1, (now - fly.t0) / 0.3);
-    fly.group.position.lerpVectors(fly.from, fly.to, k);
-  } else if (fly.state === 'eaten') {
-    fly.group.visible = false;
-  }
-  if (fly.group.visible) {
-    const f = Math.sin(now * 40) * 0.6;
-    fly.wL.rotation.z = f; fly.wR.rotation.z = -f;
-  }
-  // fireflies
-  for (const fl of fireflies) {
-    const a = now * fl.spd + fl.ph;
-    fl.s.position.set(fl.ax + Math.cos(a) * fl.r, fl.ay + Math.sin(now * 1.3 + fl.ph) * 0.3, fl.az + Math.sin(a) * fl.r);
-    const pulse = 0.35 + 0.4 * (0.5 + 0.5 * Math.sin(now * 2 + fl.ph * 2));
-    ndcV.copy(fl.s.position).project(camera);
-    const inBand = ndcV.y > 0.45 && Math.abs(ndcV.x) < 0.62;
-    fl.s.material.opacity = inBand ? 0.05 : pulse;
-  }
-  // mist
-  for (const m of mists) {
-    m.s.position.x += m.spd * dt;
-    if (m.s.position.x > 8) m.s.position.x = -8;
-    if (m.s.position.x < -8) m.s.position.x = 8;
-    ndcV.copy(m.s.position).project(camera);
-    m.s.material.opacity = (ndcV.y > 0.45 && Math.abs(ndcV.x) < 0.62) ? 0.03 : 0.13;
-  }
-  // bubbles
-  for (const b of bubbles) {
-    const t = ((now + b.off) % b.per) / b.per;
-    b.m.position.y = b.y0 + t * 0.32;
-    b.m.scale.setScalar(1 - t * 0.4);
-  }
-  controls.update();
-  renderer.render(scene, camera);
-}
-animate();
-</script>
+  </script>
+</head>
+<body>
+  <div id="app">
+    <header class="hud-header" id="hudHeader">
+      <h1 class="title">Carnivorous bog</h1>
+      <div class="subtitle">a tiny world</div>
+      <div class="hint-pill">tap a flytrap to snap - tap a sundew to curl</div>
+    </header>
+
+    <footer class="hud-footer" id="hudFooter">
+      <div class="footer-text">A tiny world</div>
+    </footer>
+
+    <div id="fallback">
+      <div>
+        <strong>WebGL could not be initialized.</strong><br />
+        Please enable hardware acceleration or try a modern WebGL-compatible browser to explore the Carnivorous Bog miniature.
+      </div>
+    </div>
+  </div>
+
+  <script type="module">
+    import * as THREE from 'three';
+    import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+    // Deterministic PRNG: mulberry32(20261103)
+    function mulberry32(a) {
+      return function() {
+        let t = (a += 0x6D2B79F5);
+        t = Math.imul(t ^ (t >>> 15), t | 1);
+        t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+        return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+      };
+    }
+    const rand = mulberry32(20261103);
+    const randRange = (min, max) => min + (max - min) * rand();
+
+    const appEl = document.getElementById('app');
+    const headerEl = document.getElementById('hudHeader');
+    const footerEl = document.getElementById('hudFooter');
+    const fallbackEl = document.getElementById('fallback');
+
+    let renderer;
+    try {
+      renderer = new THREE.WebGLRenderer({
+        antialias: true,
+        powerPreference: 'high-performance',
+        alpha: false
+      });
+    } catch (err) {
+      fallbackEl.style.display = 'flex';
+      throw err;
+    }
+
+    if (!renderer || !renderer.getContext()) {
+      fallbackEl.style.display = 'flex';
+      throw new Error('WebGL context creation failed');
+    }
+
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.75));
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 1.12;
+    renderer.outputColorSpace = THREE.SRGBColorSpace;
+    appEl.appendChild(renderer.domElement);
+
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x091d22);
+    scene.fog = new THREE.FogExp2(0x0c262c, 0.042);
+
+    const camera = new THREE.PerspectiveCamera(38, window.innerWidth / window.innerHeight, 0.1, 100);
+    const controls = new OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.06;
+    controls.enablePan = false;
+    controls.minPolarAngle = THREE.MathUtils.degToRad(26);
+    controls.maxPolarAngle = THREE.MathUtils.degToRad(68);
+    controls.minAzimuthAngle = -THREE.MathUtils.degToRad(65);
+    controls.maxAzimuthAngle = THREE.MathUtils.degToRad(65);
+
+    const worldRoot = new THREE.Group();
+    scene.add(worldRoot);
+
+    // Lighting for moody teal dusk + warm amber firefly contrast + rim highlights
+    const hemiLight = new THREE.HemisphereLight(0x6ad6cb, 0x1a120b, 0.95);
+    hemiLight.position.set(0, 10, 0);
+    scene.add(hemiLight);
+
+    const dirLight = new THREE.DirectionalLight(0xb8fff4, 1.65);
+    dirLight.position.set(5.5, 9.2, 6.2);
+    dirLight.castShadow = true;
+    dirLight.shadow.mapSize.width = 1024;
+    dirLight.shadow.mapSize.height = 1024;
+    dirLight.shadow.camera.near = 2;
+    dirLight.shadow.camera.far = 20;
+    const dCam = 4.6;
+    dirLight.shadow.camera.left = -dCam;
+    dirLight.shadow.camera.right = dCam;
+    dirLight.shadow.camera.top = dCam;
+    dirLight.shadow.camera.bottom = -dCam;
+    dirLight.shadow.bias = -0.0008;
+    scene.add(dirLight);
+
+    const rimLight = new THREE.DirectionalLight(0x36b3a8, 0.9);
+    rimLight.position.set(-6.0, 4.5, -5.0);
+    scene.add(rimLight);
+
+    const bogGlowLight = new THREE.PointLight(0xffaa44, 1.1, 7.5, 1.6);
+    bogGlowLight.position.set(0.3, 1.4, 0.4);
+    scene.add(bogGlowLight);
+
+    const pinkTrapLight = new THREE.PointLight(0xff4f79, 0.75, 4.5, 1.8);
+    pinkTrapLight.position.set(0.45, 0.95, 0.55);
+    scene.add(pinkTrapLight);
+
+    // Procedural radial soft glow texture for mist & firefly halos
+    function createSoftRadialTexture() {
+      const size = 128;
+      const c = document.createElement('canvas');
+      c.width = size;
+      c.height = size;
+      const ctx = c.getContext('2d');
+      const grad = ctx.createRadialGradient(size / 2, size / 2, 2, size / 2, size / 2, size / 2);
+      grad.addColorStop(0, 'rgba(255, 255, 255, 1)');
+      grad.addColorStop(0.35, 'rgba(220, 255, 245, 0.55)');
+      grad.addColorStop(0.7, 'rgba(170, 240, 220, 0.16)');
+      grad.addColorStop(1, 'rgba(170, 240, 220, 0)');
+      ctx.fillStyle = grad;
+      ctx.fillRect(0, 0, size, size);
+      const tex = new THREE.CanvasTexture(c);
+      tex.needsUpdate = true;
+      return tex;
+    }
+    const softGlowTex = createSoftRadialTexture();
+
+    // Shared Materials
+    const mats = {
+      slabRim: new THREE.MeshStandardMaterial({
+        color: 0x1c120d,
+        roughness: 0.92,
+        metalness: 0.04
+      }),
+      peatDark: new THREE.MeshStandardMaterial({
+        color: 0x261811,
+        roughness: 0.88,
+        metalness: 0.05
+      }),
+      peatWet: new THREE.MeshStandardMaterial({
+        color: 0x1a110c,
+        roughness: 0.35,
+        metalness: 0.12
+      }),
+      waterPool: new THREE.MeshPhysicalMaterial({
+        color: 0x0b3b42,
+        emissive: 0x041a1e,
+        roughness: 0.08,
+        metalness: 0.15,
+        transmission: 0.35,
+        transparent: true,
+        opacity: 0.92,
+        reflectivity: 0.9,
+        clearcoat: 1.0,
+        clearcoatRoughness: 0.06
+      }),
+      waterRipple: new THREE.MeshBasicMaterial({
+        color: 0x6ce5db,
+        transparent: true,
+        opacity: 0.22,
+        side: THREE.DoubleSide,
+        depthWrite: false
+      }),
+      mossBase: new THREE.MeshStandardMaterial({
+        color: 0x2f5e37,
+        roughness: 0.82,
+        metalness: 0.02
+      }),
+      mossInstance: new THREE.MeshStandardMaterial({
+        color: 0x488243,
+        roughness: 0.76,
+        metalness: 0.02
+      }),
+      deadWood: new THREE.MeshStandardMaterial({
+        color: 0x3b2d26,
+        roughness: 0.89,
+        metalness: 0.03
+      }),
+      stemGreen: new THREE.MeshStandardMaterial({
+        color: 0x488a3c,
+        roughness: 0.55,
+        metalness: 0.05
+      }),
+      lobeOuter: new THREE.MeshStandardMaterial({
+        color: 0x5aa844,
+        roughness: 0.48,
+        metalness: 0.05
+      }),
+      lobeInner: new THREE.MeshStandardMaterial({
+        color: 0xe3295b,
+        emissive: 0x3a0515,
+        roughness: 0.35,
+        metalness: 0.04
+      }),
+      lobeTooth: new THREE.MeshStandardMaterial({
+        color: 0x99d959,
+        roughness: 0.4,
+        metalness: 0.05
+      }),
+      pitcherBody: new THREE.MeshStandardMaterial({
+        color: 0x6b1d39,
+        emissive: 0x18040b,
+        roughness: 0.42,
+        metalness: 0.08
+      }),
+      pitcherLip: new THREE.MeshStandardMaterial({
+        color: 0x9e284b,
+        roughness: 0.3,
+        metalness: 0.1
+      }),
+      pitcherHood: new THREE.MeshStandardMaterial({
+        color: 0x7c2b42,
+        roughness: 0.48,
+        metalness: 0.06,
+        side: THREE.DoubleSide
+      }),
+      sundewStem: new THREE.MeshStandardMaterial({
+        color: 0x883249,
+        roughness: 0.5,
+        metalness: 0.05
+      }),
+      sundewTentacle: new THREE.MeshStandardMaterial({
+        color: 0xd9385a,
+        emissive: 0x2b040d,
+        roughness: 0.38
+      }),
+      dewDrop: new THREE.MeshPhysicalMaterial({
+        color: 0xffffff,
+        emissive: 0x265c58,
+        roughness: 0.02,
+        metalness: 0.0,
+        transmission: 0.85,
+        transparent: true,
+        opacity: 0.9,
+        clearcoat: 1.0
+      }),
+      bubbleMat: new THREE.MeshPhysicalMaterial({
+        color: 0x9bfcf0,
+        emissive: 0x154742,
+        roughness: 0.05,
+        metalness: 0.1,
+        transmission: 0.75,
+        transparent: true,
+        opacity: 0.82
+      }),
+      fireflyMat: new THREE.MeshBasicMaterial({
+        color: 0xffc857
+      }),
+      mistMat: new THREE.MeshBasicMaterial({
+        map: softGlowTex,
+        color: 0x98ebd7,
+        transparent: true,
+        opacity: 0.18,
+        depthWrite: false,
+        side: THREE.DoubleSide
+      }),
+      flyBody: new THREE.MeshStandardMaterial({
+        color: 0x182226,
+        roughness: 0.3,
+        metalness: 0.5
+      }),
+      flyEye: new THREE.MeshStandardMaterial({
+        color: 0xb8332a,
+        roughness: 0.25,
+        metalness: 0.2
+      }),
+      flyWing: new THREE.MeshPhysicalMaterial({
+        color: 0xdaf7ff,
+        emissive: 0x1b3840,
+        roughness: 0.1,
+        transmission: 0.7,
+        transparent: true,
+        opacity: 0.72,
+        side: THREE.DoubleSide
+      }),
+      proxyMat: new THREE.MeshBasicMaterial({
+        visible: false
+      })
+    };
+
+    // 1. COMPACT SCULPTURAL DIORAMA SLAB & BOG POOLS
+    const slabGroup = new THREE.Group();
+    worldRoot.add(slabGroup);
+
+    // Beveled multi-tiered octagonal-ish cylinder slab base
+    const baseOuterGeo = new THREE.CylinderGeometry(3.25, 3.02, 0.72, 24);
+    // Slightly organic vertex perturbation
+    const posAttr = baseOuterGeo.attributes.position;
+    for (let i = 0; i < posAttr.count; i++) {
+      const vx = posAttr.getX(i);
+      const vy = posAttr.getY(i);
+      const vz = posAttr.getZ(i);
+      const r = Math.hypot(vx, vz);
+      if (r > 0.5) {
+        const ang = Math.atan2(vz, vx);
+        const wave = 1 + 0.045 * Math.sin(ang * 3 + 0.7) + 0.03 * Math.cos(ang * 5 - 0.4);
+        const bevel = vy > 0 ? 0.96 : 1.0;
+        posAttr.setX(i, vx * wave * bevel);
+        posAttr.setZ(i, vz * wave * bevel);
+      }
+    }
+    baseOuterGeo.computeVertexNormals();
+    const baseMesh = new THREE.Mesh(baseOuterGeo, mats.slabRim);
+    baseMesh.position.y = -0.38;
+    baseMesh.receiveShadow = true;
+    baseMesh.castShadow = true;
+    slabGroup.add(baseMesh);
+
+    // Peat lip rim
+    const peatRimGeo = new THREE.TorusGeometry(2.96, 0.24, 12, 36);
+    peatRimGeo.rotateX(Math.PI / 2);
+    const rPos = peatRimGeo.attributes.position;
+    for (let i = 0; i < rPos.count; i++) {
+      const vx = rPos.getX(i);
+      const vy = rPos.getY(i);
+      const vz = rPos.getZ(i);
+      const ang = Math.atan2(vz, vx);
+      const radialMod = 1 + 0.045 * Math.sin(ang * 3 + 0.7) + 0.03 * Math.cos(ang * 5 - 0.4);
+      rPos.setX(i, vx * radialMod);
+      rPos.setZ(i, vz * radialMod);
+      rPos.setY(i, vy * 0.65 + 0.04 * Math.sin(ang * 7));
+    }
+    peatRimGeo.computeVertexNormals();
+    const peatRimMesh = new THREE.Mesh(peatRimGeo, mats.peatDark);
+    peatRimMesh.position.y = -0.02;
+    peatRimMesh.receiveShadow = true;
+    slabGroup.add(peatRimMesh);
+
+    // Mirror-like dark teal bog pool surface
+    const waterGeo = new THREE.CircleGeometry(2.92, 36);
+    waterGeo.rotateX(-Math.PI / 2);
+    const waterMesh = new THREE.Mesh(waterGeo, mats.waterPool);
+    waterMesh.position.y = 0.01;
+    waterMesh.receiveShadow = true;
+    slabGroup.add(waterMesh);
+
+    // Dark wet peat basin under water
+    const basinGeo = new THREE.CircleGeometry(2.92, 32);
+    basinGeo.rotateX(-Math.PI / 2);
+    const basinMesh = new THREE.Mesh(basinGeo, mats.peatWet);
+    basinMesh.position.y = -0.05;
+    slabGroup.add(basinMesh);
+
+    // Shimmering pool ripple rings
+    const poolRipples = [];
+    const rippleRingGeo = new THREE.RingGeometry(0.18, 0.22, 28);
+    rippleRingGeo.rotateX(-Math.PI / 2);
+    const poolCenters = [
+      new THREE.Vector3(-1.25, 0.016, 1.05),
+      new THREE.Vector3(1.35, 0.016, 0.85),
+      new THREE.Vector3(-0.2, 0.016, 1.65),
+      new THREE.Vector3(1.1, 0.016, -1.25)
+    ];
+    for (let i = 0; i < poolCenters.length; i++) {
+      const m = mats.waterRipple.clone();
+      const ring = new THREE.Mesh(rippleRingGeo, m);
+      ring.position.copy(poolCenters[i]);
+      slabGroup.add(ring);
+      poolRipples.push({ mesh: ring, mat: m, phase: i * 1.57, center: poolCenters[i] });
+    }
+
+    // 2. MOSSY HUMMOCKS & INSTANCED MOSS TUFTS
+    const hummocksData = [
+      { x: 0.35, z: 0.25, rx: 1.05, ry: 0.42, rz: 0.92 },  // Main flytrap hummock
+      { x: -1.15, z: -0.45, rx: 1.12, ry: 0.48, rz: 0.95 }, // Dead tree & pitcher hummock
+      { x: 0.85, z: -1.10, rx: 0.88, ry: 0.38, rz: 0.78 },  // Back-right pitcher hummock
+      { x: -0.65, z: 1.05, rx: 0.76, ry: 0.30, rz: 0.68 },  // Front-left sundew hummock
+      { x: 1.55, z: 0.05, rx: 0.68, ry: 0.28, rz: 0.64 },   // Mid-right sundew hummock
+      { x: -1.85, z: 0.55, rx: 0.58, ry: 0.25, rz: 0.52 }   // Small edge hummock
+    ];
+
+    const hummockGeo = new THREE.SphereGeometry(1, 20, 14);
+    hummocksData.forEach((h) => {
+      // Peat under-mound
+      const peatMound = new THREE.Mesh(hummockGeo, mats.peatDark);
+      peatMound.scale.set(h.rx * 1.04, h.ry * 0.82, h.rz * 1.04);
+      peatMound.position.set(h.x, -0.04, h.z);
+      peatMound.receiveShadow = true;
+      peatMound.castShadow = true;
+      slabGroup.add(peatMound);
+
+      // Moss cap
+      const mossCap = new THREE.Mesh(hummockGeo, mats.mossBase);
+      mossCap.scale.set(h.rx, h.ry, h.rz);
+      mossCap.position.set(h.x, 0.0, h.z);
+      mossCap.receiveShadow = true;
+      mossCap.castShadow = true;
+      slabGroup.add(mossCap);
+    });
+
+    // Helper to get surface height on hummocks
+    function getHummockY(x, z) {
+      let maxY = 0.0;
+      for (const h of hummocksData) {
+        const dx = (x - h.x) / h.rx;
+        const dz = (z - h.z) / h.rz;
+        const d2 = dx * dx + dz * dz;
+        if (d2 < 1.0) {
+          const y = Math.sqrt(1.0 - d2) * h.ry;
+          if (y > maxY) maxY = y;
+        }
+      }
+      return maxY;
+    }
+
+    // Instanced Moss Tuft Cushions across hummocks & tree roots (360 instances)
+    const MOSS_COUNT = 360;
+    const mossTuftGeo = new THREE.DodecahedronGeometry(0.085, 1);
+    const mossInst = new THREE.InstancedMesh(mossTuftGeo, mats.mossInstance, MOSS_COUNT);
+    mossInst.castShadow = true;
+    mossInst.receiveShadow = true;
+    worldRoot.add(mossInst);
+
+    const dummy = new THREE.Object3D();
+    const tempColor = new THREE.Color();
+    for (let i = 0; i < MOSS_COUNT; i++) {
+      const h = hummocksData[i % hummocksData.length];
+      const angle = rand() * Math.PI * 2;
+      const dist = Math.pow(rand(), 0.65) * 0.92;
+      const mx = h.x + Math.cos(angle) * dist * h.rx;
+      const mz = h.z + Math.sin(angle) * dist * h.rz;
+      const my = getHummockY(mx, mz) - 0.015;
+
+      dummy.position.set(mx, my, mz);
+      dummy.rotation.set(rand() * 0.5, rand() * Math.PI * 2, rand() * 0.5);
+      const s = randRange(0.65, 1.45);
+      dummy.scale.set(s * 1.2, s * 0.72, s * 1.2);
+      dummy.updateMatrix();
+      mossInst.setMatrixAt(i, dummy.matrix);
+
+      // Rich moss color variation (emerald, olive, lime-moss, deep bog green)
+      tempColor.setHSL(randRange(0.26, 0.36), randRange(0.42, 0.65), randRange(0.22, 0.38));
+      mossInst.setColorAt(i, tempColor);
+    }
+    mossInst.instanceMatrix.needsUpdate = true;
+    if (mossInst.instanceColor) mossInst.instanceColor.needsUpdate = true;
+
+    // 3. DEAD MOSS-DRAPED BOG TREE
+    const treeGroup = new THREE.Group();
+    treeGroup.position.set(-1.35, getHummockY(-1.35, -0.55) - 0.05, -0.55);
+    worldRoot.add(treeGroup);
+
+    function createBranchMesh(points, rStart, rEnd, radialSegs = 8) {
+      const curve = new THREE.CatmullRomCurve3(points);
+      const tubularSegs = 20;
+      const geo = new THREE.TubeGeometry(curve, tubularSegs, 1, radialSegs, false);
+      const pos = geo.attributes.position;
+
+      for (let i = 0; i <= tubularSegs; i++) {
+        const t = i / tubularSegs;
+        const center = curve.getPointAt(t);
+        const radius = THREE.MathUtils.lerp(rStart, rEnd, Math.pow(t, 0.85));
+        for (let j = 0; j <= radialSegs; j++) {
+          const idx = i * (radialSegs + 1) + j;
+          const vx = pos.getX(idx) - center.x;
+          const vy = pos.getY(idx) - center.y;
+          const vz = pos.getZ(idx) - center.z;
+          const gnarl = 1 + 0.12 * Math.sin(t * 14 + j * 1.5);
+          pos.setXYZ(
+            idx,
+            center.x + vx * radius * gnarl,
+            center.y + vy * radius * gnarl,
+            center.z + vz * radius * gnarl
+          );
+        }
+      }
+      geo.computeVertexNormals();
+      const mesh = new THREE.Mesh(geo, mats.deadWood);
+      mesh.castShadow = true;
+      mesh.receiveShadow = true;
+      return { mesh, curve };
+    }
+
+    // Main gnarled trunk
+    const trunkPts = [
+      new THREE.Vector3(0, -0.1, 0),
+      new THREE.Vector3(-0.08, 0.55, 0.05),
+      new THREE.Vector3(0.06, 1.25, -0.08),
+      new THREE.Vector3(0.28, 1.85, 0.06),
+      new THREE.Vector3(0.55, 2.22, 0.18)
+    ];
+    treeGroup.add(createBranchMesh(trunkPts, 0.24, 0.045, 9).mesh);
+
+    // Secondary bough reaching left-back
+    const bough1Pts = [
+      new THREE.Vector3(0.02, 1.15, -0.05),
+      new THREE.Vector3(-0.35, 1.48, -0.22),
+      new THREE.Vector3(-0.68, 1.75, -0.12)
+    ];
+    treeGroup.add(createBranchMesh(bough1Pts, 0.12, 0.025, 7).mesh);
+
+    // Lower forward snag branch
+    const bough2Pts = [
+      new THREE.Vector3(-0.04, 0.78, 0.04),
+      new THREE.Vector3(0.22, 0.96, 0.38),
+      new THREE.Vector3(0.42, 0.92, 0.62)
+    ];
+    treeGroup.add(createBranchMesh(bough2Pts, 0.095, 0.02, 7).mesh);
+
+    // Gnarled roots gripping the hummock
+    for (let r = 0; r < 4; r++) {
+      const ang = (r / 4) * Math.PI * 2 + 0.4;
+      const rootPts = [
+        new THREE.Vector3(Math.cos(ang) * 0.12, 0.12, Math.sin(ang) * 0.12),
+        new THREE.Vector3(Math.cos(ang) * 0.35, -0.02, Math.sin(ang) * 0.35),
+        new THREE.Vector3(Math.cos(ang) * 0.58, -0.18, Math.sin(ang) * 0.58)
+      ];
+      treeGroup.add(createBranchMesh(rootPts, 0.09, 0.02, 6).mesh);
+    }
+
+    // Hanging Spanish-style bog moss drapes on the dead tree
+    const mossDrapeGeo = new THREE.ConeGeometry(0.065, 0.42, 6);
+    mossDrapeGeo.translate(0, -0.21, 0);
+    const mossDrapes = [];
+    const drapePositions = [
+      new THREE.Vector3(0.32, 1.88, 0.08),
+      new THREE.Vector3(0.48, 2.12, 0.15),
+      new THREE.Vector3(-0.42, 1.52, -0.18),
+      new THREE.Vector3(-0.62, 1.70, -0.12),
+      new THREE.Vector3(0.28, 0.94, 0.44),
+      new THREE.Vector3(0.14, 1.42, -0.05)
+    ];
+    drapePositions.forEach((dp, idx) => {
+      const drape = new THREE.Mesh(mossDrapeGeo, mats.mossInstance);
+      drape.position.copy(dp);
+      drape.scale.set(randRange(0.8, 1.3), randRange(0.85, 1.45), randRange(0.8, 1.3));
+      drape.castShadow = true;
+      treeGroup.add(drape);
+      mossDrapes.push({ mesh: drape, phase: idx * 1.1 });
+    });
+
+    // Interactive registries
+    const interactables = [];
+    const flytraps = [];
+    const sundews = [];
+    const pitchers = [];
+
+    // 4. VENUS FLYTRAPS (Cluster of 5 with open pink-mouthed toothed traps on arching stems)
+    function createLobeGeometry() {
+      const shape = new THREE.Shape();
+      shape.moveTo(-0.18, 0);
+      shape.bezierCurveTo(-0.20, 0.15, -0.10, 0.24, 0, 0.24);
+      shape.bezierCurveTo(0.10, 0.24, 0.20, 0.15, 0.18, 0);
+      shape.lineTo(-0.18, 0);
+      const extrudeSettings = {
+        depth: 0.022,
+        bevelEnabled: true,
+        bevelSegments: 2,
+        steps: 1,
+        bevelSize: 0.012,
+        bevelThickness: 0.012
+      };
+      const geo = new THREE.ExtrudeGeometry(shape, extrudeSettings);
+      geo.translate(0, 0, -0.011);
+      return geo;
+    }
+    const sharedLobeGeo = createLobeGeometry();
+    const sharedInnerPadGeo = new THREE.PlaneGeometry(0.28, 0.17, 6, 4);
+    sharedInnerPadGeo.translate(0, 0.095, 0);
+    const sharedToothGeo = new THREE.ConeGeometry(0.012, 0.095, 5);
+    sharedToothGeo.translate(0, 0.047, 0);
+
+    function createFlytrap(config) {
+      const group = new THREE.Group();
+      group.position.copy(config.basePos);
+      worldRoot.add(group);
+
+      // Arching stem
+      const stemCurve = new THREE.CatmullRomCurve3([
+        new THREE.Vector3(0, 0, 0),
+        new THREE.Vector3(config.dir.x * 0.35, config.height * 0.68, config.dir.z * 0.35),
+        new THREE.Vector3(config.dir.x * 0.65, config.height, config.dir.z * 0.65)
+      ]);
+      const stemGeo = new THREE.TubeGeometry(stemCurve, 14, 0.026 * config.scale, 7, false);
+      const stemMesh = new THREE.Mesh(stemGeo, mats.stemGreen);
+      stemMesh.castShadow = true;
+      group.add(stemMesh);
+
+      // Trap head pivot at tip of arching stem
+      const headPivot = new THREE.Group();
+      headPivot.position.set(config.dir.x * 0.65, config.height, config.dir.z * 0.65);
+      headPivot.rotation.y = config.yaw;
+      headPivot.rotation.x = config.pitch;
+      headPivot.rotation.z = config.roll;
+      headPivot.scale.setScalar(config.scale);
+      group.add(headPivot);
+
+      // Spine rib
+      const ribGeo = new THREE.CylinderGeometry(0.022, 0.022, 0.34, 8);
+      ribGeo.rotateZ(Math.PI / 2);
+      const ribMesh = new THREE.Mesh(ribGeo, mats.stemGreen);
+      headPivot.add(ribMesh);
+
+      function buildHalfLobe(sideSign) {
+        const pivot = new THREE.Group();
+        const outer = new THREE.Mesh(sharedLobeGeo, mats.lobeOuter);
+        outer.castShadow = true;
+        pivot.add(outer);
+
+        // Vivid pink/red inner mouth pad
+        const inner = new THREE.Mesh(sharedInnerPadGeo, mats.lobeInner);
+        inner.position.z = sideSign * 0.019;
+        if (sideSign < 0) inner.rotation.y = Math.PI;
+        pivot.add(inner);
+
+        // Interlocking marginal spines/teeth along curved rim
+        const numTeeth = 7;
+        for (let i = 0; i < numTeeth; i++) {
+          const t = (i / (numTeeth - 1)) * 2 - 1; // -1 to 1
+          const tx = t * 0.145 + sideSign * 0.008; // slight offset so opposite teeth interlock
+          const ty = Math.sqrt(Math.max(0, 1 - t * t * 0.82)) * 0.225;
+          const tooth = new THREE.Mesh(sharedToothGeo, mats.lobeTooth);
+          tooth.position.set(tx, ty, sideSign * 0.008);
+          tooth.rotation.z = -t * 0.42;
+          tooth.rotation.x = sideSign * 0.42; // angle inward so spines cross on snap
+          pivot.add(tooth);
+        }
+        return pivot;
+      }
+
+      const leftLobe = buildHalfLobe(1);
+      const rightLobe = buildHalfLobe(-1);
+      const openAngle = 0.72;
+      leftLobe.rotation.x = openAngle;
+      rightLobe.rotation.x = -openAngle;
+      headPivot.add(leftLobe);
+      headPivot.add(rightLobe);
+
+      // Generous invisible hit proxy for 320px viewports
+      const proxyGeo = new THREE.SphereGeometry(0.36, 10, 10);
+      const proxyMesh = new THREE.Mesh(proxyGeo, mats.proxyMat);
+      proxyMesh.position.set(0, 0.1, 0);
+      headPivot.add(proxyMesh);
+
+      const trapObj = {
+        type: 'flytrap',
+        group,
+        headPivot,
+        leftLobe,
+        rightLobe,
+        openAngle,
+        closedAngle: 0.06,
+        basePitch: config.pitch,
+        baseRoll: config.roll,
+        phase: config.phase,
+        isHero: !!config.isHero,
+        state: 'idle', // 'idle', 'snapping', 'holding', 'opening'
+        stateStartTime: 0,
+        fromAngle: openAngle,
+        caughtFly: false,
+        getWorldMouthPos(targetVec) {
+          targetVec.set(0, 0.13, 0);
+          return headPivot.localToWorld(targetVec);
+        }
+      };
+
+      proxyMesh.userData.target = trapObj;
+      interactables.push(proxyMesh);
+      flytraps.push(trapObj);
+      return trapObj;
+    }
+
+    const clusterBase = new THREE.Vector3(0.38, getHummockY(0.38, 0.28) - 0.02, 0.28);
+    const trapConfigs = [
+      // Hero largest flytrap front-and-center
+      {
+        basePos: clusterBase.clone().add(new THREE.Vector3(0.0, 0, 0.05)),
+        dir: new THREE.Vector3(0.12, 0, 0.35),
+        height: 0.62,
+        scale: 1.38,
+        yaw: 0.25,
+        pitch: 0.22,
+        roll: -0.08,
+        phase: 0.0,
+        isHero: true
+      },
+      {
+        basePos: clusterBase.clone().add(new THREE.Vector3(-0.18, 0, 0.12)),
+        dir: new THREE.Vector3(-0.52, 0, 0.38),
+        height: 0.48,
+        scale: 1.08,
+        yaw: -0.45,
+        pitch: 0.28,
+        roll: 0.12,
+        phase: 1.3
+      },
+      {
+        basePos: clusterBase.clone().add(new THREE.Vector3(0.22, 0, 0.08)),
+        dir: new THREE.Vector3(0.58, 0, 0.28),
+        height: 0.50,
+        scale: 1.12,
+        yaw: 0.62,
+        pitch: 0.25,
+        roll: -0.15,
+        phase: 2.5
+      },
+      {
+        basePos: clusterBase.clone().add(new THREE.Vector3(-0.12, 0, -0.14)),
+        dir: new THREE.Vector3(-0.35, 0, -0.42),
+        height: 0.54,
+        scale: 1.02,
+        yaw: -2.1,
+        pitch: 0.18,
+        roll: 0.08,
+        phase: 3.8
+      },
+      {
+        basePos: clusterBase.clone().add(new THREE.Vector3(0.18, 0, -0.12)),
+        dir: new THREE.Vector3(0.42, 0, -0.35),
+        height: 0.44,
+        scale: 0.95,
+        yaw: 1.85,
+        pitch: 0.32,
+        roll: -0.1,
+        phase: 5.1
+      }
+    ];
+
+    trapConfigs.forEach(createFlytrap);
+
+    // Basal rosette leaves under the flytrap cluster
+    const leafGeo = new THREE.BoxGeometry(0.14, 0.02, 0.36);
+    leafGeo.translate(0, 0, 0.18);
+    for (let i = 0; i < 9; i++) {
+      const leaf = new THREE.Mesh(leafGeo, mats.stemGreen);
+      leaf.position.copy(clusterBase);
+      leaf.rotation.y = (i / 9) * Math.PI * 2 + 0.2;
+      leaf.rotation.x = 0.18 + (i % 2) * 0.08;
+      leaf.castShadow = true;
+      worldRoot.add(leaf);
+    }
+
+    // 5. TALL PITCHER PLANTS WITH HOODED TUBES (5 total)
+    const pitcherPoints = [];
+    for (let i = 0; i <= 12; i++) {
+      const t = i / 12;
+      const r = 0.032 + 0.115 * Math.pow(t, 1.35) + 0.018 * Math.sin(t * Math.PI * 2);
+      pitcherPoints.push(new THREE.Vector2(r, t * 1.0));
+    }
+    const sharedPitcherTubeGeo = new THREE.LatheGeometry(pitcherPoints, 16);
+    const sharedPitcherLipGeo = new THREE.TorusGeometry(0.148, 0.024, 10, 20);
+    sharedPitcherLipGeo.rotateX(Math.PI / 2);
+    const sharedPitcherHoodGeo = new THREE.SphereGeometry(0.165, 14, 10, 0, Math.PI * 2, 0, Math.PI * 0.48);
+
+    function createPitcher(config) {
+      const pivot = new THREE.Group();
+      pivot.position.copy(config.pos);
+      pivot.rotation.y = config.yaw;
+      pivot.rotation.x = config.tiltX;
+      pivot.rotation.z = config.tiltZ;
+      pivot.scale.setScalar(config.scale);
+      worldRoot.add(pivot);
+
+      const tube = new THREE.Mesh(sharedPitcherTubeGeo, mats.pitcherBody);
+      tube.castShadow = true;
+      tube.receiveShadow = true;
+      pivot.add(tube);
+
+      const lip = new THREE.Mesh(sharedPitcherLipGeo, mats.pitcherLip);
+      lip.position.y = 1.0;
+      pivot.add(lip);
+
+      const hood = new THREE.Mesh(sharedPitcherHoodGeo, mats.pitcherHood);
+      hood.position.set(0, 1.08, -0.06);
+      hood.rotation.x = 0.52;
+      hood.scale.set(1.05, 0.85, 1.15);
+      hood.castShadow = true;
+      pivot.add(hood);
+
+      // Escaping mist / bubble plume particles for tap reaction
+      const plumeParticles = [];
+      for (let i = 0; i < 7; i++) {
+        const isMist = i < 3;
+        const pMesh = new THREE.Mesh(
+          isMist ? new THREE.PlaneGeometry(0.28, 0.28) : new THREE.SphereGeometry(0.036, 8, 8),
+          isMist ? mats.mistMat.clone() : mats.bubbleMat.clone()
+        );
+        pMesh.visible = false;
+        pivot.add(pMesh);
+        plumeParticles.push({
+          mesh: pMesh,
+          isMist,
+          offset: new THREE.Vector3(
+            randRange(-0.06, 0.06),
+            randRange(0.0, 0.12),
+            randRange(-0.06, 0.06)
+          ),
+          speed: randRange(0.35, 0.65),
+          swayPhase: rand() * Math.PI * 2
+        });
+      }
+
+      // Generous invisible hit proxy
+      const proxyGeo = new THREE.CylinderGeometry(0.32, 0.24, 1.25, 10);
+      proxyGeo.translate(0, 0.62, 0);
+      const proxyMesh = new THREE.Mesh(proxyGeo, mats.proxyMat);
+      pivot.add(proxyMesh);
+
+      const pitcherObj = {
+        type: 'pitcher',
+        pivot,
+        baseTiltX: config.tiltX,
+        baseTiltZ: config.tiltZ,
+        phase: config.phase,
+        triggerTime: -99999,
+        plumeParticles
+      };
+
+      proxyMesh.userData.target = pitcherObj;
+      interactables.push(proxyMesh);
+      pitchers.push(pitcherObj);
+    }
+
+    const pitcherConfigs = [
+      { pos: new THREE.Vector3(0.75, getHummockY(0.75, -1.05) - 0.04, -1.05), scale: 1.28, yaw: -0.4, tiltX: 0.08, tiltZ: -0.06, phase: 0.2 },
+      { pos: new THREE.Vector3(1.02, getHummockY(1.02, -0.95) - 0.04, -0.95), scale: 1.02, yaw: 0.3, tiltX: 0.12, tiltZ: 0.09, phase: 1.5 },
+      { pos: new THREE.Vector3(0.55, getHummockY(0.55, -1.25) - 0.04, -1.25), scale: 0.88, yaw: -0.9, tiltX: -0.06, tiltZ: -0.11, phase: 2.8 },
+      { pos: new THREE.Vector3(-0.78, getHummockY(-0.78, -0.72) - 0.04, -0.72), scale: 1.15, yaw: 0.65, tiltX: 0.10, tiltZ: 0.05, phase: 3.9 },
+      { pos: new THREE.Vector3(-1.02, getHummockY(-1.02, -0.92) - 0.04, -0.92), scale: 0.92, yaw: 1.1, tiltX: 0.05, tiltZ: -0.08, phase: 5.0 }
+    ];
+    pitcherConfigs.forEach(createPitcher);
+
+    // 6. GLISTENING SUNDEWS WITH DEW-TIPPED TENTACLES + INSTANCED DEW DROPS
+    const sundewConfigs = [
+      { pos: new THREE.Vector3(-0.62, getHummockY(-0.62, 1.02), 1.02), scale: 1.15, phase: 0.4 },
+      { pos: new THREE.Vector3(-0.92, getHummockY(-0.92, 0.82), 0.82), scale: 0.92, phase: 1.9 },
+      { pos: new THREE.Vector3(1.48, getHummockY(1.48, 0.12), 0.12), scale: 1.12, phase: 3.2 },
+      { pos: new THREE.Vector3(1.25, getHummockY(1.25, 0.42), 0.42), scale: 0.88, phase: 4.6 }
+    ];
+
+    const TENTACLES_PER_SUNDEW = 28;
+    const TOTAL_SUNDEW_DEW = sundewConfigs.length * TENTACLES_PER_SUNDEW;
+    const AMBIENT_MOSS_DEW = 140;
+    const TOTAL_DEW_INSTANCES = TOTAL_SUNDEW_DEW + AMBIENT_MOSS_DEW;
+
+    const dewGeo = new THREE.SphereGeometry(0.022, 8, 8);
+    const dewInst = new THREE.InstancedMesh(dewGeo, mats.dewDrop, TOTAL_DEW_INSTANCES);
+    worldRoot.add(dewInst);
+
+    const sharedTentacleGeo = new THREE.CylinderGeometry(0.005, 0.011, 0.15, 5);
+    sharedTentacleGeo.translate(0, 0.075, 0);
+    const sharedSundewPadGeo = new THREE.CylinderGeometry(0.16, 0.08, 0.04, 14);
+
+    let dewIndexCursor = 0;
+
+    function createSundew(config) {
+      const group = new THREE.Group();
+      group.position.copy(config.pos);
+      group.scale.setScalar(config.scale);
+      worldRoot.add(group);
+
+      const pad = new THREE.Mesh(sharedSundewPadGeo, mats.sundewStem);
+      pad.position.y = 0.02;
+      pad.castShadow = true;
+      group.add(pad);
+
+      const tentacles = [];
+      for (let i = 0; i < TENTACLES_PER_SUNDEW; i++) {
+        const ring = i < 10 ? 0 : 1;
+        const idxInRing = ring === 0 ? i : i - 10;
+        const countInRing = ring === 0 ? 10 : 18;
+        const angle = (idxInRing / countInRing) * Math.PI * 2 + ring * 0.25;
+        const radius = ring === 0 ? 0.075 : 0.135;
+        const baseSplay = ring === 0 ? 0.58 : 1.02;
+
+        const tPivot = new THREE.Group();
+        tPivot.position.set(Math.cos(angle) * radius, 0.035, Math.sin(angle) * radius);
+        tPivot.rotation.y = -angle + Math.PI / 2;
+        tPivot.rotation.x = baseSplay;
+        group.add(tPivot);
+
+        const stalk = new THREE.Mesh(sharedTentacleGeo, mats.sundewTentacle);
+        tPivot.add(stalk);
+
+        const tipAnchor = new THREE.Object3D();
+        tipAnchor.position.set(0, 0.155, 0);
+        tPivot.add(tipAnchor);
+
+        tentacles.push({
+          pivot: tPivot,
+          tipAnchor,
+          baseSplay,
+          curledSplay: -0.38,
+          dewIdx: dewIndexCursor++,
+          phaseOffset: i * 0.35
+        });
+      }
+
+      // Generous invisible hit proxy for 320px
+      const proxyGeo = new THREE.SphereGeometry(0.36, 10, 10);
+      const proxyMesh = new THREE.Mesh(proxyGeo, mats.proxyMat);
+      proxyMesh.position.y = 0.1;
+      group.add(proxyMesh);
+
+      const sundewObj = {
+        type: 'sundew',
+        group,
+        tentacles,
+        scale: config.scale,
+        phase: config.phase,
+        triggerTime: -99999
+      };
+
+      proxyMesh.userData.target = sundewObj;
+      interactables.push(proxyMesh);
+      sundews.push(sundewObj);
+    }
+
+    sundewConfigs.forEach(createSundew);
+
+    // Populate ambient glistening dew drops across mossy hummocks
+    for (let i = 0; i < AMBIENT_MOSS_DEW; i++) {
+      const idx = dewIndexCursor++;
+      const h = hummocksData[i % hummocksData.length];
+      const ang = rand() * Math.PI * 2;
+      const dist = Math.sqrt(rand()) * 0.88;
+      const dx = h.x + Math.cos(ang) * dist * h.rx;
+      const dz = h.z + Math.sin(ang) * dist * h.rz;
+      const dy = getHummockY(dx, dz) + 0.015;
+      dummy.position.set(dx, dy, dz);
+      dummy.rotation.set(0, 0, 0);
+      const s = randRange(0.45, 0.85);
+      dummy.scale.setScalar(s);
+      dummy.updateMatrix();
+      dewInst.setMatrixAt(idx, dummy.matrix);
+    }
+    dewInst.instanceMatrix.needsUpdate = true;
+
+    // 7. ORBITING SMALL FLY WITH TRANSLUCENT WINGS
+    const flyGroup = new THREE.Group();
+    worldRoot.add(flyGroup);
+
+    const thoraxGeo = new THREE.SphereGeometry(0.036, 10, 8);
+    thoraxGeo.scale(1.0, 0.9, 1.35);
+    const thoraxMesh = new THREE.Mesh(thoraxGeo, mats.flyBody);
+    flyGroup.add(thoraxMesh);
+
+    const abdomenGeo = new THREE.SphereGeometry(0.032, 10, 8);
+    abdomenGeo.scale(0.95, 0.85, 1.4);
+    const abdomenMesh = new THREE.Mesh(abdomenGeo, mats.flyBody);
+    abdomenMesh.position.set(0, -0.005, -0.055);
+    flyGroup.add(abdomenMesh);
+
+    const eyeGeo = new THREE.SphereGeometry(0.016, 8, 8);
+    const eyeL = new THREE.Mesh(eyeGeo, mats.flyEye);
+    eyeL.position.set(0.018, 0.008, 0.038);
+    const eyeR = new THREE.Mesh(eyeGeo, mats.flyEye);
+    eyeR.position.set(-0.018, 0.008, 0.038);
+    flyGroup.add(eyeL, eyeR);
+
+    const wingGeo = new THREE.CircleGeometry(0.055, 12);
+    wingGeo.scale(0.65, 1.35, 1.0);
+    wingGeo.translate(0, 0.05, 0);
+    const wingLeftPivot = new THREE.Group();
+    wingLeftPivot.position.set(0.015, 0.022, 0.0);
+    const wingLeftMesh = new THREE.Mesh(wingGeo, mats.flyWing);
+    wingLeftMesh.rotation.x = Math.PI / 2;
+    wingLeftPivot.add(wingLeftMesh);
+
+    const wingRightPivot = new THREE.Group();
+    wingRightPivot.position.set(-0.015, 0.022, 0.0);
+    const wingRightMesh = new THREE.Mesh(wingGeo, mats.flyWing);
+    wingRightMesh.rotation.x = Math.PI / 2;
+    wingRightPivot.add(wingRightMesh);
+
+    flyGroup.add(wingLeftPivot, wingRightPivot);
+
+    const flyOrbitCenter = new THREE.Vector3(0.45, 1.18, 0.42);
+    const flyState = {
+      status: 'orbiting', // 'orbiting', 'drawn', 'caught', 'still', 'fadingIn'
+      targetTrap: null,
+      stateStartTime: 0,
+      captureStartPos: new THREE.Vector3(),
+      currentPos: new THREE.Vector3(),
+      scale: 1.0
+    };
+
+    function getFlyOrbitPos(timeSec, outVec) {
+      const a = timeSec * 1.65;
+      outVec.set(
+        flyOrbitCenter.x + Math.cos(a) * 0.55 + Math.sin(a * 2.1) * 0.12,
+        flyOrbitCenter.y + Math.sin(a * 2.7) * 0.14,
+        flyOrbitCenter.z + Math.sin(a) * 0.46 + Math.cos(a * 1.7) * 0.10
+      );
+      return outVec;
+    }
+
+    // 8. INSTANCED FIREFLIES (110 warm amber pulsing fireflies)
+    const FIREFLY_COUNT = 110;
+    const fireflyGeo = new THREE.SphereGeometry(0.026, 8, 8);
+    const fireflyInst = new THREE.InstancedMesh(fireflyGeo, mats.fireflyMat, FIREFLY_COUNT);
+    worldRoot.add(fireflyInst);
+
+    const firefliesData = [];
+    for (let i = 0; i < FIREFLY_COUNT; i++) {
+      const angle = rand() * Math.PI * 2;
+      const radius = randRange(0.25, 2.35);
+      firefliesData.push({
+        baseX: Math.cos(angle) * radius,
+        baseY: randRange(0.28, 1.95),
+        baseZ: Math.sin(angle) * radius,
+        speed: randRange(0.45, 1.15),
+        driftRadius: randRange(0.10, 0.28),
+        phase: rand() * Math.PI * 2,
+        pulseSpeed: randRange(1.8, 4.2)
+      });
+    }
+
+    // 9. INSTANCED RISING BOG BUBBLES (120 bubbles rising & popping in the pools)
+    const BUBBLE_COUNT = 120;
+    const bubbleGeo = new THREE.SphereGeometry(0.032, 8, 8);
+    const bubbleInst = new THREE.InstancedMesh(bubbleGeo, mats.bubbleMat, BUBBLE_COUNT);
+    worldRoot.add(bubbleInst);
+
+    const bubblesData = [];
+    for (let i = 0; i < BUBBLE_COUNT; i++) {
+      const poolCenter = poolCenters[i % poolCenters.length];
+      const ang = rand() * Math.PI * 2;
+      const rad = randRange(0.04, 0.52);
+      bubblesData.push({
+        x: poolCenter.x + Math.cos(ang) * rad,
+        z: poolCenter.z + Math.sin(ang) * rad,
+        speed: randRange(0.22, 0.55),
+        phase: rand() * 10.0,
+        maxHeight: randRange(0.14, 0.34),
+        baseScale: randRange(0.45, 1.25)
+      });
+    }
+
+    // 10. DRIFTING GROUND MIST BANDS (kept snugly inside the slab rim so they never bloat horizontal bounds)
+    const mistBands = [];
+    const mistPlaneGeo = new THREE.PlaneGeometry(1.5, 1.5);
+    mistPlaneGeo.rotateX(-Math.PI / 2);
+    for (let i = 0; i < 18; i++) {
+      const ang = (i / 18) * Math.PI * 2 + randRange(-0.2, 0.2);
+      const rad = randRange(0.25, 1.65);
+      const mMat = mats.mistMat.clone();
+      const mesh = new THREE.Mesh(mistPlaneGeo, mMat);
+      const baseX = Math.cos(ang) * rad;
+      const baseZ = Math.sin(ang) * rad;
+      const baseY = randRange(0.05, 0.32);
+      mesh.position.set(baseX, baseY, baseZ);
+      const s = randRange(0.7, 1.25);
+      mesh.scale.set(s, 1, s);
+      worldRoot.add(mesh);
+      mistBands.push({
+        mesh,
+        mat: mMat,
+        baseX,
+        baseY,
+        baseZ,
+        phase: rand() * Math.PI * 2,
+        speed: randRange(0.25, 0.55),
+        baseOpacity: randRange(0.11, 0.22)
+      });
+    }
+
+    // 11. ASPECT-AWARE FRAMING FROM EXACT PROJECTED BOUNDING BOX OF ALL SCENE GEOMETRY
+    // Build accurate cylindrical + organic rim envelope points matching the actual slab, dead tree, tallest pitchers, and fly orbit
+    const framingPoints = [];
+    const RING_SAMPLES = 24;
+    for (let i = 0; i < RING_SAMPLES; i++) {
+      const ang = (i / RING_SAMPLES) * Math.PI * 2;
+      const wave = 1 + 0.045 * Math.sin(ang * 3 + 0.7) + 0.03 * Math.cos(ang * 5 - 0.4);
+      // Top bevel rim of slab + peat torus outer edge (radius ~3.26)
+      const rTop = 3.26 * wave;
+      framingPoints.push(new THREE.Vector3(Math.cos(ang) * rTop, 0.14, Math.sin(ang) * rTop));
+      // Bottom edge of slab (radius ~3.02, y = -0.74)
+      const rBot = 3.04 * wave;
+      framingPoints.push(new THREE.Vector3(Math.cos(ang) * rBot, -0.74, Math.sin(ang) * rBot));
+    }
+
+    // Dead bog tree full height and branches
+    framingPoints.push(
+      new THREE.Vector3(-1.35 + 0.55, 2.38, -0.55 + 0.18),
+      new THREE.Vector3(-1.35 - 0.72, 1.98, -0.55 - 0.15),
+      new THREE.Vector3(-1.35 + 0.28, 2.05, -0.55 + 0.06)
+    );
+
+    // Tallest pitchers & hoods
+    framingPoints.push(
+      new THREE.Vector3(0.75, 1.82, -1.05),
+      new THREE.Vector3(1.02, 1.55, -0.95),
+      new THREE.Vector3(-0.78, 1.72, -0.72)
+    );
+
+    // Full fly orbit volume around the hero flytrap
+    for (let i = 0; i < 8; i++) {
+      const a = (i / 8) * Math.PI * 2;
+      framingPoints.push(new THREE.Vector3(
+        flyOrbitCenter.x + Math.cos(a) * 0.67,
+        flyOrbitCenter.y + 0.16,
+        flyOrbitCenter.z + Math.sin(a) * 0.56
+      ));
+    }
+
+    const sceneTarget = new THREE.Vector3(0.0, 0.56, 0.05);
+    const landscapeViewDir = new THREE.Vector3(0.42, 0.56, 0.72).normalize();
+    const portraitViewDir = new THREE.Vector3(0.38, 0.80, 0.46).normalize();
+
+    function updateCameraFraming() {
+      const w = window.innerWidth;
+      const h = window.innerHeight;
+      renderer.setSize(w, h);
+
+      const aspect = w / Math.max(1, h);
+      const isPortrait = aspect < 0.95;
+
+      // Measure header and footer safe areas in pixels and convert to NDC [-1, 1]
+      const headerH = headerEl.getBoundingClientRect().height || 86;
+      const footerH = footerEl.getBoundingClientRect().height || 40;
+      const topPadPx = headerH + (isPortrait ? 12 : 14);
+      const botPadPx = footerH + (isPortrait ? 12 : 14);
+
+      const safeTopNdc = 1.0 - (topPadPx / h) * 2.0;
+      const safeBotNdc = -1.0 + (botPadPx / h) * 2.0;
+      const safeCenterY = 0.5 * (safeTopNdc + safeBotNdc);
+
+      if (!isPortrait) {
+        // Landscape framing (616x562 etc.) — preserve exact look
+        camera.fov = 35;
+        camera.aspect = aspect;
+        camera.updateProjectionMatrix();
+
+        const maxNdcX = 0.90;
+        let low = 4.5;
+        let high = 22.0;
+        const tempVec = new THREE.Vector3();
+
+        for (let iter = 0; iter < 20; iter++) {
+          const mid = (low + high) * 0.5;
+          camera.position.copy(sceneTarget).addScaledVector(landscapeViewDir, mid);
+          camera.lookAt(sceneTarget);
+          camera.updateMatrixWorld(true);
+
+          let fits = true;
+          for (let i = 0; i < framingPoints.length; i++) {
+            tempVec.copy(framingPoints[i]).project(camera);
+            if (
+              tempVec.x < -maxNdcX ||
+              tempVec.x > maxNdcX ||
+              tempVec.y < safeBotNdc ||
+              tempVec.y > safeTopNdc
+            ) {
+              fits = false;
+              break;
+            }
+          }
+          if (fits) {
+            high = mid;
+          } else {
+            low = mid;
+          }
+        }
+
+        const finalDist = high * 1.03;
+        camera.position.copy(sceneTarget).addScaledVector(landscapeViewDir, finalDist);
+        controls.target.copy(sceneTarget);
+        controls.minDistance = finalDist * 0.86;
+        controls.maxDistance = finalDist * 1.18;
+        controls.update();
+      } else {
+        // Portrait framing (320x700, 390x844, etc.):
+        // Widen FOV and use a steeper three-quarter elevation so the diorama foreshortens less vertically,
+        // filling ~58-62% of the vertical space between header and footer while keeping ~5% side margins on both left and right.
+        camera.fov = aspect < 0.52 ? 54 : 48;
+        camera.aspect = aspect;
+        camera.updateProjectionMatrix();
+
+        // ~5% side margin on each side -> NDC [-0.90, +0.90]
+        const targetHalfSpanX = 0.90;
+        const maxHalfSpanY = (safeTopNdc - safeBotNdc) * 0.46;
+
+        let bestDist = 8.5;
+        const lookAtTarget = new THREE.Vector3(0.0, 0.42, 0.0);
+        const tempVec = new THREE.Vector3();
+
+        // Iteratively solve exact lookAt target X/Y and camera distance so projected bounding box is centered
+        // horizontally at NDC x=0 and vertically at safeCenterY, with exact side margins and zero clipping
+        for (let outer = 0; outer < 6; outer++) {
+          let low = 3.8;
+          let high = 20.0;
+
+          for (let iter = 0; iter < 20; iter++) {
+            const mid = (low + high) * 0.5;
+            camera.position.copy(lookAtTarget).addScaledVector(portraitViewDir, mid);
+            camera.lookAt(lookAtTarget);
+            camera.updateMatrixWorld(true);
+
+            let minX = Infinity, maxX = -Infinity;
+            let minY = Infinity, maxY = -Infinity;
+            for (let i = 0; i < framingPoints.length; i++) {
+              tempVec.copy(framingPoints[i]).project(camera);
+              if (tempVec.x < minX) minX = tempVec.x;
+              if (tempVec.x > maxX) maxX = tempVec.x;
+              if (tempVec.y < minY) minY = tempVec.y;
+              if (tempVec.y > maxY) maxY = tempVec.y;
+            }
+
+            const halfSpanX = (maxX - minX) * 0.5;
+            const halfSpanY = (maxY - minY) * 0.5;
+
+            if (halfSpanX <= targetHalfSpanX && halfSpanY <= maxHalfSpanY) {
+              high = mid;
+            } else {
+              low = mid;
+            }
+          }
+
+          bestDist = high;
+          camera.position.copy(lookAtTarget).addScaledVector(portraitViewDir, bestDist);
+          camera.lookAt(lookAtTarget);
+          camera.updateMatrixWorld(true);
+
+          let minX = Infinity, maxX = -Infinity;
+          let minY = Infinity, maxY = -Infinity;
+          for (let i = 0; i < framingPoints.length; i++) {
+            tempVec.copy(framingPoints[i]).project(camera);
+            if (tempVec.x < minX) minX = tempVec.x;
+            if (tempVec.x > maxX) maxX = tempVec.x;
+            if (tempVec.y < minY) minY = tempVec.y;
+            if (tempVec.y > maxY) maxY = tempVec.y;
+          }
+
+          const centerX = 0.5 * (minX + maxX);
+          const centerY = 0.5 * (minY + maxY);
+
+          // Convert NDC center error into camera-plane shift to perfectly center the composition
+          const halfFovRad = THREE.MathUtils.degToRad(camera.fov * 0.5);
+          const halfHeightWorld = bestDist * Math.tan(halfFovRad);
+          const halfWidthWorld = halfHeightWorld * aspect;
+
+          const camRight = new THREE.Vector3().setFromMatrixColumn(camera.matrixWorld, 0).normalize();
+          const camUp = new THREE.Vector3().setFromMatrixColumn(camera.matrixWorld, 1).normalize();
+
+          lookAtTarget.addScaledVector(camRight, centerX * halfWidthWorld * 0.85);
+          lookAtTarget.addScaledVector(camUp, (centerY - safeCenterY) * halfHeightWorld * 0.85);
+        }
+
+        camera.position.copy(lookAtTarget).addScaledVector(portraitViewDir, bestDist);
+        controls.target.copy(lookAtTarget);
+        controls.minDistance = bestDist * 0.88;
+        controls.maxDistance = bestDist * 1.16;
+        controls.update();
+      }
+    }
+
+    window.addEventListener('resize', updateCameraFraming);
+    updateCameraFraming();
+
+    // 12. INTERACTION LOGIC (Raycaster mouse/touch with pointer distance tap vs drag check)
+    const raycaster = new THREE.Raycaster();
+    const pointerNdc = new THREE.Vector2();
+    let pointerDownPos = { x: 0, y: 0 };
+    let isPointerDown = false;
+
+    renderer.domElement.addEventListener('pointerdown', (e) => {
+      isPointerDown = true;
+      pointerDownPos.x = e.clientX;
+      pointerDownPos.y = e.clientY;
+    });
+
+    renderer.domElement.addEventListener('pointerup', (e) => {
+      if (!isPointerDown) return;
+      isPointerDown = false;
+      const moveDist = Math.hypot(e.clientX - pointerDownPos.x, e.clientY - pointerDownPos.y);
+      if (moveDist > 9) return; // Distinguish tap from orbit drag
+
+      const rect = renderer.domElement.getBoundingClientRect();
+      pointerNdc.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+      pointerNdc.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+
+      raycaster.setFromCamera(pointerNdc, camera);
+      const hits = raycaster.intersectObjects(interactables, false);
+      if (hits.length > 0) {
+        const target = hits[0].object.userData.target;
+        if (target) triggerTarget(target, performance.now());
+      }
+    });
+
+    function triggerTarget(target, nowMs) {
+      if (target.type === 'flytrap') {
+        // Every tap triggers or re-triggers an unmistakable snap
+        target.fromAngle = target.leftLobe.rotation.x;
+        target.state = 'snapping';
+        target.stateStartTime = nowMs;
+
+        // If the fly is currently orbiting, draw it into the snapping trap!
+        if (flyState.status === 'orbiting' || flyState.status === 'fadingIn') {
+          flyState.status = 'drawn';
+          flyState.targetTrap = target;
+          flyState.stateStartTime = nowMs;
+          flyState.captureStartPos.copy(flyGroup.position);
+          target.caughtFly = true;
+        } else {
+          target.caughtFly = false;
+        }
+      } else if (target.type === 'sundew') {
+        target.triggerTime = nowMs;
+      } else if (target.type === 'pitcher') {
+        target.triggerTime = nowMs;
+      }
+    }
+
+    // 13. MAIN ANIMATION LOOP (All motion driven strictly by performance.now)
+    const tmpVecA = new THREE.Vector3();
+    const tmpVecB = new THREE.Vector3();
+
+    function animate(nowMs) {
+      requestAnimationFrame(animate);
+      const tSec = nowMs * 0.001;
+
+      controls.update();
+
+      // A. Update Venus Flytraps (Idle sway + Hero Snap / Hold / Reopen cycle)
+      for (let i = 0; i < flytraps.length; i++) {
+        const ft = flytraps[i];
+        const idlePitch = ft.basePitch + Math.sin(tSec * 1.4 + ft.phase) * 0.035;
+        const idleRoll = ft.baseRoll + Math.cos(tSec * 1.1 + ft.phase) * 0.03;
+
+        if (ft.state === 'idle') {
+          const breathe = Math.sin(tSec * 1.8 + ft.phase) * 0.04;
+          ft.leftLobe.rotation.x = ft.openAngle + breathe;
+          ft.rightLobe.rotation.x = -(ft.openAngle + breathe);
+          ft.headPivot.rotation.x = idlePitch;
+          ft.headPivot.rotation.z = idleRoll;
+        } else if (ft.state === 'snapping') {
+          const elapsed = nowMs - ft.stateStartTime;
+          const snapDur = 115; // Fast unmistakable snap
+          const u = Math.min(1, elapsed / snapDur);
+          const ease = 1 - Math.pow(1 - u, 3);
+          const ang = THREE.MathUtils.lerp(ft.fromAngle, ft.closedAngle, ease);
+          ft.leftLobe.rotation.x = ang;
+          ft.rightLobe.rotation.x = -ang;
+          // Recoil jolt on snap
+          const jolt = Math.sin(u * Math.PI) * 0.14;
+          ft.headPivot.rotation.x = idlePitch - jolt;
+
+          if (u >= 1) {
+            ft.state = 'holding';
+            ft.stateStartTime = nowMs;
+          }
+        } else if (ft.state === 'holding') {
+          const elapsed = nowMs - ft.stateStartTime;
+          const holdDur = 2100;
+          // Struggle vibration during first 1100ms
+          let twitch = 0;
+          if (elapsed < 1100) {
+            const decay = 1 - elapsed / 1100;
+            twitch = Math.sin(nowMs * 0.055) * 0.055 * decay;
+          }
+          ft.leftLobe.rotation.x = ft.closedAngle + Math.abs(twitch) * 0.25;
+          ft.rightLobe.rotation.x = -(ft.closedAngle + Math.abs(twitch) * 0.25);
+          ft.headPivot.rotation.x = idlePitch + twitch;
+          ft.headPivot.rotation.z = idleRoll + twitch * 0.7;
+
+          if (elapsed >= holdDur) {
+            ft.state = 'opening';
+            ft.stateStartTime = nowMs;
+          }
+        } else if (ft.state === 'opening') {
+          const elapsed = nowMs - ft.stateStartTime;
+          const openDur = 2400;
+          const u = Math.min(1, elapsed / openDur);
+          const smooth = u * u * (3 - 2 * u);
+          const ang = THREE.MathUtils.lerp(ft.closedAngle, ft.openAngle, smooth);
+          ft.leftLobe.rotation.x = ang;
+          ft.rightLobe.rotation.x = -ang;
+          ft.headPivot.rotation.x = idlePitch;
+          ft.headPivot.rotation.z = idleRoll;
+
+          if (u >= 1) {
+            ft.state = 'idle';
+            ft.caughtFly = false;
+          }
+        }
+      }
+
+      // B. Update Orbiting Fly & Capture / Struggle / Respawn Cycle
+      if (flyState.status === 'orbiting') {
+        getFlyOrbitPos(tSec, tmpVecA);
+        getFlyOrbitPos(tSec + 0.03, tmpVecB);
+        flyGroup.position.copy(tmpVecA);
+        flyGroup.lookAt(tmpVecB);
+        flyGroup.scale.setScalar(1.0);
+
+        const flap = Math.sin(nowMs * 0.075) * 0.65;
+        wingLeftPivot.rotation.z = 0.35 + flap;
+        wingRightPivot.rotation.z = -0.35 - flap;
+      } else if (flyState.status === 'drawn') {
+        const elapsed = nowMs - flyState.stateStartTime;
+        const drawDur = 115;
+        const u = Math.min(1, elapsed / drawDur);
+        flyState.targetTrap.getWorldMouthPos(tmpVecB);
+        flyGroup.position.lerpVectors(flyState.captureStartPos, tmpVecB, u);
+        flyGroup.lookAt(tmpVecB);
+        flyGroup.scale.setScalar(1.0 - u * 0.15);
+
+        const flap = Math.sin(nowMs * 0.12) * 0.85;
+        wingLeftPivot.rotation.z = 0.35 + flap;
+        wingRightPivot.rotation.z = -0.35 - flap;
+
+        if (u >= 1) {
+          flyState.status = 'caught';
+          flyState.stateStartTime = nowMs;
+        }
+      } else if (flyState.status === 'caught') {
+        const elapsed = nowMs - flyState.stateStartTime;
+        flyState.targetTrap.getWorldMouthPos(tmpVecB);
+        flyGroup.position.copy(tmpVecB);
+        // Tiny frantic wing flutters for 1100ms, then goes still
+        if (elapsed < 1100) {
+          const flap = Math.sin(nowMs * 0.14) * 0.75;
+          wingLeftPivot.rotation.z = 0.25 + flap;
+          wingRightPivot.rotation.z = -0.25 - flap;
+          flyGroup.rotation.z = Math.sin(nowMs * 0.08) * 0.25;
+        } else {
+          flyState.status = 'still';
+          flyState.stateStartTime = nowMs;
+        }
+      } else if (flyState.status === 'still') {
+        const elapsed = nowMs - flyState.stateStartTime;
+        flyState.targetTrap.getWorldMouthPos(tmpVecB);
+        flyGroup.position.copy(tmpVecB);
+        wingLeftPivot.rotation.z = 0.15;
+        wingRightPivot.rotation.z = -0.15;
+        // Shrink away quietly as trap begins reopening
+        const shrink = Math.max(0.001, 1.0 - Math.max(0, (elapsed - 800) / 700));
+        flyGroup.scale.setScalar(shrink * 0.85);
+
+        if (elapsed >= 1600) {
+          flyState.status = 'fadingIn';
+          flyState.stateStartTime = nowMs;
+          flyState.targetTrap = null;
+        }
+      } else if (flyState.status === 'fadingIn') {
+        const elapsed = nowMs - flyState.stateStartTime;
+        const fadeDur = 1200;
+        const u = Math.min(1, elapsed / fadeDur);
+        getFlyOrbitPos(tSec, tmpVecA);
+        getFlyOrbitPos(tSec + 0.03, tmpVecB);
+        flyGroup.position.copy(tmpVecA);
+        flyGroup.lookAt(tmpVecB);
+        flyGroup.scale.setScalar(Math.max(0.01, u));
+
+        const flap = Math.sin(nowMs * 0.075) * 0.65;
+        wingLeftPivot.rotation.z = 0.35 + flap;
+        wingRightPivot.rotation.z = -0.35 - flap;
+
+        if (u >= 1) {
+          flyState.status = 'orbiting';
+        }
+      }
+
+      // C. Update Sundews (Idle sway + Tap Tentacle Curl + Instanced Dew Glint)
+      worldRoot.updateMatrixWorld();
+      for (let s = 0; s < sundews.length; s++) {
+        const sd = sundews[s];
+        const elapsed = nowMs - sd.triggerTime;
+        let curlFactor = 0;
+        if (elapsed >= 0 && elapsed < 3600) {
+          if (elapsed < 1000) {
+            const u = elapsed / 1000;
+            curlFactor = u * u * (3 - 2 * u);
+          } else if (elapsed < 2000) {
+            curlFactor = 1.0;
+          } else {
+            const u = (elapsed - 2000) / 1600;
+            curlFactor = 1.0 - u * u * (3 - 2 * u);
+          }
+        }
+
+        for (let t = 0; t < sd.tentacles.length; t++) {
+          const tent = sd.tentacles[t];
+          const sway = Math.sin(tSec * 1.9 + sd.phase + tent.phaseOffset) * 0.045;
+          tent.pivot.rotation.x = THREE.MathUtils.lerp(tent.baseSplay + sway, tent.curledSplay, curlFactor);
+          tent.pivot.updateMatrixWorld();
+
+          tent.tipAnchor.getWorldPosition(tmpVecA);
+          const glintPulse = 1.0 + 0.38 * curlFactor * Math.sin(nowMs * 0.02 + tent.phaseOffset);
+          dummy.position.copy(tmpVecA);
+          dummy.rotation.set(0, 0, 0);
+          dummy.scale.setScalar(sd.scale * glintPulse);
+          dummy.updateMatrix();
+          dewInst.setMatrixAt(tent.dewIdx, dummy.matrix);
+        }
+      }
+      dewInst.instanceMatrix.needsUpdate = true;
+
+      // D. Update Pitcher Plants (Idle sway + Wobble & Mist/Bubble Plume on Tap)
+      for (let p = 0; p < pitchers.length; p++) {
+        const pt = pitchers[p];
+        const elapsed = nowMs - pt.triggerTime;
+        let wobbleX = 0;
+        let wobbleZ = 0;
+        if (elapsed >= 0 && elapsed < 2200) {
+          const decay = Math.pow(1 - elapsed / 2200, 2);
+          wobbleX = Math.sin(elapsed * 0.026) * 0.16 * decay;
+          wobbleZ = Math.cos(elapsed * 0.022) * 0.14 * decay;
+        }
+        pt.pivot.rotation.x = pt.baseTiltX + Math.sin(tSec * 1.1 + pt.phase) * 0.02 + wobbleX;
+        pt.pivot.rotation.z = pt.baseTiltZ + Math.cos(tSec * 0.9 + pt.phase) * 0.02 + wobbleZ;
+
+        // Animate escaping mist/bubble plume
+        for (let k = 0; k < pt.plumeParticles.length; k++) {
+          const pp = pt.plumeParticles[k];
+          if (elapsed >= 0 && elapsed < 2200) {
+            const prog = elapsed / 2200;
+            pp.mesh.visible = true;
+            const py = 1.02 + prog * (0.58 + pp.speed * 0.35);
+            const px = pp.offset.x + Math.sin(prog * 7 + pp.swayPhase) * 0.06;
+            const pz = pp.offset.z + Math.cos(prog * 6 + pp.swayPhase) * 0.06;
+            pp.mesh.position.set(px, py, pz);
+            if (pp.isMist) {
+              pp.mesh.lookAt(camera.position);
+              const s = 0.4 + prog * 1.25;
+              pp.mesh.scale.setScalar(s);
+              pp.mesh.material.opacity = Math.sin(prog * Math.PI) * 0.42;
+            } else {
+              const pop = prog < 0.85 ? Math.sin((prog / 0.85) * Math.PI * 0.5) : (1 - (prog - 0.85) / 0.15);
+              pp.mesh.scale.setScalar(Math.max(0.01, pop * 1.2));
+            }
+          } else {
+            pp.mesh.visible = false;
+          }
+        }
+      }
+
+      // E. Update Instanced Fireflies (Drifting & Warm Amber Pulsing)
+      for (let i = 0; i < FIREFLY_COUNT; i++) {
+        const ff = firefliesData[i];
+        const a = tSec * ff.speed + ff.phase;
+        const fx = ff.baseX + Math.cos(a) * ff.driftRadius;
+        const fy = ff.baseY + Math.sin(a * 1.4) * 0.12;
+        const fz = ff.baseZ + Math.sin(a * 0.9) * ff.driftRadius;
+        const pulse = 0.35 + 0.65 * (0.5 + 0.5 * Math.sin(tSec * ff.pulseSpeed + ff.phase));
+
+        dummy.position.set(fx, fy, fz);
+        dummy.rotation.set(0, 0, 0);
+        dummy.scale.setScalar(pulse);
+        dummy.updateMatrix();
+        fireflyInst.setMatrixAt(i, dummy.matrix);
+      }
+      fireflyInst.instanceMatrix.needsUpdate = true;
+
+      // Subtle warm firefly point light breathing
+      bogGlowLight.intensity = 1.0 + 0.25 * Math.sin(tSec * 2.3);
+
+      // F. Update Instanced Rising & Popping Pool Bubbles
+      for (let i = 0; i < BUBBLE_COUNT; i++) {
+        const b = bubblesData[i];
+        const cycle = (tSec * b.speed + b.phase) % 1.0;
+        const by = 0.01 + cycle * b.maxHeight;
+        let bScale = b.baseScale;
+        if (cycle < 0.15) {
+          bScale *= cycle / 0.15;
+        } else if (cycle > 0.88) {
+          // Pop expansion & vanish at top
+          bScale *= 1.35 * (1.0 - (cycle - 0.88) / 0.12);
+        }
+        dummy.position.set(
+          b.x + Math.sin(tSec * 3.0 + b.phase) * 0.012,
+          by,
+          b.z + Math.cos(tSec * 2.7 + b.phase) * 0.012
+        );
+        dummy.rotation.set(0, 0, 0);
+        dummy.scale.setScalar(Math.max(0.001, bScale));
+        dummy.updateMatrix();
+        bubbleInst.setMatrixAt(i, dummy.matrix);
+      }
+      bubbleInst.instanceMatrix.needsUpdate = true;
+
+      // G. Update Shimmering Pool Ripples
+      for (let i = 0; i < poolRipples.length; i++) {
+        const rp = poolRipples[i];
+        const rCycle = (tSec * 0.42 + rp.phase) % 1.0;
+        const scale = 0.5 + rCycle * 2.1;
+        rp.mesh.scale.set(scale, 1, scale);
+        rp.mat.opacity = Math.sin(rCycle * Math.PI) * 0.24;
+      }
+
+      // H. Update Drifting Ground Mist & Hanging Tree Moss Sway
+      for (let i = 0; i < mistBands.length; i++) {
+        const mb = mistBands[i];
+        const mAngle = tSec * mb.speed + mb.phase;
+        mb.mesh.position.x = mb.baseX + Math.sin(mAngle) * 0.18;
+        mb.mesh.position.z = mb.baseZ + Math.cos(mAngle * 0.8) * 0.18;
+        mb.mesh.rotation.y = mAngle * 0.25;
+        mb.mat.opacity = mb.baseOpacity * (0.75 + 0.25 * Math.sin(mAngle * 1.3));
+      }
+
+      for (let i = 0; i < mossDrapes.length; i++) {
+        const md = mossDrapes[i];
+        md.mesh.rotation.z = Math.sin(tSec * 1.1 + md.phase) * 0.06;
+        md.mesh.rotation.x = Math.cos(tSec * 0.9 + md.phase) * 0.05;
+      }
+
+      renderer.render(scene, camera);
+    }
+
+    requestAnimationFrame(animate);
+  </script>
 </body>
 </html>
