@@ -1,214 +1,1365 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="utf-8"/>
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
-<title>Lighthouse at Night - Tiny Worlds</title>
-<meta name="description" content="Rocks, waves, one tower. Drag to sweep the beam; ships out in the dark correct their course as the fog rolls in."/>
-<style>
-  html,body{margin:0;height:100%;background:#05080e;overflow:hidden;font-family:system-ui,-apple-system,sans-serif}
-  #app{position:fixed;inset:0;touch-action:none}
-  .hud{position:fixed;left:0;right:0;pointer-events:none;color:#dce6f0;text-align:center;z-index:2}
-  .hud.top{top:max(14px,env(safe-area-inset-top))}
-  .hud h1{font-size:15px;font-weight:650;letter-spacing:.02em;margin:0;opacity:.95}
-  .hud p{font-size:11.5px;margin:4px 0 0;opacity:.55}
-  .hud.bottom{bottom:max(14px,env(safe-area-inset-bottom));font-size:11.5px;opacity:.6;transition:opacity 1s}
-  .hud.bottom.gone{opacity:0}
-  #vignette{position:fixed;inset:0;pointer-events:none;background:radial-gradient(ellipse at 50% 42%,transparent 50%,rgba(0,0,0,.6) 100%);z-index:1}
-</style>
-<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"}}</script>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Lighthouse at night</title>
+  <style>
+    :root {
+      --bg-top: #040811;
+      --bg-bottom: #091322;
+      --text-primary: #eef4fa;
+      --text-secondary: #8ea9c4;
+      --accent-warm: #ffb84d;
+    }
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      user-select: none;
+      -webkit-user-select: none;
+      -webkit-touch-callout: none;
+    }
+    html, body {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: linear-gradient(180deg, var(--bg-top) 0%, var(--bg-bottom) 100%);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      color: var(--text-primary);
+    }
+    #app {
+      position: relative;
+      width: 100%;
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+    }
+    #canvas-container {
+      position: absolute;
+      inset: 0;
+      z-index: 1;
+      touch-action: none;
+    }
+    canvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+      cursor: grab;
+    }
+    canvas.dragging-beam {
+      cursor: ew-resize;
+    }
+    canvas.hover-interactive {
+      cursor: pointer;
+    }
+    canvas:active {
+      cursor: grabbing;
+    }
+    header {
+      position: relative;
+      z-index: 2;
+      padding: 14px 16px 10px;
+      text-align: center;
+      pointer-events: none;
+      background: linear-gradient(180deg, rgba(4, 8, 17, 0.92) 0%, rgba(4, 8, 17, 0.65) 75%, rgba(4, 8, 17, 0) 100%);
+    }
+    h1 {
+      font-size: clamp(1.1rem, 3.5vw, 1.45rem);
+      font-weight: 600;
+      letter-spacing: 0.03em;
+      color: var(--text-primary);
+      text-shadow: 0 2px 8px rgba(0, 0, 0, 0.8);
+      line-height: 1.2;
+    }
+    .subtitle {
+      font-size: clamp(0.74rem, 2.2vw, 0.86rem);
+      font-weight: 400;
+      color: var(--accent-warm);
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      margin-top: 2px;
+      opacity: 0.9;
+    }
+    .hint {
+      font-size: clamp(0.68rem, 2vw, 0.78rem);
+      color: var(--text-secondary);
+      margin-top: 5px;
+      letter-spacing: 0.02em;
+      line-height: 1.3;
+    }
+    .status-pill {
+      display: inline-block;
+      margin-top: 5px;
+      padding: 2px 9px;
+      border-radius: 999px;
+      font-size: 0.66rem;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      background: rgba(255, 184, 77, 0.14);
+      border: 1px solid rgba(255, 184, 77, 0.35);
+      color: #ffd38a;
+      transition: opacity 0.3s ease, transform 0.3s ease;
+    }
+    footer {
+      position: relative;
+      z-index: 2;
+      padding: 10px 16px 12px;
+      text-align: center;
+      pointer-events: none;
+      font-size: clamp(0.68rem, 2vw, 0.76rem);
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: rgba(142, 169, 196, 0.65);
+      background: linear-gradient(0deg, rgba(4, 8, 17, 0.9) 0%, rgba(4, 8, 17, 0.55) 70%, rgba(4, 8, 17, 0) 100%);
+    }
+    #fallback {
+      display: none;
+      position: absolute;
+      inset: 0;
+      z-index: 10;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+      text-align: center;
+      background: #050a14;
+      color: #eef4fa;
+      font-size: 0.95rem;
+    }
+  </style>
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+        "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+      }
+    }
+  </script>
 </head>
 <body>
-<div id="app"></div>
-<div id="vignette"></div>
-<div class="hud top"><h1>Lighthouse at Night</h1><p>a tiny world, one of fifty</p></div>
-<div class="hud bottom" id="hint">Drag across the water to sweep the beam</div>
-<script type="module">
-import * as THREE from 'three';
-import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+  <div id="app">
+    <header id="ui-header">
+      <h1>Lighthouse at night</h1>
+      <div class="subtitle">a tiny world</div>
+      <div class="hint">drag to sweep the beam - tap the lamp for fog</div>
+      <div id="status-badge" class="status-pill">Clear Night • Auto Sweep</div>
+    </header>
+    <div id="canvas-container"></div>
+    <footer id="ui-footer">A tiny world</footer>
+    <div id="fallback">WebGL could not be initialized on this device or browser. Please enable hardware acceleration to view the 3D miniature.</div>
+  </div>
 
-const app = document.getElementById('app');
-const renderer = new THREE.WebGLRenderer({ antialias:true });
-renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
-renderer.setSize(innerWidth, innerHeight);
-renderer.shadowMap.enabled = true;
-renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-renderer.toneMapping = THREE.ACESFilmicToneMapping;
-app.appendChild(renderer.domElement);
+  <script type="module">
+    import * as THREE from 'three';
+    import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 
-const scene = new THREE.Scene();
-scene.background = new THREE.Color(0x05080e);
-scene.fog = new THREE.FogExp2(0x0a1220, .05);
+    // Deterministic PRNG: mulberry32(20261102)
+    function mulberry32(a) {
+      return function() {
+        let t = a += 0x6D2B79F5;
+        t = Math.imul(t ^ (t >>> 15), t | 1);
+        t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+        return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+      };
+    }
+    const rand = mulberry32(20261102);
+    const randRange = (min, max) => min + rand() * (max - min);
 
-const camera = new THREE.PerspectiveCamera(40, innerWidth/innerHeight, .1, 120);
-camera.position.set(10, 7.5, 10);
+    const container = document.getElementById('canvas-container');
+    const headerEl = document.getElementById('ui-header');
+    const footerEl = document.getElementById('ui-footer');
+    const statusBadge = document.getElementById('status-badge');
+    const fallbackEl = document.getElementById('fallback');
 
-const controls = new OrbitControls(camera, renderer.domElement);
-controls.target.set(0, 1.8, 0);
-controls.enableDamping = true;
-controls.enablePan = false;
-controls.minDistance = 7; controls.maxDistance = 20;
-controls.maxPolarAngle = Math.PI * .47;
-controls.autoRotate = true; controls.autoRotateSpeed = .3;
+    let renderer, scene, camera, controls;
+    try {
+      renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.75));
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      renderer.shadowMap.enabled = true;
+      renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+      renderer.toneMapping = THREE.ACESFilmicToneMapping;
+      renderer.toneMappingExposure = 1.38;
+      container.appendChild(renderer.domElement);
+    } catch (e) {
+      fallbackEl.style.display = 'flex';
+      throw e;
+    }
 
-scene.add(new THREE.HemisphereLight(0x223048, 0x04070c, .8));
-const moon = new THREE.DirectionalLight(0x93a9cf, .55);
-moon.position.set(-8, 12, -4);
-moon.castShadow = true;
-moon.shadow.mapSize.set(1024, 1024);
-moon.shadow.camera.left = -8; moon.shadow.camera.right = 8;
-moon.shadow.camera.top = 8; moon.shadow.camera.bottom = -8;
-scene.add(moon);
+    scene = new THREE.Scene();
+    const FOG_COLOR_CLEAR = new THREE.Color(0x060d1a);
+    const FOG_COLOR_DENSE = new THREE.Color(0x3b5578);
+    scene.fog = new THREE.FogExp2(FOG_COLOR_CLEAR.getHex(), 0.015);
 
-// cutaway base: dark rock over deeper rock
-const baseTop = new THREE.Mesh(new THREE.BoxGeometry(9, .8, 9), new THREE.MeshStandardMaterial({ color:0x2c3140, roughness:1 }));
-baseTop.position.y = -.4; baseTop.receiveShadow = true; scene.add(baseTop);
-const baseRock = new THREE.Mesh(new THREE.BoxGeometry(9, 1.6, 9), new THREE.MeshStandardMaterial({ color:0x171b26, roughness:1 }));
-baseRock.position.y = -1.6; scene.add(baseRock);
+    camera = new THREE.PerspectiveCamera(36, window.innerWidth / window.innerHeight, 0.5, 120);
+    controls = new OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.06;
+    controls.enablePan = false;
+    controls.minPolarAngle = THREE.MathUtils.degToRad(36);
+    controls.maxPolarAngle = THREE.MathUtils.degToRad(68);
+    controls.minAzimuthAngle = THREE.MathUtils.degToRad(-42);
+    controls.maxAzimuthAngle = THREE.MathUtils.degToRad(42);
 
-// sea with live waves (beyond the base)
-const seaGeo = new THREE.PlaneGeometry(70, 70, 46, 46);
-const sea = new THREE.Mesh(seaGeo, new THREE.MeshStandardMaterial({ color:0x0d2436, roughness:.4, metalness:.25 }));
-sea.rotation.x = -Math.PI/2;
-sea.position.y = -.85;
-sea.receiveShadow = true;
-scene.add(sea);
-const seaBase = seaGeo.attributes.position.array.slice();
+    // Procedural Canvas Textures
+    function createRadialGlowTexture() {
+      const c = document.createElement('canvas');
+      c.width = 128;
+      c.height = 128;
+      const ctx = c.getContext('2d');
+      const g = ctx.createRadialGradient(64, 64, 2, 64, 64, 64);
+      g.addColorStop(0.0, 'rgba(255, 246, 210, 1.0)');
+      g.addColorStop(0.22, 'rgba(255, 195, 85, 0.85)');
+      g.addColorStop(0.55, 'rgba(255, 145, 35, 0.28)');
+      g.addColorStop(1.0, 'rgba(255, 120, 20, 0.0)');
+      ctx.fillStyle = g;
+      ctx.fillRect(0, 0, 128, 128);
+      const tex = new THREE.CanvasTexture(c);
+      tex.needsUpdate = true;
+      return tex;
+    }
 
-// rocks on the base
-const rockMat = new THREE.MeshStandardMaterial({ color:0x3d4354, roughness:1, flatShading:true });
-[[-2.6,1.8,.9],[2.9,2.2,.7],[-3.1,-2.4,.8],[1.4,-3,.6]].forEach(([x,z,s]) => {
-  const r = new THREE.Mesh(new THREE.DodecahedronGeometry(s, 0), rockMat);
-  r.position.set(x, s*.4, z);
-  r.rotation.set(Math.random(), Math.random(), Math.random());
-  r.castShadow = true; r.receiveShadow = true;
-  scene.add(r);
-});
+    function createBeamGradientTexture() {
+      const c = document.createElement('canvas');
+      c.width = 64;
+      c.height = 256;
+      const ctx = c.getContext('2d');
+      const g = ctx.createLinearGradient(0, 0, 0, 256);
+      // Cylinder top (y=0 in canvas is top UV v=1)
+      g.addColorStop(0.0, 'rgba(255, 230, 165, 0.95)');
+      g.addColorStop(0.18, 'rgba(255, 190, 85, 0.55)');
+      g.addColorStop(0.55, 'rgba(255, 165, 55, 0.20)');
+      g.addColorStop(0.88, 'rgba(255, 145, 40, 0.05)');
+      g.addColorStop(1.0, 'rgba(255, 135, 30, 0.0)');
+      ctx.fillStyle = g;
+      ctx.fillRect(0, 0, 64, 256);
+      const tex = new THREE.CanvasTexture(c);
+      tex.needsUpdate = true;
+      return tex;
+    }
 
-// lighthouse
-const tower = new THREE.Group();
-function band(y0, h, r0, r1, color){
-  const m = new THREE.Mesh(new THREE.CylinderGeometry(r1, r0, h, 12), new THREE.MeshStandardMaterial({ color, roughness:.85 }));
-  m.position.y = y0 + h/2; m.castShadow = true; m.receiveShadow = true;
-  tower.add(m);
-}
-band(0, .9, .85, .78, 0xd8d2c4);
-band(.9, .9, .78, .7, 0xa83c32);
-band(1.8, .9, .7, .62, 0xd8d2c4);
-band(2.7, .9, .62, .55, 0xa83c32);
-const deck = new THREE.Mesh(new THREE.CylinderGeometry(.78, .78, .12, 12), new THREE.MeshStandardMaterial({ color:0x222833, roughness:.8 }));
-deck.position.y = 3.66; deck.castShadow = true; tower.add(deck);
-const lampRoom = new THREE.Mesh(new THREE.CylinderGeometry(.42, .42, .5, 10), new THREE.MeshStandardMaterial({ color:0x1c222e, roughness:.6 }));
-lampRoom.position.y = 3.97; tower.add(lampRoom);
-const lampGlass = new THREE.Mesh(new THREE.CylinderGeometry(.36, .36, .4, 10), new THREE.MeshStandardMaterial({ color:0xffd98a, emissive:0xffc95e, emissiveIntensity:2.2, transparent:true, opacity:.9 }));
-lampGlass.position.y = 3.97; tower.add(lampGlass);
-const cap = new THREE.Mesh(new THREE.ConeGeometry(.5, .5, 10), new THREE.MeshStandardMaterial({ color:0xa83c32, roughness:.85, flatShading:true }));
-cap.position.y = 4.47; cap.castShadow = true; tower.add(cap);
-tower.position.set(-.6, 0, -.4);
-scene.add(tower);
+    const glowTex = createRadialGlowTexture();
+    const beamGradTex = createBeamGradientTexture();
 
-// lamp light + visible beam
-const lampWorld = new THREE.Vector3();
-const beamPivot = new THREE.Group();
-beamPivot.position.set(-.6, 3.97, -.4);
-scene.add(beamPivot);
-const beamMat = new THREE.MeshBasicMaterial({ color:0xffd98a, transparent:true, opacity:.16, side:THREE.DoubleSide, depthWrite:false, blending:THREE.AdditiveBlending });
-const beam = new THREE.Mesh(new THREE.ConeGeometry(2.6, 14, 20, 1, true), beamMat);
-beam.rotation.z = Math.PI/2;
-beam.position.x = 7;
-beamPivot.add(beam);
-const spot = new THREE.SpotLight(0xffd98a, 60, 30, .3, .5, 1.2);
-spot.position.set(0, 0, 0);
-beamPivot.add(spot);
-const spotTarget = new THREE.Object3D();
-spotTarget.position.set(14, -3.2, 0);
-beamPivot.add(spotTarget);
-spot.target = spotTarget;
+    // Shared Materials
+    const mats = {
+      strataBottom: new THREE.MeshStandardMaterial({ color: 0x0b121c, roughness: 0.92, metalness: 0.05, flatShading: true }),
+      strataMid: new THREE.MeshStandardMaterial({ color: 0x121d2b, roughness: 0.88, metalness: 0.06, flatShading: true }),
+      strataTop: new THREE.MeshStandardMaterial({ color: 0x17293c, roughness: 0.82, metalness: 0.08, flatShading: true }),
+      seaSurface: new THREE.MeshStandardMaterial({
+        color: 0x0a2e46,
+        emissive: 0x03111c,
+        roughness: 0.26,
+        metalness: 0.35,
+        flatShading: true
+      }),
+      seaSwell: new THREE.MeshStandardMaterial({
+        color: 0x114563,
+        emissive: 0x041826,
+        roughness: 0.22,
+        metalness: 0.28,
+        flatShading: true
+      }),
+      rockDark: new THREE.MeshStandardMaterial({
+        color: 0x182330,
+        roughness: 0.85,
+        metalness: 0.08,
+        flatShading: true
+      }),
+      rockMid: new THREE.MeshStandardMaterial({
+        color: 0x223042,
+        roughness: 0.8,
+        metalness: 0.1,
+        flatShading: true
+      }),
+      foam: new THREE.MeshStandardMaterial({
+        color: 0xd8f0f8,
+        emissive: 0x2e5870,
+        roughness: 0.4,
+        metalness: 0.0,
+        transparent: true,
+        opacity: 0.82
+      }),
+      towerWhite: new THREE.MeshStandardMaterial({
+        color: 0xeae6df,
+        roughness: 0.55,
+        metalness: 0.05
+      }),
+      towerRed: new THREE.MeshStandardMaterial({
+        color: 0x9e2424,
+        roughness: 0.5,
+        metalness: 0.08
+      }),
+      darkIron: new THREE.MeshStandardMaterial({
+        color: 0x18202c,
+        roughness: 0.4,
+        metalness: 0.65
+      }),
+      copperDome: new THREE.MeshStandardMaterial({
+        color: 0x223a44,
+        roughness: 0.42,
+        metalness: 0.5
+      }),
+      hutWall: new THREE.MeshStandardMaterial({
+        color: 0xd6d2c9,
+        roughness: 0.68,
+        metalness: 0.04
+      }),
+      hutRoof: new THREE.MeshStandardMaterial({
+        color: 0x7c2828,
+        roughness: 0.6,
+        metalness: 0.08
+      }),
+      warmWindow: new THREE.MeshBasicMaterial({
+        color: 0xffbe55
+      }),
+      lampCore: new THREE.MeshBasicMaterial({
+        color: 0xfff0c2
+      }),
+      lanternGlass: new THREE.MeshStandardMaterial({
+        color: 0xffdf9e,
+        emissive: 0xffa834,
+        emissiveIntensity: 0.45,
+        roughness: 0.15,
+        metalness: 0.1,
+        transparent: true,
+        opacity: 0.42
+      }),
+      boatHull: new THREE.MeshStandardMaterial({
+        color: 0x0d1622,
+        roughness: 0.7,
+        metalness: 0.15
+      }),
+      boatCabin: new THREE.MeshStandardMaterial({
+        color: 0x1b2838,
+        roughness: 0.65,
+        metalness: 0.1
+      }),
+      invisibleProxy: new THREE.MeshBasicMaterial({
+        visible: false
+      })
+    };
 
-// ships
-function makeShip(){
-  const s = new THREE.Group();
-  const hull = new THREE.Mesh(new THREE.BoxGeometry(1.1, .3, .42), new THREE.MeshStandardMaterial({ color:0x5a3b2e, roughness:.9 }));
-  hull.castShadow = true; s.add(hull);
-  const mast = new THREE.Mesh(new THREE.CylinderGeometry(.03, .03, .9, 5), new THREE.MeshStandardMaterial({ color:0x3a2a20 }));
-  mast.position.y = .55; s.add(mast);
-  const sail = new THREE.Mesh(new THREE.PlaneGeometry(.5, .6), new THREE.MeshStandardMaterial({ color:0xcfc6ae, side:THREE.DoubleSide }));
-  sail.position.set(.12, .6, 0); s.add(sail);
-  const lampP = new THREE.Mesh(new THREE.SphereGeometry(.06, 6, 6), new THREE.MeshStandardMaterial({ color:0xffe2a0, emissive:0xffca6a, emissiveIntensity:2 }));
-  lampP.position.set(-.5, .2, 0); s.add(lampP);
-  return s;
-}
-const ships = [];
-[{ a: 2.4, r: 12.5, speed: .05 }, { a: 5.2, r: 14, speed: -.038 }].forEach(cfg => {
-  const s = makeShip();
-  s.userData = { a: cfg.a, r: cfg.r, speed: cfg.speed, avoid: 0 };
-  scene.add(s);
-  ships.push(s);
-});
+    const worldGroup = new THREE.Group();
+    scene.add(worldGroup);
 
-const hint = document.getElementById('hint');
-setTimeout(() => hint.classList.add('gone'), 7000);
+    // Lighting
+    const hemiLight = new THREE.HemisphereLight(0x3a5c8a, 0x0a1220, 1.05);
+    scene.add(hemiLight);
 
-// drag to sweep beam: horizontal drag rotates beam azimuth
-let beamAngle = .8, dragging = false, lastX = 0;
-renderer.domElement.addEventListener('pointerdown', e => {
-  dragging = true; lastX = e.clientX;
-  controls.autoRotate = false;
-});
-renderer.domElement.addEventListener('pointermove', e => {
-  if (!dragging) return;
-  const dx = e.clientX - lastX;
-  lastX = e.clientX;
-  beamAngle += dx * .008;
-});
-addEventListener('pointerup', () => { dragging = false; setTimeout(() => controls.autoRotate = true, 4000); });
+    const moonLight = new THREE.DirectionalLight(0x7ba3d6, 1.25);
+    moonLight.position.set(-8, 12, -6);
+    moonLight.castShadow = true;
+    moonLight.shadow.mapSize.width = 1024;
+    moonLight.shadow.mapSize.height = 1024;
+    moonLight.shadow.camera.near = 2;
+    moonLight.shadow.camera.far = 28;
+    const d = 7.5;
+    moonLight.shadow.camera.left = -d;
+    moonLight.shadow.camera.right = d;
+    moonLight.shadow.camera.top = d;
+    moonLight.shadow.camera.bottom = -d;
+    moonLight.shadow.bias = -0.0008;
+    scene.add(moonLight);
 
-const clock = new THREE.Clock();
-function animate(){
-  requestAnimationFrame(animate);
-  const dt = Math.min(clock.getDelta(), .05);
-  const t = clock.elapsedTime;
-  controls.update();
+    // Diorama Slab Dimensions
+    const SLAB_W = 10.6;
+    const SLAB_D = 8.8;
 
-  // waves
-  const pos = seaGeo.attributes.position.array;
-  for (let i = 0; i < pos.length; i += 3){
-    const x = seaBase[i], y = seaBase[i+1];
-    pos[i+2] = Math.sin(x * .5 + t * 1.2) * .14 + Math.cos(y * .45 + t * .9) * .12;
-  }
-  seaGeo.attributes.position.needsUpdate = true;
-  seaGeo.computeVertexNormals();
+    // Helper for organic beveled rock/strata slab layers
+    function createBeveledSlabLayer(w, h, d, yPos, mat, jitter = 0.12) {
+      const geo = new THREE.BoxGeometry(w, h, d, 10, 2, 10);
+      const pos = geo.attributes.position;
+      for (let i = 0; i < pos.count; i++) {
+        let vx = pos.getX(i);
+        let vy = pos.getY(i);
+        let vz = pos.getZ(i);
+        const edgeX = Math.abs(vx) / (w * 0.5);
+        const edgeZ = Math.abs(vz) / (d * 0.5);
+        // Chamfer corners slightly
+        if (edgeX > 0.85 && edgeZ > 0.85) {
+          vx *= 0.94;
+          vz *= 0.94;
+        }
+        // Taper bottom slightly
+        if (vy < 0) {
+          vx *= 0.96;
+          vz *= 0.96;
+        }
+        // Deterministic rock strata jitter on sides
+        if (edgeX > 0.9 || edgeZ > 0.9) {
+          const n = Math.sin(vx * 1.7 + vz * 2.3 + yPos * 4.0) * jitter;
+          vx += n * (vx > 0 ? 1 : -1) * 0.4;
+          vz += n * (vz > 0 ? 1 : -1) * 0.4;
+        }
+        pos.setXYZ(i, vx, vy, vz);
+      }
+      geo.computeVertexNormals();
+      const mesh = new THREE.Mesh(geo, mat);
+      mesh.position.y = yPos;
+      mesh.receiveShadow = true;
+      mesh.castShadow = true;
+      return mesh;
+    }
 
-  // beam slowly sweeps on its own plus user control
-  if (!dragging) beamAngle += dt * .22;
-  beamPivot.rotation.y = -beamAngle;
-  beamMat.opacity = .14 + Math.sin(t * 2.4) * .03;
+    const slabGroup = new THREE.Group();
+    worldGroup.add(slabGroup);
+    slabGroup.add(createBeveledSlabLayer(SLAB_W * 0.94, 0.55, SLAB_D * 0.94, -1.35, mats.strataBottom, 0.16));
+    slabGroup.add(createBeveledSlabLayer(SLAB_W * 0.98, 0.55, SLAB_D * 0.98, -0.82, mats.strataMid, 0.14));
+    slabGroup.add(createBeveledSlabLayer(SLAB_W, 0.52, SLAB_D, -0.32, mats.strataTop, 0.1));
 
-  // ships sail and avoid the rocks when the beam finds them
-  ships.forEach(s => {
-    const u = s.userData;
-    // beam direction vs ship direction from tower
-    const shipAngle = Math.atan2(s.position.z - beamPivot.position.z, s.position.x - beamPivot.position.x);
-    let d = shipAngle - (-beamAngle % (Math.PI*2));
-    d = Math.atan2(Math.sin(shipAngle + beamAngle), Math.cos(shipAngle + beamAngle));
-    const lit = Math.abs(d) < .3;
-    u.avoid += ((lit ? 1 : 0) - u.avoid) * Math.min(dt * 2, 1);
-    u.a += u.speed * dt * (1 + u.avoid * 1.6);
-    const r = u.r - u.avoid * 2.2; // steer away from the light/rocks
-    s.position.set(Math.cos(u.a) * r, -.62 + Math.sin(t * 1.3 + u.a * 3) * .07, Math.sin(u.a) * r);
-    s.rotation.y = -u.a + (u.speed > 0 ? -Math.PI/2 : Math.PI/2) + u.avoid * .4;
-    s.rotation.z = Math.sin(t * 1.3 + u.a * 3) * .05;
-  });
+    // Top Sea Surface Mesh (deformable vertex grid)
+    const seaGeo = new THREE.BoxGeometry(SLAB_W * 0.99, 0.24, SLAB_D * 0.99, 36, 1, 30);
+    const seaPosAttr = seaGeo.attributes.position;
+    const seaBaseCoords = [];
+    for (let i = 0; i < seaPosAttr.count; i++) {
+      let vx = seaPosAttr.getX(i);
+      let vy = seaPosAttr.getY(i);
+      let vz = seaPosAttr.getZ(i);
+      const ex = Math.abs(vx) / (SLAB_W * 0.495);
+      const ez = Math.abs(vz) / (SLAB_D * 0.495);
+      if (ex > 0.86 && ez > 0.86) {
+        vx *= 0.94;
+        vz *= 0.94;
+        seaPosAttr.setXYZ(i, vx, vy, vz);
+      }
+      seaBaseCoords.push({ x: vx, y: vy, z: vz, isTop: vy > 0 });
+    }
+    seaGeo.computeVertexNormals();
+    const seaMesh = new THREE.Mesh(seaGeo, mats.seaSurface);
+    seaMesh.position.y = -0.05;
+    seaMesh.receiveShadow = true;
+    worldGroup.add(seaMesh);
 
-  renderer.render(scene, camera);
-}
-animate();
+    // Instanced Animated Low Swell Ridges on Sea
+    const SWELL_COUNT = 34;
+    const swellGeo = new THREE.BoxGeometry(1.15, 0.08, 0.24, 4, 1, 2);
+    // Bevel swell ridge ends
+    const swPos = swellGeo.attributes.position;
+    for (let i = 0; i < swPos.count; i++) {
+      const sx = swPos.getX(i);
+      const sy = swPos.getY(i);
+      if (sy > 0) {
+        const factor = 1.0 - Math.pow(Math.abs(sx) / 0.6, 2) * 0.65;
+        swPos.setY(i, sy * Math.max(0.2, factor));
+      }
+    }
+    swellGeo.computeVertexNormals();
+    const swellInst = new THREE.InstancedMesh(swellGeo, mats.seaSwell, SWELL_COUNT);
+    swellInst.receiveShadow = true;
+    worldGroup.add(swellInst);
 
-addEventListener('resize', () => {
-  camera.aspect = innerWidth / innerHeight;
-  camera.updateProjectionMatrix();
-  renderer.setSize(innerWidth, innerHeight);
-});
-</script>
+    const swellData = [];
+    for (let i = 0; i < SWELL_COUNT; i++) {
+      let sx = randRange(-SLAB_W * 0.43, SLAB_W * 0.43);
+      let sz = randRange(-SLAB_D * 0.42, SLAB_D * 0.42);
+      // Keep swells outside islet center (-1.2, -0.5)
+      const distToIslet = Math.hypot(sx + 1.2, sz + 0.5);
+      if (distToIslet < 2.2) {
+        const ang = Math.atan2(sz + 0.5, sx + 1.2);
+        sx = -1.2 + Math.cos(ang) * 2.5;
+        sz = -0.5 + Math.sin(ang) * 2.5;
+      }
+      swellData.push({
+        x: sx,
+        z: sz,
+        scaleX: randRange(0.65, 1.35),
+        scaleZ: randRange(0.8, 1.3),
+        phase: randRange(0, Math.PI * 2),
+        speed: randRange(1.4, 2.2),
+        yaw: randRange(-0.25, 0.25)
+      });
+    }
+
+    // Rocky Islet Cluster
+    const ISLET_X = -1.25;
+    const ISLET_Z = -0.55;
+    const isletGroup = new THREE.Group();
+    isletGroup.position.set(ISLET_X, 0.05, ISLET_Z);
+    worldGroup.add(isletGroup);
+
+    const rockGeoBase = new THREE.DodecahedronGeometry(1.0, 1);
+    // Flatten & angularize rock prototype slightly
+    const rkPos = rockGeoBase.attributes.position;
+    for (let i = 0; i < rkPos.count; i++) {
+      const rx = rkPos.getX(i);
+      const ry = rkPos.getY(i);
+      const rz = rkPos.getZ(i);
+      const n = 1 + 0.14 * Math.sin(rx * 3.1 + ry * 2.7 + rz * 3.9);
+      rkPos.setXYZ(i, rx * n, ry * (ry > 0 ? 0.78 : 0.5) * n, rz * n);
+    }
+    rockGeoBase.computeVertexNormals();
+
+    const rockSpecs = [
+      // Central plinth for tower & hut
+      { x: 0.0, y: 0.35, z: 0.0, sx: 1.55, sy: 0.95, sz: 1.45, ry: 0.4, mat: mats.rockDark },
+      { x: 1.05, y: 0.28, z: 0.25, sx: 1.15, sy: 0.82, sz: 1.05, ry: 1.2, mat: mats.rockMid },
+      { x: -1.1, y: 0.22, z: 0.35, sx: 1.0, sy: 0.75, sz: 0.95, ry: 2.1, mat: mats.rockDark },
+      { x: -0.55, y: 0.25, z: -0.95, sx: 1.1, sy: 0.7, sz: 0.9, ry: 0.8, mat: mats.rockMid },
+      { x: 0.55, y: 0.18, z: -0.95, sx: 0.95, sy: 0.65, sz: 0.85, ry: 1.9, mat: mats.rockDark },
+      { x: -0.25, y: 0.18, z: 1.05, sx: 1.05, sy: 0.62, sz: 0.85, ry: 2.8, mat: mats.rockMid },
+      { x: 1.55, y: 0.12, z: -0.35, sx: 0.72, sy: 0.5, sz: 0.68, ry: 0.5, mat: mats.rockDark },
+      { x: -1.65, y: 0.10, z: -0.3, sx: 0.68, sy: 0.48, sz: 0.65, ry: 1.5, mat: mats.rockMid },
+      { x: 0.85, y: 0.10, z: 1.05, sx: 0.65, sy: 0.45, sz: 0.62, ry: 2.4, mat: mats.rockDark }
+    ];
+
+    rockSpecs.forEach(s => {
+      const m = new THREE.Mesh(rockGeoBase, s.mat);
+      m.position.set(s.x, s.y, s.z);
+      m.scale.set(s.sx, s.sy, s.sz);
+      m.rotation.y = s.ry;
+      m.castShadow = true;
+      m.receiveShadow = true;
+      isletGroup.add(m);
+    });
+
+    // Animated White Foam Ring lapping the islet rocks
+    const FOAM_COUNT = 44;
+    const foamGeo = new THREE.BoxGeometry(0.42, 0.05, 0.18);
+    const foamInst = new THREE.InstancedMesh(foamGeo, mats.foam, FOAM_COUNT);
+    worldGroup.add(foamInst);
+
+    const foamRingData = [];
+    for (let i = 0; i < FOAM_COUNT; i++) {
+      const angle = (i / FOAM_COUNT) * Math.PI * 2;
+      // Contour hugs the islet rock silhouette
+      const baseR = 1.92 + 0.32 * Math.cos(angle * 2.0 - 0.3) + 0.16 * Math.sin(angle * 3.0 + 0.7);
+      foamRingData.push({
+        angle,
+        baseR,
+        phase: angle * 2.0 + randRange(0, 1.2),
+        scaleLen: randRange(0.75, 1.35)
+      });
+    }
+
+    // HERO LIGHTHOUSE (~2/3 of slab width tall: ~6.4 units total height)
+    const lighthouseGroup = new THREE.Group();
+    lighthouseGroup.position.set(ISLET_X - 0.15, 0.85, ISLET_Z - 0.05);
+    worldGroup.add(lighthouseGroup);
+
+    // Stone Plinth Foundation
+    const plinthGeo = new THREE.CylinderGeometry(0.96, 1.08, 0.45, 16);
+    const plinthMesh = new THREE.Mesh(plinthGeo, mats.rockMid);
+    plinthMesh.position.y = 0.22;
+    plinthMesh.castShadow = true;
+    plinthMesh.receiveShadow = true;
+    lighthouseGroup.add(plinthMesh);
+
+    const plinthLipGeo = new THREE.TorusGeometry(0.95, 0.06, 8, 24);
+    plinthLipGeo.rotateX(Math.PI / 2);
+    const plinthLip = new THREE.Mesh(plinthLipGeo, mats.rockDark);
+    plinthLip.position.y = 0.45;
+    lighthouseGroup.add(plinthLip);
+
+    // Striped Tower Bands (5 alternating bands: Red, White, Red, White, Red)
+    const bandSpecs = [
+      { rBot: 0.90, rTop: 0.82, h: 0.88, y: 0.45 + 0.44, mat: mats.towerRed },
+      { rBot: 0.82, rTop: 0.74, h: 0.88, y: 0.45 + 0.88 + 0.44, mat: mats.towerWhite },
+      { rBot: 0.74, rTop: 0.66, h: 0.86, y: 0.45 + 1.76 + 0.43, mat: mats.towerRed },
+      { rBot: 0.66, rTop: 0.58, h: 0.84, y: 0.45 + 2.62 + 0.42, mat: mats.towerWhite },
+      { rBot: 0.58, rTop: 0.52, h: 0.78, y: 0.45 + 3.46 + 0.39, mat: mats.towerRed }
+    ];
+
+    bandSpecs.forEach(b => {
+      const g = new THREE.CylinderGeometry(b.rTop, b.rBot, b.h, 24);
+      const m = new THREE.Mesh(g, b.mat);
+      m.position.y = b.y;
+      m.castShadow = true;
+      m.receiveShadow = true;
+      lighthouseGroup.add(m);
+
+      // Subtle tactile seam ring between bands
+      const seamG = new THREE.TorusGeometry(b.rTop, 0.018, 6, 24);
+      seamG.rotateX(Math.PI / 2);
+      const seamM = new THREE.Mesh(seamG, b.mat);
+      seamM.position.y = b.y + b.h * 0.5;
+      lighthouseGroup.add(seamM);
+    });
+
+    // Small Tower Slit Windows
+    const slitGeo = new THREE.BoxGeometry(0.12, 0.24, 0.08);
+    const slitFrameGeo = new THREE.BoxGeometry(0.16, 0.28, 0.06);
+    [
+      { y: 1.75, ang: 0.6, r: 0.77 },
+      { y: 3.45, ang: -0.5, r: 0.62 }
+    ].forEach(w => {
+      const frame = new THREE.Mesh(slitFrameGeo, mats.darkIron);
+      frame.position.set(Math.sin(w.ang) * w.r, w.y, Math.cos(w.ang) * w.r);
+      frame.rotation.y = w.ang;
+      lighthouseGroup.add(frame);
+
+      const pane = new THREE.Mesh(slitGeo, mats.warmWindow);
+      pane.position.set(Math.sin(w.ang) * (w.r + 0.01), w.y, Math.cos(w.ang) * (w.r + 0.01));
+      pane.rotation.y = w.ang;
+      lighthouseGroup.add(pane);
+    });
+
+    // Gallery Deck Corbel & Platform (at y = 4.69)
+    const GALLERY_Y = 4.69;
+    const corbelGeo = new THREE.CylinderGeometry(0.74, 0.52, 0.22, 24);
+    const corbelMesh = new THREE.Mesh(corbelGeo, mats.towerWhite);
+    corbelMesh.position.y = GALLERY_Y + 0.11;
+    corbelMesh.castShadow = true;
+    lighthouseGroup.add(corbelMesh);
+
+    const deckGeo = new THREE.CylinderGeometry(0.82, 0.78, 0.12, 24);
+    const deckMesh = new THREE.Mesh(deckGeo, mats.darkIron);
+    deckMesh.position.y = GALLERY_Y + 0.26;
+    deckMesh.castShadow = true;
+    lighthouseGroup.add(deckMesh);
+
+    // Gallery Railing
+    const railRingGeo = new THREE.TorusGeometry(0.76, 0.025, 8, 24);
+    railRingGeo.rotateX(Math.PI / 2);
+    const topRail = new THREE.Mesh(railRingGeo, mats.darkIron);
+    topRail.position.y = GALLERY_Y + 0.56;
+    lighthouseGroup.add(topRail);
+
+    const midRail = new THREE.Mesh(railRingGeo, mats.darkIron);
+    midRail.position.y = GALLERY_Y + 0.42;
+    lighthouseGroup.add(midRail);
+
+    const stanchionGeo = new THREE.CylinderGeometry(0.02, 0.02, 0.28, 6);
+    for (let i = 0; i < 12; i++) {
+      const a = (i / 12) * Math.PI * 2;
+      const post = new THREE.Mesh(stanchionGeo, mats.darkIron);
+      post.position.set(Math.cos(a) * 0.76, GALLERY_Y + 0.44, Math.sin(a) * 0.76);
+      lighthouseGroup.add(post);
+    }
+
+    // Lamp Room / Lantern Housing
+    const LAMP_Y = GALLERY_Y + 0.72; // y = 5.41 in lighthouseGroup local space
+    const lanternBaseGeo = new THREE.CylinderGeometry(0.54, 0.56, 0.22, 16);
+    const lanternBase = new THREE.Mesh(lanternBaseGeo, mats.darkIron);
+    lanternBase.position.y = GALLERY_Y + 0.42;
+    lighthouseGroup.add(lanternBase);
+
+    const glassGeo = new THREE.CylinderGeometry(0.50, 0.50, 0.68, 16);
+    const glassMesh = new THREE.Mesh(glassGeo, mats.lanternGlass);
+    glassMesh.position.y = LAMP_Y + 0.06;
+    lighthouseGroup.add(glassMesh);
+
+    // Vertical Astragal Mullions around Lantern Room
+    const mullionGeo = new THREE.CylinderGeometry(0.018, 0.018, 0.70, 6);
+    for (let i = 0; i < 8; i++) {
+      const a = (i / 8) * Math.PI * 2;
+      const bar = new THREE.Mesh(mullionGeo, mats.darkIron);
+      bar.position.set(Math.cos(a) * 0.505, LAMP_Y + 0.06, Math.sin(a) * 0.505);
+      lighthouseGroup.add(bar);
+    }
+
+    // Glowing Fresnel Lens Core inside Lamp Room
+    const lensCoreGeo = new THREE.SphereGeometry(0.28, 16, 16);
+    const lensCoreMesh = new THREE.Mesh(lensCoreGeo, mats.lampCore);
+    lensCoreMesh.position.y = LAMP_Y + 0.05;
+    lighthouseGroup.add(lensCoreMesh);
+
+    const lensRingGeo = new THREE.TorusGeometry(0.32, 0.035, 8, 16);
+    const lensRing1 = new THREE.Mesh(lensRingGeo, mats.warmWindow);
+    lensRing1.position.y = LAMP_Y + 0.05;
+    lighthouseGroup.add(lensRing1);
+
+    // Cupola Dome Roof & Finial
+    const domeRimGeo = new THREE.TorusGeometry(0.55, 0.04, 8, 24);
+    domeRimGeo.rotateX(Math.PI / 2);
+    const domeRim = new THREE.Mesh(domeRimGeo, mats.darkIron);
+    domeRim.position.y = LAMP_Y + 0.40;
+    lighthouseGroup.add(domeRim);
+
+    const domeGeo = new THREE.SphereGeometry(0.54, 20, 12, 0, Math.PI * 2, 0, Math.PI * 0.52);
+    const domeMesh = new THREE.Mesh(domeGeo, mats.copperDome);
+    domeMesh.position.y = LAMP_Y + 0.38;
+    domeMesh.castShadow = true;
+    lighthouseGroup.add(domeMesh);
+
+    const ballVentGeo = new THREE.SphereGeometry(0.11, 12, 12);
+    const ballVent = new THREE.Mesh(ballVentGeo, mats.darkIron);
+    ballVent.position.y = LAMP_Y + 0.96;
+    lighthouseGroup.add(ballVent);
+
+    const spireGeo = new THREE.ConeGeometry(0.035, 0.35, 8);
+    const spire = new THREE.Mesh(spireGeo, mats.darkIron);
+    spire.position.y = LAMP_Y + 1.16;
+    lighthouseGroup.add(spire);
+
+    // Attached Keeper's Hut with One Warm Window
+    const hutGroup = new THREE.Group();
+    hutGroup.position.set(1.02, 0.15, 0.18);
+    hutGroup.rotation.y = 0.18;
+    lighthouseGroup.add(hutGroup);
+
+    const hutBodyGeo = new THREE.BoxGeometry(1.18, 0.82, 0.92);
+    const hutBody = new THREE.Mesh(hutBodyGeo, mats.hutWall);
+    hutBody.position.y = 0.41;
+    hutBody.castShadow = true;
+    hutBody.receiveShadow = true;
+    hutGroup.add(hutBody);
+
+    // Pitched Roof (extruded prism / 4-sided cone)
+    const roofShape = new THREE.Shape();
+    roofShape.moveTo(-0.56, 0);
+    roofShape.lineTo(0.56, 0);
+    roofShape.lineTo(0, 0.46);
+    roofShape.closePath();
+    const roofExtrude = new THREE.ExtrudeGeometry(roofShape, {
+      depth: 1.32,
+      bevelEnabled: true,
+      bevelThickness: 0.03,
+      bevelSize: 0.03,
+      bevelSegments: 2
+    });
+    roofExtrude.rotateY(Math.PI / 2);
+    roofExtrude.center();
+    const hutRoofMesh = new THREE.Mesh(roofExtrude, mats.hutRoof);
+    hutRoofMesh.position.y = 0.98;
+    hutRoofMesh.castShadow = true;
+    hutGroup.add(hutRoofMesh);
+
+    // Small Chimney
+    const chimneyGeo = new THREE.BoxGeometry(0.2, 0.45, 0.2);
+    const chimney = new THREE.Mesh(chimneyGeo, mats.towerRed);
+    chimney.position.set(0.28, 1.12, -0.2);
+    hutGroup.add(chimney);
+
+    // Keeper's Hut Single Warm Window (facing front-right viewer)
+    const hutWinFrameGeo = new THREE.BoxGeometry(0.34, 0.34, 0.08);
+    const hutWinFrame = new THREE.Mesh(hutWinFrameGeo, mats.darkIron);
+    hutWinFrame.position.set(0.08, 0.46, 0.45);
+    hutGroup.add(hutWinFrame);
+
+    const hutWinPaneGeo = new THREE.BoxGeometry(0.26, 0.26, 0.09);
+    const hutWinPane = new THREE.Mesh(hutWinPaneGeo, mats.warmWindow);
+    hutWinPane.position.set(0.08, 0.46, 0.455);
+    hutGroup.add(hutWinPane);
+
+    // Subtle warm spill light from keeper's window
+    const hutWindowLight = new THREE.PointLight(0xffa838, 0.85, 2.6, 2.0);
+    hutWindowLight.position.set(0.08, 0.46, 0.78);
+    hutGroup.add(hutWindowLight);
+
+    // Lamp Room Point Light
+    const LAMP_WORLD_POS = new THREE.Vector3(
+      lighthouseGroup.position.x,
+      lighthouseGroup.position.y + LAMP_Y + 0.05,
+      lighthouseGroup.position.z
+    );
+    const lampPointLight = new THREE.PointLight(0xffb844, 3.2, 12, 1.6);
+    lampPointLight.position.copy(LAMP_WORLD_POS);
+    worldGroup.add(lampPointLight);
+
+    // Spot Glow Sprite at the Lens
+    const lensSpriteMat = new THREE.SpriteMaterial({
+      map: glowTex,
+      color: 0xffd27d,
+      transparent: true,
+      opacity: 0.95,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false
+    });
+    const lensGlowSprite = new THREE.Sprite(lensSpriteMat);
+    lensGlowSprite.position.copy(LAMP_WORLD_POS);
+    lensGlowSprite.scale.set(2.3, 2.3, 1);
+    worldGroup.add(lensGlowSprite);
+
+    // Volumetric Additive Gradient Cone Mesh + Moving Sea Light-Pool
+    const beamPivot = new THREE.Group();
+    beamPivot.position.copy(LAMP_WORLD_POS);
+    worldGroup.add(beamPivot);
+
+    const BEAM_PITCH = 0.72; // Angled down so the beam strikes the sea surface on the slab
+    const BEAM_LEN = 8.9;
+    const beamConeGeo = new THREE.CylinderGeometry(0.22, 1.55, BEAM_LEN, 32, 1, true);
+    // Shift geometry so top narrow tip is at origin (0,0,0) and extends along +Z tilted down by BEAM_PITCH
+    beamConeGeo.translate(0, -BEAM_LEN * 0.5, 0);
+    beamConeGeo.rotateX(Math.PI * 0.5 - BEAM_PITCH);
+
+    const beamConeMat = new THREE.MeshBasicMaterial({
+      map: beamGradTex,
+      color: 0xffbd59,
+      transparent: true,
+      opacity: 0.48,
+      side: THREE.DoubleSide,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false
+    });
+    const beamConeMesh = new THREE.Mesh(beamConeGeo, beamConeMat);
+    beamPivot.add(beamConeMesh);
+
+    // Outer wider soft volumetric shaft (intensifies in fog)
+    const fogShaftGeo = new THREE.CylinderGeometry(0.32, 2.35, BEAM_LEN * 1.04, 32, 1, true);
+    fogShaftGeo.translate(0, -BEAM_LEN * 0.52, 0);
+    fogShaftGeo.rotateX(Math.PI * 0.5 - BEAM_PITCH);
+    const fogShaftMat = new THREE.MeshBasicMaterial({
+      map: beamGradTex,
+      color: 0xffca7a,
+      transparent: true,
+      opacity: 0.08,
+      side: THREE.DoubleSide,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false
+    });
+    const fogShaftMesh = new THREE.Mesh(fogShaftGeo, fogShaftMat);
+    beamPivot.add(fogShaftMesh);
+
+    // Moving Light-Pool Ellipse on the Sea where the beam points
+    const POOL_RADIUS_DIST = (LAMP_WORLD_POS.y - 0.08) / Math.tan(BEAM_PITCH); // ~7.25 units from tower
+    const lightPoolGeo = new THREE.PlaneGeometry(2.8, 3.8);
+    lightPoolGeo.rotateX(-Math.PI / 2);
+    const lightPoolMat = new THREE.MeshBasicMaterial({
+      map: glowTex,
+      color: 0xffbe55,
+      transparent: true,
+      opacity: 0.62,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false
+    });
+    const lightPoolMesh = new THREE.Mesh(lightPoolGeo, lightPoolMat);
+    worldGroup.add(lightPoolMesh);
+
+    // Sea Pool Point Light to illuminate swells & ships under the beam
+    const poolPointLight = new THREE.PointLight(0xffb444, 2.4, 4.5, 1.8);
+    worldGroup.add(poolPointLight);
+
+    // Atmospheric Fog Wisps (visible when fog rolls in)
+    const FOG_WISP_COUNT = 18;
+    const fogWisps = [];
+    const wispGeo = new THREE.PlaneGeometry(2.8, 1.4);
+    for (let i = 0; i < FOG_WISP_COUNT; i++) {
+      const wMat = new THREE.MeshBasicMaterial({
+        map: glowTex,
+        color: 0x6c8ca8,
+        transparent: true,
+        opacity: 0.0,
+        depthWrite: false,
+        blending: THREE.NormalBlending
+      });
+      const wMesh = new THREE.Mesh(wGeoClone(wispGeo), wMat);
+      const wx = randRange(-SLAB_W * 0.38, SLAB_W * 0.38);
+      const wy = randRange(0.45, 3.8);
+      const wz = randRange(-SLAB_D * 0.35, SLAB_D * 0.35);
+      wMesh.position.set(wx, wy, wz);
+      worldGroup.add(wMesh);
+      fogWisps.push({
+        mesh: wMesh,
+        mat: wMat,
+        baseX: wx,
+        baseY: wy,
+        baseZ: wz,
+        phase: randRange(0, Math.PI * 2),
+        speed: randRange(0.3, 0.7)
+      });
+    }
+    function wGeoClone(g) { return g; }
+
+    // 3 Tiny Silhouette Boats with 1 Warm Window Dot Each
+    const ships = [];
+    const hullGeo = new THREE.BoxGeometry(0.68, 0.16, 0.24);
+    // Taper bow of boat
+    const hPos = hullGeo.attributes.position;
+    for (let i = 0; i < hPos.count; i++) {
+      const hx = hPos.getX(i);
+      const hy = hPos.getY(i);
+      const hz = hPos.getZ(i);
+      if (hx > 0.15) {
+        hPos.setZ(i, hz * 0.25);
+      }
+      if (hy < 0) {
+        hPos.setZ(i, hPos.getZ(i) * 0.75);
+      }
+    }
+    hullGeo.computeVertexNormals();
+
+    const cabinGeo = new THREE.BoxGeometry(0.24, 0.16, 0.16);
+    const shipWinGeo = new THREE.SphereGeometry(0.042, 8, 8);
+
+    const shipSpecs = [
+      { baseX: -1.8, baseZ: 2.35, baseYaw: 0.35, driftAmp: 1.45, speed: 0.38, phase: 0.2 },
+      { baseX: 1.45, baseZ: 1.85, baseYaw: -0.45, driftAmp: 1.35, speed: 0.32, phase: 2.1 },
+      { baseX: 2.55, baseZ: -1.15, baseYaw: 1.15, driftAmp: 1.25, speed: 0.35, phase: 4.0 }
+    ];
+
+    shipSpecs.forEach((spec, idx) => {
+      const g = new THREE.Group();
+      const hull = new THREE.Mesh(hullGeo, mats.boatHull);
+      hull.position.y = 0.06;
+      hull.castShadow = true;
+      g.add(hull);
+
+      const cabin = new THREE.Mesh(cabinGeo, mats.boatCabin);
+      cabin.position.set(-0.06, 0.20, 0);
+      g.add(cabin);
+
+      const winMat = new THREE.MeshBasicMaterial({ color: 0xffc65c });
+      const winDot = new THREE.Mesh(shipWinGeo, winMat);
+      winDot.position.set(0.05, 0.22, 0.065);
+      g.add(winDot);
+
+      const winSpriteMat = new THREE.SpriteMaterial({
+        map: glowTex,
+        color: 0xffb84d,
+        transparent: true,
+        opacity: 0.85,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false
+      });
+      const winSprite = new THREE.Sprite(winSpriteMat);
+      winSprite.position.set(0.05, 0.22, 0.075);
+      winSprite.scale.set(0.38, 0.38, 1);
+      g.add(winSprite);
+
+      worldGroup.add(g);
+      ships.push({
+        group: g,
+        winMat,
+        winSpriteMat,
+        baseX: spec.baseX,
+        baseZ: spec.baseZ,
+        currentYaw: spec.baseYaw,
+        targetCourseYaw: spec.baseYaw,
+        driftAmp: spec.driftAmp,
+        speed: spec.speed,
+        phase: spec.phase,
+        dwellProgress: 0,
+        courseLocked: false
+      });
+    });
+
+    // Night Sky Stars (compact upper dome behind & around lighthouse, strictly clear of header/footer)
+    const STAR_COUNT = 38;
+    const starGeo = new THREE.OctahedronGeometry(0.045, 0);
+    const starMat = new THREE.MeshBasicMaterial({ color: 0xdbe9ff });
+    const starInst = new THREE.InstancedMesh(starGeo, starMat, STAR_COUNT);
+    worldGroup.add(starInst);
+
+    const starData = [];
+    for (let i = 0; i < STAR_COUNT; i++) {
+      const sx = randRange(-6.2, 6.2);
+      const sy = randRange(3.2, 6.9);
+      const sz = randRange(-5.2, -2.2);
+      starData.push({
+        x: sx,
+        y: sy,
+        z: sz,
+        baseScale: randRange(0.55, 1.25),
+        phase: randRange(0, Math.PI * 2),
+        speed: randRange(1.5, 3.4)
+      });
+    }
+
+    // Generous Invisible Hit Proxies for 320px Accessibility
+    // 1. Lamp Room Tap Proxy (sphere around lantern + dome)
+    const lampProxyGeo = new THREE.SphereGeometry(1.35, 12, 12);
+    const lampProxy = new THREE.Mesh(lampProxyGeo, mats.invisibleProxy);
+    lampProxy.position.copy(LAMP_WORLD_POS);
+    lampProxy.name = 'lampProxy';
+    worldGroup.add(lampProxy);
+
+    // 2. Tower Shaft Drag Proxy
+    const towerProxyGeo = new THREE.CylinderGeometry(1.35, 1.55, 5.2, 12);
+    const towerProxy = new THREE.Mesh(towerProxyGeo, mats.invisibleProxy);
+    towerProxy.position.set(lighthouseGroup.position.x, 3.1, lighthouseGroup.position.z);
+    towerProxy.name = 'towerProxy';
+    worldGroup.add(towerProxy);
+
+    // 3. Beam Cone Drag Proxy (attached to beamPivot so user can grab anywhere on the beam or light pool)
+    const beamProxyGeo = new THREE.CylinderGeometry(0.85, 2.2, BEAM_LEN, 12);
+    beamProxyGeo.translate(0, -BEAM_LEN * 0.5, 0);
+    beamProxyGeo.rotateX(Math.PI * 0.5 - BEAM_PITCH);
+    const beamProxy = new THREE.Mesh(beamProxyGeo, mats.invisibleProxy);
+    beamProxy.name = 'beamProxy';
+    beamPivot.add(beamProxy);
+
+    const interactiveTargets = [lampProxy, towerProxy, beamProxy];
+
+    // Interaction State
+    const MAX_BEAM_YAW = 0.72; // Sweeps across the positive-Z & right sea lanes inside the slab
+    const MIN_BEAM_YAW = -0.52;
+    const CENTER_BEAM_YAW = 0.14;
+
+    let currentBeamYaw = CENTER_BEAM_YAW;
+    let targetBeamYaw = CENTER_BEAM_YAW;
+    let isDraggingBeam = false;
+    let lastInteractionTime = -10000;
+    let dragStartX = 0;
+    let dragStartY = 0;
+    let dragStartYaw = 0;
+    let pointerDownTarget = null;
+    let activePointerId = null;
+
+    // Fog State (animates cleanly over 3.0 seconds on tap)
+    let fogTarget = 0; // 0 = clear, 1 = dense fog
+    let fogLevel = 0;
+    let fogAnimStartLevel = 0;
+    let fogAnimStartTime = 0;
+    const FOG_DURATION_MS = 3000;
+
+    function updateStatusPill() {
+      const fogText = fogTarget > 0.5 ? 'Fog Rolling In' : 'Clear Night';
+      const sweepText = isDraggingBeam ? 'Manual Beam Sweep' : 'Auto Sweep';
+      statusBadge.textContent = `${fogText} • ${sweepText}`;
+    }
+
+    function toggleFog(now) {
+      fogAnimStartLevel = fogLevel;
+      fogTarget = fogTarget < 0.5 ? 1.0 : 0.0;
+      fogAnimStartTime = now;
+      updateStatusPill();
+    }
+
+    // Raycaster & Pointer Events
+    const raycaster = new THREE.Raycaster();
+    const pointerNDC = new THREE.Vector2();
+
+    function getHitTarget(clientX, clientY) {
+      const rect = renderer.domElement.getBoundingClientRect();
+      pointerNDC.x = ((clientX - rect.left) / rect.width) * 2 - 1;
+      pointerNDC.y = -((clientY - rect.top) / rect.height) * 2 + 1;
+      raycaster.setFromCamera(pointerNDC, camera);
+      const hits = raycaster.intersectObjects(interactiveTargets, false);
+      return hits.length > 0 ? hits[0].object : null;
+    }
+
+    const domElem = renderer.domElement;
+
+    domElem.addEventListener('pointerdown', (e) => {
+      const hit = getHitTarget(e.clientX, e.clientY);
+      pointerDownTarget = hit;
+      dragStartX = e.clientX;
+      dragStartY = e.clientY;
+      activePointerId = e.pointerId;
+
+      if (hit) {
+        // Disable OrbitControls when pointer starts on tower, lamp, or beam
+        controls.enabled = false;
+        dragStartYaw = currentBeamYaw;
+        domElem.setPointerCapture(e.pointerId);
+      } else {
+        controls.enabled = true;
+      }
+    });
+
+    domElem.addEventListener('pointermove', (e) => {
+      if (activePointerId === null) {
+        // Hover feedback
+        const hoverHit = getHitTarget(e.clientX, e.clientY);
+        domElem.classList.toggle('hover-interactive', !!hoverHit);
+        return;
+      }
+      if (e.pointerId !== activePointerId || !pointerDownTarget) return;
+
+      const dx = e.clientX - dragStartX;
+      const dy = e.clientY - dragStartY;
+      const dist = Math.hypot(dx, dy);
+
+      // Distinguish drag from tap at 6px threshold
+      if (!isDraggingBeam && dist > 6) {
+        isDraggingBeam = true;
+        domElem.classList.add('dragging-beam');
+        updateStatusPill();
+      }
+
+      if (isDraggingBeam) {
+        const rect = domElem.getBoundingClientRect();
+        const sensitivity = 2.4 / Math.max(260, rect.width);
+        targetBeamYaw = THREE.MathUtils.clamp(
+          dragStartYaw + dx * sensitivity * (MAX_BEAM_YAW - MIN_BEAM_YAW),
+          MIN_BEAM_YAW,
+          MAX_BEAM_YAW
+        );
+        lastInteractionTime = performance.now();
+      }
+    });
+
+    function handlePointerUp(e) {
+      if (e.pointerId !== activePointerId) return;
+      const dx = e.clientX - dragStartX;
+      const dy = e.clientY - dragStartY;
+      const dist = Math.hypot(dx, dy);
+
+      if (pointerDownTarget && dist <= 7 && !isDraggingBeam) {
+        // Tap on lamp room (or upper tower proxy near lamp) triggers fog
+        if (pointerDownTarget.name === 'lampProxy' || pointerDownTarget.name === 'towerProxy') {
+          toggleFog(performance.now());
+        }
+      }
+
+      if (isDraggingBeam) {
+        lastInteractionTime = performance.now();
+      }
+
+      isDraggingBeam = false;
+      pointerDownTarget = null;
+      activePointerId = null;
+      controls.enabled = true;
+      domElem.classList.remove('dragging-beam');
+      updateStatusPill();
+    }
+
+    domElem.addEventListener('pointerup', handlePointerUp);
+    domElem.addEventListener('pointercancel', handlePointerUp);
+
+    // Camera Framing: Compute from projected bounding box of ALL important geometry
+    // (slab corners, tower finial top, star field, and beam tip at both yaw extremes)
+    const importantPoints = [
+      // Slab corners (top & bottom)
+      new THREE.Vector3(-SLAB_W * 0.52, -1.6, -SLAB_D * 0.52),
+      new THREE.Vector3(SLAB_W * 0.52, -1.6, -SLAB_D * 0.52),
+      new THREE.Vector3(-SLAB_W * 0.52, -1.6, SLAB_D * 0.52),
+      new THREE.Vector3(SLAB_W * 0.52, -1.6, SLAB_D * 0.52),
+      new THREE.Vector3(-SLAB_W * 0.52, 0.5, -SLAB_D * 0.52),
+      new THREE.Vector3(SLAB_W * 0.52, 0.5, SLAB_D * 0.52),
+      // Lighthouse Finial Top + Star clearance
+      new THREE.Vector3(ISLET_X, 7.6, ISLET_Z),
+      new THREE.Vector3(-5.8, 6.8, -3.5),
+      new THREE.Vector3(5.8, 6.8, -3.5),
+      // Beam light pool extremes at MIN_BEAM_YAW and MAX_BEAM_YAW
+      new THREE.Vector3(
+        LAMP_WORLD_POS.x + Math.sin(MIN_BEAM_YAW) * 5.2,
+        0.1,
+        LAMP_WORLD_POS.z + Math.cos(MIN_BEAM_YAW) * 5.2
+      ),
+      new THREE.Vector3(
+        LAMP_WORLD_POS.x + Math.sin(MAX_BEAM_YAW) * 5.2,
+        0.1,
+        LAMP_WORLD_POS.z + Math.cos(MAX_BEAM_YAW) * 5.2
+      )
+    ];
+
+    const SCENE_TARGET = new THREE.Vector3(0.0, 2.25, 0.15);
+    const VIEW_DIR = new THREE.Vector3(0.24, 0.39, 0.89).normalize();
+
+    function fitCameraToViewport() {
+      const vw = window.innerWidth;
+      const vh = window.innerHeight;
+      renderer.setSize(vw, vh);
+
+      const aspect = vw / vh;
+      // Aspect-aware FOV (wider vertical FOV on narrow portrait viewports like 320x700 and 390x844)
+      camera.fov = aspect < 0.75 ? 44 : aspect < 1.0 ? 39 : 34;
+      camera.aspect = aspect;
+      camera.updateProjectionMatrix();
+
+      // Measure header and footer safe areas
+      const headerH = headerEl.getBoundingClientRect().height || 86;
+      const footerH = footerEl.getBoundingClientRect().height || 38;
+      const safeTopRatio = (headerH + 14) / vh;
+      const safeBottomRatio = (footerH + 14) / vh;
+      const usableVerticalFraction = Math.max(0.45, 1.0 - safeTopRatio - safeBottomRatio);
+      const usableHorizontalFraction = 0.90;
+
+      // Vertical shift so miniature sits centered in the safe band between header and footer
+      const verticalBias = (safeTopRatio - safeBottomRatio) * 0.5;
+      const targetCenter = SCENE_TARGET.clone();
+      targetCenter.y += verticalBias * 3.1;
+
+      const vFovRad = THREE.MathUtils.degToRad(camera.fov);
+      const tanHalfVFov = Math.tan(vFovRad * 0.5) * usableVerticalFraction;
+      const tanHalfHFov = Math.tan(vFovRad * 0.5) * aspect * usableHorizontalFraction;
+
+      // Build camera basis vectors looking from VIEW_DIR toward targetCenter
+      const forward = VIEW_DIR.clone().negate();
+      const right = new THREE.Vector3().crossVectors(forward, new THREE.Vector3(0, 1, 0)).normalize();
+      const up = new THREE.Vector3().crossVectors(right, forward).normalize();
+
+      let requiredDist = 11.0;
+      for (const pt of importantPoints) {
+        const rel = pt.clone().sub(targetCenter);
+        const projX = Math.abs(rel.dot(right));
+        const projY = Math.abs(rel.dot(up));
+        const projZ = rel.dot( VIEW_DIR ); // Offset toward camera
+
+        const distForX = projX / tanHalfHFov + projZ;
+        const distForY = projY / tanHalfVFov + projZ;
+        requiredDist = Math.max(requiredDist, distForX, distForY);
+      }
+
+      requiredDist *= 1.06; // Small breathing margin
+
+      controls.target.copy(targetCenter);
+      camera.position.copy(targetCenter).addScaledVector(VIEW_DIR, requiredDist);
+      controls.minDistance = requiredDist * 0.86;
+      controls.maxDistance = requiredDist * 1.18;
+      controls.update();
+    }
+
+    window.addEventListener('resize', fitCameraToViewport);
+    fitCameraToViewport();
+
+    // Reusable dummy object for instanced matrix updates
+    const dummy = new THREE.Object3D();
+    const shipWorldPos = new THREE.Vector3();
+
+    // Animation Loop driven strictly by performance.now()
+    function animate(now) {
+      requestAnimationFrame(animate);
+      const t = now * 0.001;
+
+      // 1. Fog Transition (smooth 3-second ease)
+      if (Math.abs(fogLevel - fogTarget) > 0.0005) {
+        const elapsed = now - fogAnimStartTime;
+        const u = Math.min(1.0, Math.max(0.0, elapsed / FOG_DURATION_MS));
+        const eased = u * u * (3.0 - 2.0 * u);
+        fogLevel = THREE.MathUtils.lerp(fogAnimStartLevel, fogTarget, eased);
+      } else {
+        fogLevel = fogTarget;
+      }
+
+      // Apply fog density and color
+      scene.fog.density = THREE.MathUtils.lerp(0.012, 0.030, fogLevel);
+      scene.fog.color.lerpColors(FOG_COLOR_CLEAR, FOG_COLOR_DENSE, fogLevel);
+      hemiLight.intensity = 1.05 + fogLevel * 0.45;
+
+      // 2. Beam Sweep (Idle auto-sweep when untouched for > 2.2s, or smooth manual drag)
+      const timeSinceDrag = now - lastInteractionTime;
+      if (!isDraggingBeam && timeSinceDrag > 2200) {
+        const autoWave = Math.sin(t * 0.52);
+        targetBeamYaw = CENTER_BEAM_YAW + autoWave * ((MAX_BEAM_YAW - MIN_BEAM_YAW) * 0.48);
+      }
+      currentBeamYaw += (targetBeamYaw - currentBeamYaw) * 0.1;
+      beamPivot.rotation.y = currentBeamYaw;
+
+      // 3. Lamp Breathing & Volumetric Beam Appearance
+      const lampPulse = 0.94 + 0.06 * Math.sin(t * 3.1) + 0.02 * Math.sin(t * 7.3);
+      lampPointLight.intensity = (3.3 + fogLevel * 1.6) * lampPulse;
+      const spriteScale = (2.25 + fogLevel * 0.95) * lampPulse;
+      lensGlowSprite.scale.set(spriteScale, spriteScale, 1);
+
+      // In fog, the beam reads as a soft wide volumetric shaft
+      beamConeMat.opacity = THREE.MathUtils.lerp(0.46, 0.68, fogLevel) * lampPulse;
+      fogShaftMat.opacity = THREE.MathUtils.lerp(0.07, 0.42, fogLevel) * lampPulse;
+
+      // Update Moving Light-Pool Ellipse on the Sea
+      const poolDist = 4.65;
+      const poolX = LAMP_WORLD_POS.x + Math.sin(currentBeamYaw) * poolDist;
+      const poolZ = LAMP_WORLD_POS.z + Math.cos(currentBeamYaw) * poolDist;
+      lightPoolMesh.position.set(poolX, 0.09, poolZ);
+      lightPoolMesh.rotation.y = currentBeamYaw;
+      lightPoolMat.opacity = THREE.MathUtils.lerp(0.62, 0.34, fogLevel) * lampPulse;
+
+      poolPointLight.position.set(poolX, 0.45, poolZ);
+      poolPointLight.intensity = THREE.MathUtils.lerp(2.4, 1.3, fogLevel) * lampPulse;
+
+      // 4. Sea Surface Vertex Swell Animation
+      for (let i = 0; i < seaPosAttr.count; i++) {
+        const b = seaBaseCoords[i];
+        if (b.isTop) {
+          const wave =
+            Math.sin(b.x * 0.85 + t * 1.65) * 0.045 +
+            Math.cos(b.z * 1.05 - t * 1.35) * 0.04;
+          seaPosAttr.setY(i, b.y + wave);
+        }
+      }
+      seaPosAttr.needsUpdate = true;
+
+      // 5. Instanced Swell Ridges
+      for (let i = 0; i < SWELL_COUNT; i++) {
+        const sw = swellData[i];
+        const cyc = (t * sw.speed + sw.phase) % (Math.PI * 2);
+        const swellLift = Math.max(0, Math.sin(cyc));
+        const wy = 0.06 + swellLift * 0.055;
+        dummy.position.set(sw.x, wy, sw.z + Math.cos(cyc) * 0.12);
+        dummy.rotation.set(0, sw.yaw, 0);
+        dummy.scale.set(
+          sw.scaleX * (0.7 + 0.35 * swellLift),
+          0.5 + 0.7 * swellLift,
+          sw.scaleZ
+        );
+        dummy.updateMatrix();
+        swellInst.setMatrixAt(i, dummy.matrix);
+      }
+      swellInst.instanceMatrix.needsUpdate = true;
+
+      // 6. Pulsing White Foam Ring around Islet Rocks
+      for (let i = 0; i < FOAM_COUNT; i++) {
+        const fm = foamRingData[i];
+        const pulse = Math.sin(t * 2.1 + fm.phase);
+        const r = fm.baseR + pulse * 0.09;
+        const fx = ISLET_X + Math.cos(fm.angle) * r;
+        const fz = ISLET_Z + Math.sin(fm.angle) * r;
+        const fy = 0.08 + Math.max(0, pulse) * 0.03;
+
+        dummy.position.set(fx, fy, fz);
+        dummy.rotation.set(0, -fm.angle + Math.PI * 0.5, 0);
+        const sScale = 0.78 + 0.28 * (0.5 + 0.5 * pulse);
+        dummy.scale.set(fm.scaleLen * sScale, 1.0, sScale);
+        dummy.updateMatrix();
+        foamInst.setMatrixAt(i, dummy.matrix);
+      }
+      foamInst.instanceMatrix.needsUpdate = true;
+      mats.foam.opacity = 0.76 + 0.12 * Math.sin(t * 2.1);
+
+      // 7. Silhouette Ships Drift + Beam-Dwell Course Turn + Fog Window Dimming
+      let nearestShip = null;
+      let smallestAngleDiff = Infinity;
+
+      ships.forEach((sh) => {
+        // Gentle lane oscillation
+        const driftOffset = Math.sin(t * sh.speed + sh.phase) * sh.driftAmp;
+        const sx = sh.baseX + Math.cos(sh.currentYaw) * driftOffset;
+        const sz = sh.baseZ - Math.sin(sh.currentYaw) * driftOffset * 0.65;
+        const bobY = 0.07 + Math.sin(t * 2.2 + sh.phase) * 0.025;
+
+        sh.group.position.set(sx, bobY, sz);
+        sh.group.rotation.z = Math.sin(t * 1.9 + sh.phase) * 0.06;
+
+        // Angle from lighthouse lamp to this ship
+        const angToShip = Math.atan2(sx - LAMP_WORLD_POS.x, sz - LAMP_WORLD_POS.z);
+        const diff = Math.abs(angToShip - currentBeamYaw);
+        if (diff < smallestAngleDiff) {
+          smallestAngleDiff = diff;
+          nearestShip = sh;
+        }
+      });
+
+      // Ship nearest the beam's line turns slowly to parallel the shore over ~5 seconds while beam dwells
+      ships.forEach((sh) => {
+        const isDweltOn = (sh === nearestShip && smallestAngleDiff < 0.24);
+        if (isDweltOn) {
+          // Parallel to shore heading (along X axis = 0.0 rad)
+          const shoreParallelYaw = 0.0;
+          // ~5 seconds at 60fps -> ~0.0035 interpolation step per frame
+          let delta = shoreParallelYaw - sh.currentYaw;
+          while (delta > Math.PI) delta -= Math.PI * 2;
+          while (delta < -Math.PI) delta += Math.PI * 2;
+          sh.currentYaw += delta * 0.012;
+        }
+        sh.group.rotation.y = sh.currentYaw;
+
+        // In fog, the ships' window dots dim noticeably
+        const beamBoost = (sh === nearestShip && smallestAngleDiff < 0.24) ? 1.25 : 1.0;
+        const fogDim = THREE.MathUtils.lerp(0.92, 0.22, fogLevel);
+        sh.winSpriteMat.opacity = Math.min(1.0, fogDim * beamBoost);
+        sh.winMat.color.setHSL(0.105, 0.95, THREE.MathUtils.lerp(0.68, 0.28, fogLevel));
+      });
+
+      // 8. Atmospheric Fog Wisps
+      fogWisps.forEach((w) => {
+        w.mat.opacity = fogLevel * 0.16 * (0.7 + 0.3 * Math.sin(t * w.speed + w.phase));
+        w.mesh.position.x = w.baseX + Math.sin(t * 0.28 + w.phase) * 0.65;
+        w.mesh.position.y = w.baseY + Math.cos(t * 0.22 + w.phase) * 0.15;
+        w.mesh.lookAt(camera.position);
+      });
+
+      // 9. Twinkling Stars (dim in fog)
+      const starFogVisibility = Math.max(0.08, 1.0 - fogLevel * 0.88);
+      for (let i = 0; i < STAR_COUNT; i++) {
+        const st = starData[i];
+        const twinkle = (0.55 + 0.45 * Math.sin(t * st.speed + st.phase)) * starFogVisibility;
+        dummy.position.set(st.x, st.y, st.z);
+        dummy.rotation.set(0, t * 0.3, 0);
+        const s = st.baseScale * twinkle;
+        dummy.scale.set(s, s, s);
+        dummy.updateMatrix();
+        starInst.setMatrixAt(i, dummy.matrix);
+      }
+      starInst.instanceMatrix.needsUpdate = true;
+
+      controls.update();
+      renderer.render(scene, camera);
+    }
+
+    requestAnimationFrame(animate);
+  </script>
 </body>
 </html>
