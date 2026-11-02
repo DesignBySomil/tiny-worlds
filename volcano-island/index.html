@@ -1,826 +1,1617 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-<title>Volcano Island — a tiny world</title>
-<style>
-  * { box-sizing: border-box; margin: 0; padding: 0; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
-  html, body { width: 100%; height: 100%; overflow: hidden; }
-  body {
-    background: linear-gradient(180deg, #4a3a6e 0%, #7a5280 26%, #c46a72 52%, #ef9a6d 72%, #ffd9a3 88%, #ffe9c4 100%);
-    font-family: Georgia, 'Times New Roman', serif;
-    color: #fff3e2;
-  }
-  #scene { position: fixed; inset: 0; }
-  #vignette { position: fixed; inset: 0; pointer-events: none;
-    background: radial-gradient(ellipse at 50% 42%, rgba(0,0,0,0) 55%, rgba(30,12,28,0.38) 100%); }
-  #overlay { position: fixed; top: max(20px, env(safe-area-inset-top)); left: 0; right: 0; text-align: center; pointer-events: none; z-index: 5; }
-  #title { font-size: 15px; letter-spacing: 0.42em; text-indent: 0.42em; font-variant: small-caps; color: #fff6e8;
-    text-shadow: 0 1px 10px rgba(60,20,40,0.65), 0 0 2px rgba(60,20,40,0.8); }
-  #rule { width: 54px; height: 1px; margin: 9px auto 8px; background: linear-gradient(90deg, transparent, rgba(255,230,190,0.85), transparent); }
-  #hint { font-size: 11px; letter-spacing: 0.3em; text-indent: 0.3em; font-variant: small-caps; color: #ffe9c8;
-    opacity: 0.95; transition: opacity 1.2s ease; text-shadow: 0 1px 8px rgba(60,20,40,0.8), 0 0 2px rgba(60,20,40,0.9); }
-  #hint.faded { opacity: 0.55; }
-  #credit { position: fixed; bottom: max(10px, env(safe-area-inset-bottom)); left: 0; right: 0; text-align: center;
-    font-size: 9px; letter-spacing: 0.28em; font-variant: small-caps; color: rgba(255,240,215,0.78); pointer-events: none; z-index: 5;
-    text-shadow: 0 1px 6px rgba(60,20,40,0.6); }
-</style>
-<script type="importmap">
-{ "imports": {
-    "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
-    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
-} }
-</script>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Volcano island — a tiny world</title>
+  <style>
+    :root {
+      --bg-top: #d8ecf8;
+      --bg-mid: #eef6fb;
+      --bg-bot: #f7efe6;
+      --text-dark: #192836;
+      --text-muted: #4b6275;
+      --accent-warm: #ff5a1f;
+      --pill-bg: rgba(255, 255, 255, 0.76);
+      --pill-border: rgba(25, 40, 54, 0.12);
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      user-select: none;
+      -webkit-user-select: none;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    html, body {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: linear-gradient(180deg, var(--bg-top) 0%, var(--bg-mid) 58%, var(--bg-bot) 100%);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      color: var(--text-dark);
+    }
+
+    #app {
+      position: relative;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+    }
+
+    canvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+      outline: none;
+      cursor: grab;
+      touch-action: none;
+    }
+
+    canvas:active {
+      cursor: grabbing;
+    }
+
+    .hud {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      align-items: center;
+      padding: clamp(8px, 2vh, 18px) clamp(10px, 3vw, 24px);
+      z-index: 10;
+    }
+
+    #header-ui {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      text-align: center;
+      gap: 2px;
+      max-width: 96vw;
+    }
+
+    .title-row {
+      display: flex;
+      align-items: baseline;
+      gap: 8px;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+
+    h1 {
+      font-size: clamp(1.15rem, 3.6vw, 1.6rem);
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      color: var(--text-dark);
+      line-height: 1.1;
+      text-shadow: 0 1px 2px rgba(255, 255, 255, 0.8);
+    }
+
+    .subtitle {
+      font-size: clamp(0.8rem, 2.5vw, 0.98rem);
+      font-weight: 600;
+      color: var(--text-muted);
+      letter-spacing: 0.02em;
+      font-style: italic;
+    }
+
+    .hint-pill {
+      margin-top: 4px;
+      padding: 5px 12px;
+      border-radius: 999px;
+      background: var(--pill-bg);
+      border: 1px solid var(--pill-border);
+      backdrop-filter: blur(6px);
+      -webkit-backdrop-filter: blur(6px);
+      font-size: clamp(0.68rem, 2.2vw, 0.8rem);
+      font-weight: 600;
+      color: var(--text-dark);
+      box-shadow: 0 2px 8px rgba(18, 35, 52, 0.06);
+      line-height: 1.25;
+      transition: transform 0.25s ease, border-color 0.25s ease, background-color 0.25s ease;
+    }
+
+    .hint-pill.active-erupt {
+      border-color: rgba(255, 90, 31, 0.55);
+      background: rgba(255, 245, 238, 0.9);
+      transform: scale(1.03);
+    }
+
+    .hint-pill.active-splash {
+      border-color: rgba(34, 155, 215, 0.55);
+      background: rgba(238, 250, 255, 0.9);
+      transform: scale(1.03);
+    }
+
+    #footer-ui {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding-bottom: 2px;
+    }
+
+    .footer-label {
+      font-size: clamp(0.68rem, 2vw, 0.76rem);
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      color: var(--text-muted);
+      background: rgba(255, 255, 255, 0.55);
+      padding: 3px 10px;
+      border-radius: 999px;
+      border: 1px solid rgba(25, 40, 54, 0.08);
+    }
+
+    #fallback-msg {
+      display: none;
+      position: absolute;
+      inset: 20px;
+      margin: auto;
+      max-width: 360px;
+      max-height: 180px;
+      background: rgba(255, 255, 255, 0.95);
+      border: 1px solid rgba(25, 40, 54, 0.16);
+      border-radius: 16px;
+      padding: 20px;
+      text-align: center;
+      box-shadow: 0 12px 32px rgba(0, 0, 0, 0.12);
+      z-index: 100;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      gap: 8px;
+    }
+
+    #fallback-msg h2 {
+      font-size: 1rem;
+      color: var(--text-dark);
+    }
+
+    #fallback-msg p {
+      font-size: 0.84rem;
+      color: var(--text-muted);
+      line-height: 1.4;
+    }
+  </style>
+
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+        "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+      }
+    }
+  </script>
 </head>
 <body>
-<div id="scene"></div>
-<div id="vignette"></div>
-<div id="overlay">
-  <div id="title">Volcano Island</div>
-  <div id="rule"></div>
-  <div id="hint">Tap the crater to awaken the mountain</div>
-</div>
-<div id="credit">a tiny world</div>
-<script type="module">
-import * as THREE from 'three';
-import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
-// 3D models: Quaternius nature pack, CC0-1.0 (quaternius.com), via the
-// trebeljahr/quaternius-showcase mirror (LICENSES.md verifies CC0 per pack).
+  <div id="app">
+    <div class="hud">
+      <header id="header-ui">
+        <div class="title-row">
+          <h1>Volcano island</h1>
+          <span class="subtitle">a tiny world</span>
+        </div>
+        <div id="hint-badge" class="hint-pill">tap the crater for an eruption - tap the sea for a splash</div>
+      </header>
+      <footer id="footer-ui">
+        <div class="footer-label">A tiny world</div>
+      </footer>
+    </div>
 
-const container = document.getElementById('scene');
-const hintEl = document.getElementById('hint');
-const scene = new THREE.Scene();
-scene.fog = new THREE.Fog(0xe08a6d, 34, 78);
+    <div id="fallback-msg">
+      <h2>WebGL Unavailable</h2>
+      <p>Your browser or device could not initialize the 3D WebGL context required for this miniature island.</p>
+    </div>
+  </div>
 
-const camera = new THREE.PerspectiveCamera(42, innerWidth / innerHeight, 0.1, 220);
-const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-renderer.setSize(innerWidth, innerHeight);
-renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
-renderer.shadowMap.enabled = true;
-renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-renderer.toneMapping = THREE.ACESFilmicToneMapping;
-renderer.toneMappingExposure = 1.14;
-container.appendChild(renderer.domElement);
+  <script type="module">
+    import * as THREE from 'three';
+    import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 
-const controls = new OrbitControls(camera, renderer.domElement);
-controls.enableDamping = true; controls.dampingFactor = 0.06;
-controls.enablePan = false;
-controls.minDistance = 8; controls.maxDistance = 44;
-controls.minPolarAngle = Math.PI * 0.16; controls.maxPolarAngle = Math.PI * 0.47;
-
-// pass 13: true bounds fit - solve camera distance so every corner of the
-// cutaway box + volcano projects inside NDC margins on any aspect
-function frameInitialCamera() {
-  const aspect = innerWidth / innerHeight;
-  let dir, target;
-  if (aspect < 0.78)      { camera.fov = 60; target = new THREE.Vector3(0, 1.6, 0); dir = new THREE.Vector3(15, 15, 22.5); }
-  else if (aspect < 1.15) { camera.fov = 46; target = new THREE.Vector3(0, 2.0, 0); dir = new THREE.Vector3(10.5, 7.5, 14.5); }
-  else                    { camera.fov = 42; target = new THREE.Vector3(0, 1.3, 0); dir = new THREE.Vector3(16.6, 10.1, 18.5); }
-  camera.updateProjectionMatrix();
-  dir.normalize();
-  const corners = [];
-  for (const x of [-8.15, 8.15]) for (const y of [-4.3, 6.9]) for (const z of [-8.15, 8.15])
-    corners.push(new THREE.Vector3(x, y, z));
-  const mX = 0.94, mY = aspect < 0.78 ? 0.84 : 0.90;  // keep header + caption clear
-  let d = 8;
-  for (; d < 60; d += 0.25) {
-    camera.position.copy(target).addScaledVector(dir, d);
-    camera.lookAt(target); camera.updateMatrixWorld(true);
-    camera.matrixWorldInverse.copy(camera.matrixWorld).invert();
-    let ok = true;
-    for (const c of corners) {
-      const p = c.clone().project(camera);
-      if (Math.abs(p.x) > mX || Math.abs(p.y) > mY) { ok = false; break; }
+    // ============================================================================
+    // 1. DETERMINISTIC SEEDED PRNG (mulberry32 with seed 20261102)
+    // ============================================================================
+    function mulberry32(a) {
+      return function() {
+        let t = (a += 0x6D2B79F5);
+        t = Math.imul(t ^ (t >>> 15), t | 1);
+        t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+        return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+      };
     }
-    if (ok) break;
-  }
-  controls.target.copy(target); controls.update();
-}
-frameInitialCamera();
 
-// ---------- lighting ----------
-const sun = new THREE.DirectionalLight(0xffd2a1, 1.75);
-sun.position.set(9, 11, 5); sun.castShadow = true;
-sun.shadow.mapSize.set(2048, 2048);
-sun.shadow.camera.left = -13; sun.shadow.camera.right = 13;
-sun.shadow.camera.top = 13; sun.shadow.camera.bottom = -13;
-sun.shadow.camera.near = 2; sun.shadow.camera.far = 45;
-sun.shadow.bias = -0.0015;
-scene.add(sun);
-scene.add(new THREE.HemisphereLight(0xd89a8c, 0x4a3a5c, 0.9));
-const fill = new THREE.DirectionalLight(0xffc9b0, 0.55);
-fill.position.set(-7, 6, 9); scene.add(fill);
+    const rand = mulberry32(20261102);
+    const randRange = (min, max) => min + (max - min) * rand();
 
-const craterLight = new THREE.PointLight(0xff7a33, 0.9, 12, 1.6);
-const lavaLight = new THREE.PointLight(0xff6a1f, 0, 10, 1.7);
-const hutLight = new THREE.PointLight(0xffca7a, 0.85, 5.5, 1.8);
+    // ============================================================================
+    // 2. INITIALIZATION & SAFE WEBGL SETUP
+    // ============================================================================
+    const appEl = document.getElementById('app');
+    const headerEl = document.getElementById('header-ui');
+    const footerEl = document.getElementById('footer-ui');
+    const hintBadge = document.getElementById('hint-badge');
+    const fallbackEl = document.getElementById('fallback-msg');
 
-// ---------- helpers ----------
-const rand = (a, b) => a + Math.random() * (b - a);
-function hash3(x, y, z) {
-  const n = Math.sin(Math.round(x * 53) * 127.1 + Math.round(y * 53) * 311.7 + Math.round(z * 53) * 74.7) * 43758.5453;
-  return n - Math.floor(n);
-}
-function jitterGeo(geo, amt, keepAboveY = null) {
-  const p = geo.attributes.position;
-  for (let i = 0; i < p.count; i++) {
-    const x = p.getX(i), y = p.getY(i), z = p.getZ(i);
-    if (keepAboveY !== null && y > keepAboveY) continue;
-    p.setXYZ(i,
-      x + (hash3(x, y, z) - 0.5) * 2 * amt,
-      y + (hash3(y, z, x) - 0.5) * 1.2 * amt,
-      z + (hash3(z, x, y) - 0.5) * 2 * amt);
-  }
-  geo.computeVertexNormals();
-  return geo;
-}
-function faceColors(geo, palette, darkenByHeight = 0) {
-  const g = geo.index ? geo.toNonIndexed() : geo;
-  const p = g.attributes.position, cols = [];
-  for (let f = 0; f < p.count / 3; f++) {
-    const y = (p.getY(f * 3) + p.getY(f * 3 + 1) + p.getY(f * 3 + 2)) / 3;
-    const c = palette[Math.floor(Math.random() * palette.length)].clone();
-    c.offsetHSL(rand(-0.012, 0.012), rand(-0.04, 0.04), rand(-0.03, 0.03) - y * darkenByHeight);
-    for (let v = 0; v < 3; v++) cols.push(c.r, c.g, c.b);
-  }
-  g.setAttribute('color', new THREE.Float32BufferAttribute(cols, 3));
-  return g;
-}
-
-// ---------- cutaway block ----------
-const block = new THREE.Group(); scene.add(block);
-function slab(h, yTop, color, rough = 0.95) {
-  const m = new THREE.Mesh(new THREE.BoxGeometry(16, h, 16),
-    new THREE.MeshStandardMaterial({ color, roughness: rough, metalness: 0 }));
-  m.position.y = yTop - h / 2; m.receiveShadow = true; block.add(m); return m;
-}
-slab(1.7, -2.5, 0x56443c);            // rock stratum
-slab(1.0, -1.5, 0x7a5a40);            // soil
-slab(0.5, -1.0, 0xd9bf8f);            // sand shelf
-const waterSide = slab(1.0, -0.07, 0x2a7a8e, 0.35); // water body sides (pass 26: sunk below the surface plane)
-waterSide.material.transparent = true; waterSide.material.opacity = 0.94;
-waterSide.receiveShadow = false; // coplanar slab-top + shadow map was the camo patch artifact
-const shadowDisc = new THREE.Mesh(new THREE.CircleGeometry(11.5, 40),
-  new THREE.MeshBasicMaterial({ color: 0x241a30, transparent: true, opacity: 0.5 }));
-shadowDisc.rotation.x = -Math.PI / 2; shadowDisc.position.y = -4.28; scene.add(shadowDisc);
-
-// ---------- water surface ----------
-const waterGeo = new THREE.PlaneGeometry(16, 16, 72, 72);
-waterGeo.rotateX(-Math.PI / 2);
-const waterBase = waterGeo.attributes.position.array.slice();
-{
-  const wp0 = waterGeo.attributes.position, wcols = [];
-  const deep = new THREE.Color(0x256d7c), shallow = new THREE.Color(0x3d8f8a);
-  for (let i = 0; i < wp0.count; i++) {
-    const x = wp0.getX(i), z = wp0.getZ(i);
-    const d = Math.hypot(x, z) - shoreR(Math.atan2(z, x));
-    const t1 = THREE.MathUtils.smoothstep(d, 0.0, 0.9);   // slim low-contrast shallows
-    const c = shallow.clone().lerp(deep, t1);
-    c.offsetHSL(0, 0, rand(-0.003, 0.003));
-    wcols.push(c.r, c.g, c.b);
-  }
-  waterGeo.setAttribute('color', new THREE.Float32BufferAttribute(wcols, 3));
-}
-const water = new THREE.Mesh(waterGeo, new THREE.MeshPhongMaterial({
-  vertexColors: true, transparent: true, opacity: 0.92, shininess: 26,
-  specular: 0x5a453c, emissive: 0x12333d, flatShading: false }));
-water.receiveShadow = false; scene.add(water); // pass 26: no self-shadow acne on the surface
-
-const foamGeo = new THREE.BufferGeometry();
-{
-  const pts = [], idx = [], SEG = 128;
-  for (let i = 0; i <= SEG; i++) {
-    const a = (i / SEG) * Math.PI * 2, R = shoreR(a);
-    pts.push(Math.cos(a) * (R + 0.05), 0, Math.sin(a) * (R + 0.05),
-             Math.cos(a) * (R + 0.42), 0, Math.sin(a) * (R + 0.42));
-    if (i < SEG) { const b = i * 2; idx.push(b, b + 1, b + 2, b + 1, b + 3, b + 2); }
-  }
-  foamGeo.setAttribute('position', new THREE.Float32BufferAttribute(pts, 3));
-  foamGeo.setIndex(idx); foamGeo.computeVertexNormals();
-}
-const foam = new THREE.Mesh(foamGeo,
-  new THREE.MeshBasicMaterial({ color: 0xfff6e6, transparent: true, opacity: 0.5, side: THREE.DoubleSide }));
-foam.position.y = 0.16; scene.add(foam);
-
-// ---------- island ----------
-// pass 11: wet-sand waterline band + desktop bottom-corner camera clearance
-const ISLAND_Y = 1.2;
-function shoreR(a) { return 5.1 + 0.35 * Math.sin(3 * a + 0.7) + 0.22 * Math.sin(5 * a + 2.1); }
-const sideGeo = new THREE.CylinderGeometry(1, 0.94, ISLAND_Y, 96, 6, true);
-{
-  const p = sideGeo.attributes.position;
-  for (let i = 0; i < p.count; i++) {
-    const x = p.getX(i), z = p.getZ(i), y = p.getY(i);
-    const a = Math.atan2(z, x), r = shoreR(a) * (y > 0 ? 1 : 0.94);
-    const m = Math.hypot(x, z) || 1;
-    p.setX(i, x / m * r); p.setZ(i, z / m * r);
-  }
-  // wet-sand waterline band: darker/cooler near the water, dry sand up top
-  const cols = [];
-  const dry = new THREE.Color(0xe3c89a), wet = new THREE.Color(0xa8896b);
-  for (let i = 0; i < p.count; i++) {
-    const t = (p.getY(i) + ISLAND_Y / 2) / ISLAND_Y;   // 0 waterline -> 1 top
-    const band = THREE.MathUtils.smoothstep(t, 0.0, 0.55);
-    const c = wet.clone().lerp(dry, band);
-    c.offsetHSL(0, 0, rand(-0.025, 0.025));
-    cols.push(c.r, c.g, c.b);
-  }
-  sideGeo.setAttribute('color', new THREE.Float32BufferAttribute(cols, 3));
-  sideGeo.computeVertexNormals();
-}
-const islandSide = new THREE.Mesh(sideGeo,
-  new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 1 }));
-islandSide.position.y = ISLAND_Y / 2; islandSide.castShadow = true; islandSide.receiveShadow = true;
-scene.add(islandSide);
-
-const topGeo = new THREE.CircleGeometry(1, 96);
-topGeo.rotateX(-Math.PI / 2);
-{
-  const p = topGeo.attributes.position, cols = [];
-  const sand = new THREE.Color(0xeed9a4), grass = new THREE.Color(0x79b56a), grass2 = new THREE.Color(0x5d9e58);
-  for (let i = 0; i < p.count; i++) {
-    const x = p.getX(i), z = p.getZ(i);
-    const a = Math.atan2(z, x), R = shoreR(a);
-    const m = Math.hypot(x, z) || 1;
-    const nx = x / m * R * m, nz = z / m * R * m;  // scale unit circle to shore
-    p.setX(i, nx); p.setZ(i, nz);
-    const rr = m; // 0..1 normalized radius
-    let c;
-    if (rr < 0.6) c = (Math.random() < 0.5 ? grass : grass2).clone();
-    else if (rr < 0.85) c = sand.clone().lerp(grass, (0.85 - rr) / 0.25);
-    else c = sand.clone();
-    c.offsetHSL(rand(-0.01, 0.01), rand(-0.03, 0.03), rand(-0.03, 0.03));
-    cols.push(c.r, c.g, c.b);
-    if (rr < 0.7 && rr > 0.02) p.setY(i, rand(0, 0.12));
-  }
-  topGeo.setAttribute('color', new THREE.Float32BufferAttribute(cols, 3));
-  topGeo.computeVertexNormals();
-}
-const islandTop = new THREE.Mesh(topGeo, new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 1 }));
-islandTop.position.y = ISLAND_Y; islandTop.receiveShadow = true; scene.add(islandTop);
-
-// ---------- volcano ----------
-const VOLC = new THREE.Vector3(-1.6, ISLAND_Y, -1.5);
-const volcGeo = new THREE.CylinderGeometry(0.62, 3.45, 5.0, 14, 8, true);
-jitterGeo(volcGeo, 0.24, 2.1);
-{ // erosion gullies + low-frequency asymmetry (periodic -> seam-safe)
-  const p = volcGeo.attributes.position;
-  for (let i = 0; i < p.count; i++) {
-    const x = p.getX(i), y = p.getY(i), z = p.getZ(i);
-    const a = Math.atan2(z, x), h = (y + 2.5) / 5.0;
-    const gully = Math.sin(a * 7 + 1.3) * 0.6 + Math.sin(a * 3 - 0.6) * 0.4;
-    const asym = Math.sin(a * 2 + 0.5) * 0.10 + Math.sin(a + 2.2) * 0.06;
-    const s = 1 + (0.075 * gully * (1 - h * 0.6) + asym * (1 - h * 0.85));
-    p.setX(i, x * s); p.setZ(i, z * s);
-  }
-}
-const volcColored = faceColors(volcGeo, [
-  new THREE.Color(0x7a4a38), new THREE.Color(0x8a5a40),
-  new THREE.Color(0x5f4238), new THREE.Color(0x96684a)], 0.02);
-const volcano = new THREE.Mesh(volcColored, new THREE.MeshStandardMaterial({
-  vertexColors: true, roughness: 0.98, flatShading: true }));
-volcano.position.copy(VOLC).add(new THREE.Vector3(0, 2.5, 0));
-volcano.castShadow = true; volcano.receiveShadow = true;
-scene.add(volcano);
-// shoulder peak: gives the silhouette a mountain ridge instead of a lone cone
-const shoulderGeo = new THREE.CylinderGeometry(0.4, 1.9, 2.6, 11, 5, true);
-jitterGeo(shoulderGeo, 0.3);
-{
-  const p = shoulderGeo.attributes.position;
-  for (let i = 0; i < p.count; i++) {
-    const x = p.getX(i), y = p.getY(i), z = p.getZ(i);
-    const a = Math.atan2(z, x), h = (y + 1.3) / 2.6;
-    const s = 1 + 0.08 * (Math.sin(a * 5 + 0.8) * 0.6 + Math.sin(a * 2 - 1.1) * 0.4) * (1 - h * 0.7);
-    p.setX(i, x * s); p.setZ(i, z * s);
-  }
-}
-const shoulder = new THREE.Mesh(
-  faceColors(shoulderGeo, [new THREE.Color(0x7a4a38), new THREE.Color(0x6b4a3c),
-    new THREE.Color(0x5f4238), new THREE.Color(0x8a5f46)], 0.02),
-  new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.98, flatShading: true }));
-shoulder.position.set(VOLC.x + 2.05, ISLAND_Y + 1.05, VOLC.z + 0.55);
-shoulder.castShadow = true; shoulder.receiveShadow = true;
-scene.add(shoulder);
-const VOLC_TOP = VOLC.y + 5.0;
-
-// crater rim + ember bowl
-const rim = new THREE.Group();
-for (let i = 0; i < 9; i++) {
-  const a = (i / 9) * Math.PI * 2 + rand(-0.12, 0.12);
-  const g = jitterGeo(new THREE.IcosahedronGeometry(rand(0.13, 0.2), 1), 0.22);
-  const chunk = new THREE.Mesh(
-    faceColors(g, [new THREE.Color(0x3a2a24), new THREE.Color(0x54403a), new THREE.Color(0x2e2220)]),
-    new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 1, flatShading: true }));
-  chunk.position.set(VOLC.x + Math.cos(a) * rand(0.58, 0.68), VOLC_TOP + rand(-0.18, -0.04), VOLC.z + Math.sin(a) * rand(0.58, 0.68));
-  chunk.rotation.set(rand(0, 3), rand(0, 3), rand(0, 3));
-  chunk.scale.set(1, rand(0.75, 0.95), 1);
-  chunk.castShadow = true; rim.add(chunk);
-}
-scene.add(rim);
-const bowl = new THREE.Mesh(new THREE.CylinderGeometry(0.66, 0.3, 0.5, 12, 1, true),
-  new THREE.MeshStandardMaterial({ color: 0x2a1c16, roughness: 1, side: THREE.DoubleSide }));
-bowl.position.set(VOLC.x, VOLC_TOP - 0.28, VOLC.z); scene.add(bowl);
-const ember = new THREE.Mesh(new THREE.CircleGeometry(0.72, 20),
-  new THREE.MeshBasicMaterial({ color: 0xff6a2a, transparent: true, opacity: 0.85 }));
-ember.rotation.x = -Math.PI / 2; ember.position.set(VOLC.x, VOLC_TOP - 0.22, VOLC.z);
-scene.add(ember);
-craterLight.position.set(VOLC.x, VOLC_TOP + 0.5, VOLC.z); scene.add(craterLight);
-
-// ---------- palms ----------
-const palmLeafMats = [];   // for scorch/regrow
-const palmGroups = [];
-function makePalm(scale, lean, leafHue) {
-  const g = new THREE.Group();
-  const trunkMat = new THREE.MeshStandardMaterial({ color: 0x8a6242, roughness: 1, flatShading: true });
-  let y = 0, xoff = 0;
-  for (let s = 0; s < 3; s++) {
-    const seg = new THREE.Mesh(new THREE.CylinderGeometry(0.09 - s * 0.018, 0.11 - s * 0.018, 0.62, 6), trunkMat);
-    xoff += lean * 0.16;
-    seg.position.set(xoff, y + 0.31, 0); seg.rotation.z = -lean * 0.22;
-    seg.castShadow = true; g.add(seg); y += 0.58;
-  }
-  const leafMat = new THREE.MeshStandardMaterial({ color: leafHue, roughness: 0.9, flatShading: true, side: THREE.DoubleSide });
-  palmLeafMats.push({ mat: leafMat, base: leafMat.color.clone() });
-  const crownX = xoff + lean * 0.1, crownY = y + 0.08;
-  for (let f = 0; f < 7; f++) {
-    const a = (f / 7) * Math.PI * 2 + rand(-0.15, 0.15);
-    const inner = new THREE.Mesh(new THREE.ConeGeometry(0.1, 0.85, 4), leafMat);
-    inner.position.set(crownX + Math.cos(a) * 0.3, crownY + 0.1, Math.sin(a) * 0.3);
-    inner.rotation.set(Math.sin(a) * 1.05, 0, -Math.cos(a) * 1.05);
-    inner.castShadow = true; g.add(inner);
-    const outer = new THREE.Mesh(new THREE.ConeGeometry(0.075, 0.8, 4), leafMat);
-    outer.position.set(crownX + Math.cos(a) * 0.72, crownY - 0.18, Math.sin(a) * 0.72);
-    outer.rotation.set(Math.sin(a) * 2.05, 0, -Math.cos(a) * 2.05);
-    outer.castShadow = true; g.add(outer);
-  }
-  for (let c = 0; c < 2; c++) {
-    const nut = new THREE.Mesh(new THREE.SphereGeometry(0.07, 6, 5),
-      new THREE.MeshStandardMaterial({ color: 0x6e4f2e, roughness: 1 }));
-    nut.position.set(crownX + rand(-0.12, 0.12), crownY - 0.14, rand(-0.12, 0.12)); g.add(nut);
-  }
-  g.scale.setScalar(scale);
-  return g;
-}
-const palmAngles = [10, 32, 56, 78, 97, 185, 205, 225, 246, 268, 290, 312, 335, 152];
-const leafTones = [0x4e9a51, 0x67b25f, 0x3f8747];
-palmAngles.forEach((deg) => {
-  const a = deg * Math.PI / 180, r = rand(2.7, 4.35);
-  const palm = makePalm(rand(0.85, 1.35), rand(-1, 1), leafTones[Math.floor(Math.random() * 3)]);
-  palm.position.set(Math.cos(a) * r, ISLAND_Y, Math.sin(a) * r);
-  palm.rotation.y = rand(0, Math.PI * 2);
-  palmGroups.push(palm); scene.add(palm);
-});
-
-// ---------- rocks, shrubs, driftwood ----------
-const rockTones = [new THREE.Color(0x7a6a5c), new THREE.Color(0x8d7d6d), new THREE.Color(0x655648)];
-const rockMeshes = [];
-for (let i = 0; i < 8; i++) {
-  const a = rand(0, Math.PI * 2), r = rand(3.6, 4.9);
-  const rock = new THREE.Mesh(faceColors(jitterGeo(new THREE.IcosahedronGeometry(rand(0.14, 0.3), 0), 0.05), rockTones),
-    new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 1, flatShading: true }));
-  rock.position.set(Math.cos(a) * r, ISLAND_Y + 0.05, Math.sin(a) * r);
-  rock.castShadow = true; rock.userData.size = rand(0.35, 0.6);
-  rockMeshes.push(rock); scene.add(rock);
-}
-const shrubMeshes = [];
-for (let i = 0; i < 10; i++) {
-  const a = rand(0, Math.PI * 2), r = rand(2.0, 4.2);
-  const shrub = new THREE.Mesh(new THREE.IcosahedronGeometry(rand(0.12, 0.22), 0),
-    new THREE.MeshStandardMaterial({ color: Math.random() < 0.5 ? 0x3f8747 : 0x579a4e, roughness: 1, flatShading: true }));
-  shrub.scale.y = 0.65;
-  shrub.position.set(Math.cos(a) * r, ISLAND_Y + 0.08, Math.sin(a) * r);
-  shrub.castShadow = true; shrubMeshes.push(shrub); scene.add(shrub);
-}
-for (let i = 0; i < 2; i++) {
-  const wood = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.07, rand(0.7, 1.0), 5),
-    new THREE.MeshStandardMaterial({ color: 0x9c8468, roughness: 1 }));
-  wood.rotation.set(Math.PI / 2, 0, rand(0, Math.PI));
-  wood.position.set(rand(2.5, 4.2), ISLAND_Y + 0.05, rand(3.4, 4.6));
-  wood.castShadow = true; scene.add(wood);
-}
-
-// ---------- fishing hut + pier + boat ----------
-const hut = new THREE.Group();
-const plankBase = new THREE.Color(0x9a6b4f);
-for (let s = 0; s < 4; s++) {
-  const ang = (s / 4) * Math.PI * 2 + Math.PI / 4;
-  const stilt = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.08, 1.5, 6),
-    new THREE.MeshStandardMaterial({ color: 0x6e4f38, roughness: 1 }));
-  stilt.position.set(Math.cos(ang) * 0.55, 0.75, Math.sin(ang) * 0.55);
-  stilt.castShadow = true; hut.add(stilt);
-}
-const floor = new THREE.Mesh(new THREE.BoxGeometry(1.5, 0.1, 1.5),
-  new THREE.MeshStandardMaterial({ color: 0x8a6248, roughness: 1 }));
-floor.position.y = 1.5; floor.castShadow = true; hut.add(floor);
-for (let side = 0; side < 4; side++) {
-  for (let pl = 0; pl < 5; pl++) {
-    const c = plankBase.clone().offsetHSL(0, rand(-0.03, 0.03), rand(-0.05, 0.05));
-    const plank = new THREE.Mesh(new THREE.BoxGeometry(1.5, 0.17, 0.06),
-      new THREE.MeshStandardMaterial({ color: c, roughness: 1 }));
-    plank.position.set(0, 1.68 + pl * 0.17, 0);
-    plank.rotation.y = side * Math.PI / 2;
-    plank.translateZ(0.72);
-    plank.castShadow = true; hut.add(plank);
-  }
-}
-const roofMat = new THREE.MeshStandardMaterial({ color: 0xc9a86a, roughness: 1, flatShading: true });
-const roof1 = new THREE.Mesh(new THREE.BoxGeometry(1.9, 0.07, 1.15), roofMat);
-roof1.position.set(0, 2.75, -0.45); roof1.rotation.x = 0.62; roof1.castShadow = true; hut.add(roof1);
-const roof2 = roof1.clone(); roof2.position.z = 0.45; roof2.rotation.x = -0.62; hut.add(roof2);
-const windowGlow = new THREE.Mesh(new THREE.PlaneGeometry(0.34, 0.3),
-  new THREE.MeshBasicMaterial({ color: 0xffd27a }));
-windowGlow.position.set(0, 1.95, 0.757); hut.add(windowGlow);
-const door = new THREE.Mesh(new THREE.PlaneGeometry(0.34, 0.6),
-  new THREE.MeshStandardMaterial({ color: 0x54382a, roughness: 1 }));
-door.position.set(-0.45, 1.85, 0.757); hut.add(door);
-hut.position.set(3.95, 0, 2.35);
-hut.rotation.y = -0.5;
-scene.add(hut);
-hutLight.position.set(3.95, 2.0, 3.15); scene.add(hutLight);
-
-const pier = new THREE.Group();
-for (let i = 0; i < 6; i++) {
-  const plank = new THREE.Mesh(new THREE.BoxGeometry(0.62, 0.06, 0.3),
-    new THREE.MeshStandardMaterial({ color: plankBase.clone().offsetHSL(0, 0, rand(-0.06, 0.04)), roughness: 1 }));
-  plank.position.set(0, 1.32, i * 0.34); plank.castShadow = true; pier.add(plank);
-  if (i % 2 === 0) {
-    for (const sx of [-0.28, 0.28]) {
-      const post = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.06, 1.4, 5),
-        new THREE.MeshStandardMaterial({ color: 0x6e4f38, roughness: 1 }));
-      post.position.set(sx, 0.66, i * 0.34); pier.add(post);
+    let renderer;
+    try {
+      renderer = new THREE.WebGLRenderer({
+        antialias: true,
+        powerPreference: 'high-performance',
+        alpha: true
+      });
+    } catch (err) {
+      fallbackEl.style.display = 'flex';
+      throw err;
     }
-  }
-}
-pier.position.set(4.35, 0, 3.3); pier.rotation.y = 0.45;
-scene.add(pier);
 
-const boat = new THREE.Group();
-const boatMat = new THREE.MeshStandardMaterial({ color: 0x7a5238, roughness: 0.9, flatShading: true });
-const hull = new THREE.Mesh(new THREE.BoxGeometry(1.05, 0.22, 0.4), boatMat);
-boat.add(hull);
-for (const dir of [-1, 1]) {
-  const end = new THREE.Mesh(new THREE.BoxGeometry(0.26, 0.2, 0.34), boatMat);
-  end.position.set(dir * 0.6, 0.06, 0); end.rotation.z = dir * -0.5;
-  boat.add(end);
-}
-const bench = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.04, 0.3),
-  new THREE.MeshStandardMaterial({ color: 0x9c7a55 }));
-bench.position.y = 0.12; boat.add(bench);
-boat.position.set(4.6, 0.02, 5.5); boat.rotation.y = 1.25; boat.scale.setScalar(0.85);
-scene.add(boat);
-
-// ---------- birds ----------
-const birds = [];
-for (let i = 0; i < 3; i++) {
-  const b = new THREE.Group();
-  const wmat = new THREE.MeshBasicMaterial({ color: 0x3a2f3e, side: THREE.DoubleSide });
-  const w1 = new THREE.Mesh(new THREE.PlaneGeometry(0.5, 0.14), wmat);
-  const w2 = w1.clone();
-  w1.position.x = -0.24; w2.position.x = 0.24;
-  w1.rotation.z = 0.35; w2.rotation.z = -0.35;
-  b.add(w1, w2); b.userData = { w1, w2, phase: rand(0, Math.PI * 2), r: rand(7.5, 9.5), h: rand(7.2, 9.0), speed: rand(0.12, 0.2) };
-  birds.push(b); scene.add(b);
-}
-
-// pass 26: root-cause patch kill - sunk water-side slab (was coplanar, shadow acne), no surface self-shadow
-// pass 25: flat-normals water (real patch kill), lava dives underwater w/ tapered toe
-// pass 24: uniform water + soft specular (patch kill), gentler beach pour
-// pass 23: water camo kill (narrow shallows, close tones), lava beach S-curve channel
-// pass 21: shoulder peak, crag asymmetry, island-wide tap target, livelier water, bigger framing
-// pass 20: debug hook removed; drape fix verified (46 surface points)
-// pass 14: lava form/gradient, smooth water bands, cone gullies, resize refit
-// pass 12: soft smoke sprites + tighter lava drape
-// ---------- lava path ----------
-const lavaPts = [];
-{
-  // drape over the actual mesh surfaces: raycast onto the cone, then the ground
-  // (world matrices are identity until the first render - force them first)
-  volcano.updateMatrixWorld(true); islandTop.updateMatrixWorld(true);
-  const rc = new THREE.Raycaster();
-  const thSea = Math.atan2(5.8 - VOLC.z, -2.4 - VOLC.x);
-  const th0 = thSea + 1.15;
-  lavaPts.push(new THREE.Vector3(VOLC.x, VOLC_TOP - 0.34, VOLC.z));            // inside the bowl
-  lavaPts.push(new THREE.Vector3(VOLC.x + Math.cos(th0) * 0.62, VOLC_TOP - 0.05, VOLC.z + Math.sin(th0) * 0.62)); // over the rim
-  const N = 40;
-  for (let i = 1; i <= N; i++) {
-    const f = i / N;
-    const y = VOLC_TOP - 0.2 - f * (VOLC_TOP - ISLAND_Y - 0.15);
-    const th = th0 + (thSea - th0) * f + Math.sin(f * 9.0) * 0.10;
-    const out = new THREE.Vector3(Math.cos(th), 0, Math.sin(th));
-    rc.set(new THREE.Vector3(VOLC.x + out.x * 7, y, VOLC.z + out.z * 7),
-      out.clone().multiplyScalar(-1).setY(-0.06).normalize());
-    const hit = rc.intersectObject(volcano, false)[0];
-    if (hit) lavaPts.push(hit.point.clone().addScaledVector(out, 0.10));
-  }
-  for (const [bx, bz] of [[-2.62, 3.35], [-2.44, 3.7], [-2.66, 4.05], [-2.46, 4.45], [-2.63, 4.85]]) {
-    rc.set(new THREE.Vector3(bx, 6, bz), new THREE.Vector3(0, -1, 0));
-    const hit = rc.intersectObject(islandTop, false)[0];
-    lavaPts.push(hit ? hit.point.clone().add(new THREE.Vector3(0, 0.055, 0))
-                     : new THREE.Vector3(bx, 0.5, bz));
-  }
-  lavaPts.push(new THREE.Vector3(-2.28, 0.06, 5.32));   // pour over the waterline
-  lavaPts.push(new THREE.Vector3(-2.5, -0.34, 5.72));  // dive under the surface
-}
-const lavaCurve = new THREE.CatmullRomCurve3(lavaPts);
-function buildLavaTube(curve, segs) {
-  // proven TubeGeometry frames, then per-ring radius + heat gradient colors
-  const g = new THREE.TubeGeometry(curve, segs, 1, 8, false);
-  const p = g.attributes.position, R = 8;
-  const cTop = new THREE.Color(0xfff6c0), cMid = new THREE.Color(0xff8a26), cToe = new THREE.Color(0xd8480f);
-  const cols = new Float32Array(p.count * 3);
-  for (let i = 0; i <= segs; i++) {
-    const t = i / segs, c0 = curve.getPoint(t);
-    const r = (0.14 + 0.07 * t + Math.sin(t * 12.0) * 0.022) * (t > 0.93 ? Math.max(0.3, 1 - (t - 0.93) / 0.07 * 0.7) : 1);
-    const c = t < 0.22 ? cTop.clone().lerp(cMid, t / 0.22) : cMid.clone().lerp(cToe, (t - 0.22) / 0.78);
-    for (let j = 0; j <= R; j++) {
-      const vi = i * (R + 1) + j;
-      p.setXYZ(vi,
-        c0.x + (p.getX(vi) - c0.x) * r,
-        c0.y + (p.getY(vi) - c0.y) * r,
-        c0.z + (p.getZ(vi) - c0.z) * r);
-      cols[vi * 3] = c.r; cols[vi * 3 + 1] = c.g; cols[vi * 3 + 2] = c.b;
+    if (!renderer || !renderer.getContext()) {
+      fallbackEl.style.display = 'flex';
+      throw new Error('WebGL context creation failed.');
     }
-  }
-  g.setAttribute('color', new THREE.BufferAttribute(cols, 3));
-  g.computeVertexNormals();
-  return g;
-}
-const lavaMat = new THREE.MeshBasicMaterial({ vertexColors: true });
-lavaMat.color.setScalar(0.35);
-const lava = new THREE.Mesh(buildLavaTube(lavaCurve, 96), lavaMat);
-lava.visible = false; scene.add(lava);
-const lavaMid = lavaCurve.getPoint(0.35);
-lavaLight.position.copy(lavaMid).add(new THREE.Vector3(0, 0.6, 0)); scene.add(lavaLight);
 
-// glowing flow pulses travelling down the lava
-const flowBlobs = [];
-for (let i = 0; i < 5; i++) {
-  const b = new THREE.Mesh(new THREE.SphereGeometry(0.15, 6, 5),
-    new THREE.MeshBasicMaterial({ color: 0xffd23f }));
-  b.visible = false; flowBlobs.push(b); scene.add(b);
-}
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.75));
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 1.22;
+    renderer.outputColorSpace = THREE.SRGBColorSpace;
+    appEl.appendChild(renderer.domElement);
 
-// scorch ribbon along the path
-const scorchMat = new THREE.MeshBasicMaterial({ color: 0x1f1815, transparent: true, opacity: 0 });
-const scorch = new THREE.Mesh(new THREE.TubeGeometry(lavaCurve, 36, 0.5, 7), scorchMat);
-scorch.scale.y = 0.12; scorch.visible = false; scene.add(scorch);
+    const scene = new THREE.Scene();
 
-// regrow shoots
-const shoots = [];
-for (let i = 0; i < 14; i++) {
-  const t = 0.3 + (i / 14) * 0.7;
-  const pt = lavaCurve.getPoint(t);
-  const s = new THREE.Mesh(new THREE.ConeGeometry(0.06, 0.22, 5),
-    new THREE.MeshStandardMaterial({ color: 0x8fce7a, roughness: 1 }));
-  s.position.copy(pt).add(new THREE.Vector3(rand(-0.4, 0.4), 0.02, rand(-0.4, 0.4)));
-  s.scale.setScalar(0.001); s.visible = false;
-  shoots.push(s); scene.add(s);
-}
+    // Camera & OrbitControls
+    const camera = new THREE.PerspectiveCamera(36, window.innerWidth / window.innerHeight, 0.5, 120);
+    const controls = new OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.065;
+    controls.enablePan = false;
+    controls.enableZoom = true;
+    controls.minPolarAngle = THREE.MathUtils.degToRad(34);
+    controls.maxPolarAngle = THREE.MathUtils.degToRad(64);
+    controls.minAzimuthAngle = THREE.MathUtils.degToRad(-55);
+    controls.maxAzimuthAngle = THREE.MathUtils.degToRad(55);
+    controls.target.set(0, 1.15, 0);
 
-// ---------- particles ----------
-function makePuffTexture() {
-  const c = document.createElement('canvas'); c.width = c.height = 64;
-  const ctx = c.getContext('2d');
-  const grad = ctx.createRadialGradient(32, 32, 2, 32, 32, 30);
-  grad.addColorStop(0, 'rgba(255,255,255,0.9)');
-  grad.addColorStop(0.55, 'rgba(255,255,255,0.45)');
-  grad.addColorStop(1, 'rgba(255,255,255,0)');
-  ctx.fillStyle = grad; ctx.fillRect(0, 0, 64, 64);
-  const tex = new THREE.CanvasTexture(c); return tex;
-}
-const puffTex = makePuffTexture();
-function makePoints(n, size, color, blending, soft) {
-  const g = new THREE.BufferGeometry();
-  g.setAttribute('position', new THREE.Float32BufferAttribute(new Float32Array(n * 3), 3));
-  const m = new THREE.PointsMaterial({ size, color, transparent: true, opacity: 0.9,
-    blending, depthWrite: false, sizeAttenuation: true,
-    map: soft ? puffTex : null, alphaMap: soft ? puffTex : null });
-  const pts = new THREE.Points(g, m); pts.visible = false; scene.add(pts);
-  return { pts, vel: new Float32Array(n * 3), life: new Float32Array(n), n };
-}
-const embers = makePoints(320, 0.14, 0xffa03f, THREE.AdditiveBlending);
-const ash = makePoints(240, 0.1, 0x9a9390, THREE.NormalBlending);
-const smoke = makePoints(44, 1.15, 0x453e4c, THREE.NormalBlending, true);
-smoke.pts.material.opacity = 0.42;
-const steam = makePoints(24, 0.55, 0xf2ede4, THREE.NormalBlending, true);
-steam.pts.material.opacity = 0.5;
-const steamSrc = lavaCurve.getPoint(0.985).setY(0.1);
+    // ============================================================================
+    // 3. LIGHTING (Tropical Daylight + Dynamic Crater Lava Light)
+    // ============================================================================
+    const hemiLight = new THREE.HemisphereLight(0xeef8ff, 0x4a5a70, 1.55);
+    scene.add(hemiLight);
 
-function resetParticles() {
-  for (const P of [embers, ash, smoke, steam]) {
-    P.life.fill(-1);
-    const p = P.pts.geometry.attributes.position.array;
-    for (let i = 0; i < P.n * 3; i++) p[i] = 0;
-    P.pts.geometry.attributes.position.needsUpdate = true;
-  }
-}
-function spawn(P, i, origin, vel, life) {
-  const p = P.pts.geometry.attributes.position.array;
-  p[i * 3] = origin.x; p[i * 3 + 1] = origin.y; p[i * 3 + 2] = origin.z;
-  P.vel[i * 3] = vel.x; P.vel[i * 3 + 1] = vel.y; P.vel[i * 3 + 2] = vel.z;
-  P.life[i] = life;
-}
-const craterMouth = new THREE.Vector3(VOLC.x, VOLC_TOP + 0.1, VOLC.z);
+    const sunLight = new THREE.DirectionalLight(0xfff4e0, 2.3);
+    sunLight.position.set(7.5, 13.0, 8.5);
+    sunLight.castShadow = true;
+    sunLight.shadow.mapSize.width = 1024;
+    sunLight.shadow.mapSize.height = 1024;
+    sunLight.shadow.camera.near = 2.0;
+    sunLight.shadow.camera.far = 28.0;
+    const d = 6.2;
+    sunLight.shadow.camera.left = -d;
+    sunLight.shadow.camera.right = d;
+    sunLight.shadow.camera.top = d;
+    sunLight.shadow.camera.bottom = -d;
+    sunLight.shadow.bias = -0.0008;
+    scene.add(sunLight);
 
-// ---------- eruption state machine ----------
-const DUR = { erupt: 34, cool: 16, regrow: 22 };
-let state = 'idle', stateT = 0;
-const HINTS = {
-  idle: 'Tap the crater to awaken the mountain',
-  erupt: 'The volcano erupts into the dusk sea',
-  cool: 'The lava cools into fresh basalt',
-  regrow: 'Life creeps back up the volcanic soil'
-};
-function setState(s) {
-  state = s; stateT = 0;
-  hintEl.textContent = HINTS[s]; hintEl.classList.remove('faded');
-  clearTimeout(setState._t);
-  setState._t = setTimeout(() => hintEl.classList.add('faded'), 6000);
-  if (s === 'erupt') {
-    lava.visible = true; scorch.visible = true;
-    flowBlobs.forEach(b => b.visible = true);
-    embers.pts.visible = ash.pts.visible = smoke.pts.visible = true;
-    resetParticles();
-  }
-  if (s === 'cool') steam.pts.visible = true;
-  if (s === 'regrow') shoots.forEach(s => s.visible = true);
-  if (s === 'idle') {
-    lava.visible = false; scorch.visible = false;
-    flowBlobs.forEach(b => b.visible = false);
-    shoots.forEach(s => { s.visible = false; s.scale.setScalar(0.001); });
-  }
-}
-const scorched = []; // {mat, base} palms near the lava path
-palmGroups.forEach((g, gi) => {
-  const p = g.position;
-  for (let t = 0.2; t <= 1; t += 0.1) {
-    const q = lavaCurve.getPoint(t);
-    if (Math.hypot(p.x - q.x, p.z - q.z) < 1.5) { scorched.push(gi); break; }
-  }
-});
-const scorchSet = new Set(scorched);
+    const rimLight = new THREE.DirectionalLight(0x7cc9ff, 0.75);
+    rimLight.position.set(-8.0, 5.0, -7.0);
+    scene.add(rimLight);
 
-// ---------- tap handling ----------
-const ray = new THREE.Raycaster(); const ndc = new THREE.Vector2();
-let downX = 0, downY = 0, downT = 0;
-renderer.domElement.addEventListener('pointerdown', e => { downX = e.clientX; downY = e.clientY; downT = performance.now(); });
-renderer.domElement.addEventListener('pointerup', e => {
-  if (state !== 'idle') return;
-  if (Math.hypot(e.clientX - downX, e.clientY - downY) > 7 || performance.now() - downT > 450) return;
-  ndc.set((e.clientX / innerWidth) * 2 - 1, -(e.clientY / innerHeight) * 2 + 1);
-  ray.setFromCamera(ndc, camera);
-  const hits = ray.intersectObjects([volcano, rim, ember, islandTop, islandSide], true);
-  if (hits.length) setState('erupt');
-});
+    // Dynamic lava glow light perched over the crater
+    const craterLight = new THREE.PointLight(0xff5500, 3.2, 11.0, 1.5);
+    craterLight.position.set(0, 3.6, 0.15);
+    scene.add(craterLight);
 
-// ---------- Quaternius CC0 asset swap ----------
-const GLB_BASE = 'https://cdn.jsdelivr.net/gh/trebeljahr/quaternius-showcase@main/public/glb/nature_pack/';
-const gltfLoader = new GLTFLoader();
-function loadGLB(file) {
-  return new Promise(res => gltfLoader.load(GLB_BASE + file, g => res(g.scene), undefined, () => res(null)));
-}
-function prepClone(src, targetMax, x, y, z, rotY) {
-  const c = src.clone(true);
-  const box = new THREE.Box3().setFromObject(c);
-  const size = box.getSize(new THREE.Vector3());
-  c.scale.setScalar(targetMax / Math.max(size.x, size.y, size.z, 0.001));
-  const box2 = new THREE.Box3().setFromObject(c);
-  c.position.set(x, y - box2.min.y, z);
-  c.rotation.y = rotY;
-  c.traverse(o => { if (o.isMesh) { o.castShadow = true; o.material = o.material.clone(); } });
-  return c;
-}
-(async () => {
-  const [palmA, palmB, rockA, rockB, grassG] = await Promise.all([
-    loadGLB('PalmTree_1.glb'), loadGLB('PalmTree_3.glb'),
-    loadGLB('Rock_2.glb'), loadGLB('Rock_Moss_1.glb'), loadGLB('Grass.glb')]);
-  if (palmA) palmGroups.forEach((g, gi) => {
-    const src = (gi % 2 && palmB) ? palmB : palmA;
-    const c = prepClone(src, 2.2 * g.scale.x, g.position.x, ISLAND_Y, g.position.z, g.rotation.y);
-    let leaf = null;
-    c.traverse(o => { if (o.isMesh && !leaf) { const col = o.material.color; if (col && col.g > col.r * 1.05 && col.g > col.b * 1.05) leaf = o.material; } });
-    scene.add(c); scene.remove(g); palmGroups[gi] = c;
-    if (leaf) palmLeafMats[gi] = { mat: leaf, base: leaf.color.clone() };
-  });
-  if (rockA) rockMeshes.forEach((g, i) => {
-    const src = (i % 2 && rockB) ? rockB : rockA;
-    const c = prepClone(src, g.userData.size, g.position.x, ISLAND_Y, g.position.z, rand(0, Math.PI * 2));
-    scene.add(c); scene.remove(g);
-  });
-  if (grassG) shrubMeshes.forEach(g => {
-    const c = prepClone(grassG, rand(0.3, 0.45), g.position.x, ISLAND_Y, g.position.z, rand(0, Math.PI * 2));
-    scene.add(c); scene.remove(g);
-  });
-})();
+    const channelGlowLight = new THREE.PointLight(0xff4800, 1.4, 6.5, 1.6);
+    channelGlowLight.position.set(0.55, 1.3, 2.35);
+    scene.add(channelGlowLight);
 
-// ---------- animation ----------
-const clock = new THREE.Clock();
-function animate() {
-  requestAnimationFrame(animate);
-  const dt = Math.min(clock.getDelta(), 0.05), t = clock.elapsedTime;
+    // ============================================================================
+    // 4. GEOMETRY HELPERS & SHARED MATERIALS
+    // ============================================================================
+    const dummy = new THREE.Object3D();
+    const tempVec3 = new THREE.Vector3();
+    const tempColor = new THREE.Color();
 
-  // water waves
-  const wp = waterGeo.attributes.position.array;
-  for (let i = 0; i < wp.length; i += 3) {
-    const x = waterBase[i], z = waterBase[i + 2];
-    wp[i + 1] = Math.sin(x * 2.1 + t * 1.2) * 0.012 + Math.cos(z * 2.7 + t * 1.5) * 0.011 + Math.sin((x + z) * 3.4 + t * 2.1) * 0.007;
-  }
-  waterGeo.attributes.position.needsUpdate = true;
-  // pass 26: root-cause patch kill - sunk water-side slab (was coplanar, shadow acne), no surface self-shadow
-// pass 25: no per-frame computeVertexNormals - smooth-shaded sine bumps were the camo patches
-  foam.material.opacity = 0.4 + Math.sin(t * 1.8) * 0.16;
-  foam.scale.setScalar(1 + Math.sin(t * 1.8) * 0.012);
+    // Create a beveled box geometry with faceted corners for the diorama slab
+    function createBeveledSlabGeometry(width, height, depth, bevel = 0.14, segsW = 16, segsH = 4, segsD = 16) {
+      const geo = new THREE.BoxGeometry(width, height, depth, segsW, segsH, segsD);
+      const pos = geo.attributes.position;
+      const hw = width * 0.5;
+      const hh = height * 0.5;
+      const hd = depth * 0.5;
 
-  boat.position.y = 0.02 + Math.sin(t * 1.3) * 0.04;
-  boat.rotation.z = Math.sin(t * 1.1) * 0.05;
-  birds.forEach(b => {
-    const u = b.userData, a = t * u.speed + u.phase;
-    b.position.set(Math.cos(a) * u.r, u.h + Math.sin(t * 0.9 + u.phase) * 0.4, Math.sin(a) * u.r);
-    b.rotation.y = -a - Math.PI / 2;
-    const flap = Math.sin(t * 7 + u.phase) * 0.4;
-    u.w1.rotation.z = 0.35 + flap; u.w2.rotation.z = -0.35 - flap;
-  });
-  ember.material.opacity = state === 'idle' ? 0.6 + Math.sin(t * 2.2) * 0.25 : 0.95;
+      for (let i = 0; i < pos.count; i++) {
+        let x = pos.getX(i);
+        let y = pos.getY(i);
+        let z = pos.getZ(i);
 
-  // state machine
-  stateT += dt;
-  if (state === 'erupt') {
-    const k = Math.min(stateT / 6, 1);           // lava advances over 6s
-    { const b = 0.68 + 0.32 * k + Math.sin(t * 9) * 0.06; lavaMat.color.setRGB(b, b, b); }
-    craterLight.intensity = 0.6 + 2.6 * k + Math.sin(t * 11) * 0.5;
-    lavaLight.intensity = 2.1 * k;
-    scorchMat.opacity = Math.min(scorchMat.opacity + dt * 0.2, 0.35);
-    flowBlobs.forEach((b, i) => {
-      const ft = (t * 0.22 + i / 5) % 1;
-      if (ft < k) { b.position.copy(lavaCurve.getPoint(ft)); b.visible = true; }
-      else b.visible = false;
-    });
-    // spawn particles
-    for (let i = 0; i < embers.n; i++) if (embers.life[i] < 0 && Math.random() < 0.5)
-      spawn(embers, i, craterMouth, new THREE.Vector3(rand(-1.0, 1.0), rand(2.4, 4.4), rand(-1.0, 1.0)), rand(1.0, 1.8));
-    for (let i = 0; i < ash.n; i++) if (ash.life[i] < 0 && Math.random() < 0.35)
-      spawn(ash, i, craterMouth, new THREE.Vector3(rand(0.4, 1.4), rand(1.2, 2.6), rand(-0.5, 0.5)), rand(3.5, 6));
-    for (let i = 0; i < smoke.n; i++) if (smoke.life[i] < 0 && Math.random() < 0.3)
-      spawn(smoke, i, craterMouth, new THREE.Vector3(rand(-0.3, 0.3) + 0.5, rand(0.8, 1.4), rand(-0.3, 0.3)), rand(3, 5));
-    if (stateT > DUR.erupt) setState('cool');
-  } else if (state === 'cool') {
-    const k = Math.min(stateT / DUR.cool, 1);
-    lavaMat.color.setHex(0xffffff).lerp(new THREE.Color(0x2b211c), k);
-    craterLight.intensity = 3.2 * (1 - k) + 0.4;
-    lavaLight.intensity = 2.1 * (1 - k);
-    for (let i = 0; i < steam.n; i++) if (steam.life[i] < 0 && Math.random() < 0.4)
-      spawn(steam, i, steamSrc, new THREE.Vector3(rand(-0.2, 0.2), rand(0.5, 1.0), rand(-0.2, 0.2)), rand(1.5, 2.8));
-    if (stateT > DUR.cool) { steam.pts.visible = false; setState('regrow'); }
-  } else if (state === 'regrow') {
-    const k = Math.min(stateT / DUR.regrow, 1);
-    scorchMat.opacity = 0.35 * (1 - k);
-    shoots.forEach((s, i) => {
-      const sk = THREE.MathUtils.clamp((stateT - i * 0.9) / 4, 0, 1);
-      s.scale.setScalar(Math.max(sk, 0.001));
-    });
-    palmLeafMats.forEach((o, i) => {
-      if (scorchSet.has(i)) o.mat.color.lerp(o.base, dt * 0.35);
-    });
-    if (stateT > DUR.regrow) setState('idle');
-  }
-  if (state === 'erupt' || state === 'cool') {
-    // scorch palms during eruption
-    const target = state === 'erupt' ? 0.55 : 0;
-    palmLeafMats.forEach((o, i) => {
-      if (scorchSet.has(i) && state === 'erupt') o.mat.color.lerp(new THREE.Color(0x2b2320), dt * 0.5);
-    });
-  }
+        // Soft bevel pull near edges
+        const dx = Math.max(0, Math.abs(x) - (hw - bevel));
+        const dy = Math.max(0, Math.abs(y) - (hh - bevel * 0.6));
+        const dz = Math.max(0, Math.abs(z) - (hd - bevel));
 
-  // integrate particles
-  for (const P of [embers, ash, smoke, steam]) {
-    if (!P.pts.visible) continue;
-    const p = P.pts.geometry.attributes.position.array;
-    for (let i = 0; i < P.n; i++) {
-      if (P.life[i] < 0) { p[i * 3 + 1] = -100; continue; }
-      P.life[i] -= dt;
-      p[i * 3] += P.vel[i * 3] * dt;
-      p[i * 3 + 1] += P.vel[i * 3 + 1] * dt;
-      p[i * 3 + 2] += P.vel[i * 3 + 2] * dt;
-      if (P === embers) P.vel[i * 3 + 1] -= 7.5 * dt;
-      if (P === smoke) { P.vel[i * 3] += 0.15 * dt; }
+        if (dx > 0 && dz > 0) {
+          const factor = 0.42;
+          x -= Math.sign(x) * dx * factor;
+          z -= Math.sign(z) * dz * factor;
+        }
+        if (dy > 0 && (dx > 0 || dz > 0)) {
+          y -= Math.sign(y) * dy * 0.35;
+        }
+
+        // Subtle organic vertex jitter on inner top surface
+        if (y > hh * 0.8 && Math.abs(x) < hw - bevel && Math.abs(z) < hd - bevel) {
+          y += Math.sin(x * 1.4 + z * 1.3) * 0.022;
+        }
+
+        pos.setXYZ(i, x, y, z);
+      }
+      geo.computeVertexNormals();
+      return geo;
     }
-    P.pts.geometry.attributes.position.needsUpdate = true;
-  }
 
-  controls.update();
-  renderer.render(scene, camera);
-}
-animate();
+    // Shared Materials
+    const mats = {
+      basePedestal: new THREE.MeshStandardMaterial({
+        color: 0x1a2634,
+        roughness: 0.85,
+        metalness: 0.08,
+        flatShading: true
+      }),
+      deepWaterSlab: new THREE.MeshStandardMaterial({
+        color: 0x0b4f7c,
+        roughness: 0.35,
+        metalness: 0.05,
+        flatShading: true
+      }),
+      midWaterSlab: new THREE.MeshStandardMaterial({
+        color: 0x1578ad,
+        roughness: 0.28,
+        metalness: 0.05,
+        flatShading: true
+      }),
+      topWaterSlab: new THREE.MeshStandardMaterial({
+        color: 0x28a4d9,
+        roughness: 0.2,
+        metalness: 0.06,
+        transparent: true,
+        opacity: 0.86,
+        flatShading: true
+      }),
+      underwaterShelf: new THREE.MeshStandardMaterial({
+        color: 0x208596,
+        roughness: 0.6,
+        metalness: 0.04,
+        flatShading: true
+      }),
+      waveFoam: new THREE.MeshStandardMaterial({
+        color: 0xeaf9ff,
+        emissive: 0x8be0ff,
+        emissiveIntensity: 0.25,
+        roughness: 0.3,
+        transparent: true,
+        opacity: 0.82,
+        flatShading: true
+      }),
+      blackSand: new THREE.MeshStandardMaterial({
+        color: 0x3a3b44,
+        roughness: 0.92,
+        metalness: 0.04,
+        flatShading: true
+      }),
+      wetSand: new THREE.MeshStandardMaterial({
+        color: 0x2c3038,
+        roughness: 0.5,
+        metalness: 0.12,
+        flatShading: true
+      }),
+      volcanoRock: new THREE.MeshStandardMaterial({
+        vertexColors: true,
+        roughness: 0.86,
+        metalness: 0.07,
+        flatShading: true
+      }),
+      cragRock: new THREE.MeshStandardMaterial({
+        color: 0x55565f,
+        roughness: 0.88,
+        metalness: 0.08,
+        flatShading: true
+      }),
+      craterLava: new THREE.MeshStandardMaterial({
+        color: 0xff4500,
+        emissive: 0xff5a00,
+        emissiveIntensity: 1.8,
+        roughness: 0.25,
+        flatShading: true
+      }),
+      lavaCrust: new THREE.MeshStandardMaterial({
+        color: 0x231614,
+        emissive: 0x882200,
+        emissiveIntensity: 0.45,
+        roughness: 0.85,
+        flatShading: true
+      }),
+      channelLava: new THREE.MeshStandardMaterial({
+        vertexColors: true,
+        color: 0xffffff,
+        emissive: 0xff4d00,
+        emissiveIntensity: 1.5,
+        roughness: 0.3,
+        flatShading: true
+      }),
+      smoke: new THREE.MeshStandardMaterial({
+        color: 0xd9d4ce,
+        emissive: 0x3d2214,
+        emissiveIntensity: 0.08,
+        roughness: 0.95,
+        flatShading: true
+      }),
+      steam: new THREE.MeshStandardMaterial({
+        color: 0xf4fbff,
+        emissive: 0xff7733,
+        emissiveIntensity: 0.15,
+        roughness: 0.85,
+        flatShading: true
+      }),
+      lavaBomb: new THREE.MeshStandardMaterial({
+        color: 0xffaa22,
+        emissive: 0xff5500,
+        emissiveIntensity: 2.2,
+        roughness: 0.3,
+        flatShading: true
+      }),
+      cloud: new THREE.MeshStandardMaterial({
+        color: 0xffffff,
+        emissive: 0xdbeeff,
+        emissiveIntensity: 0.18,
+        roughness: 0.9,
+        flatShading: true
+      }),
+      bird: new THREE.MeshStandardMaterial({
+        color: 0xffffff,
+        emissive: 0xcce6ff,
+        emissiveIntensity: 0.2,
+        roughness: 0.5,
+        side: THREE.DoubleSide,
+        flatShading: true
+      }),
+      splashRing: new THREE.MeshBasicMaterial({
+        color: 0x9ef0ff,
+        transparent: true,
+        opacity: 0.0,
+        side: THREE.DoubleSide,
+        depthWrite: false
+      }),
+      splashDrop: new THREE.MeshStandardMaterial({
+        color: 0xffffff,
+        emissive: 0x8be4ff,
+        emissiveIntensity: 0.5,
+        roughness: 0.2,
+        flatShading: true
+      })
+    };
 
-addEventListener('resize', () => {
-  camera.aspect = innerWidth / innerHeight;
-  renderer.setSize(innerWidth, innerHeight);
-  renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
-  frameInitialCamera();   // re-solve bounds fit for the new aspect
-});
-setTimeout(() => hintEl.classList.add('faded'), 6000);
-</script>
+    const worldGroup = new THREE.Group();
+    scene.add(worldGroup);
+
+    // ============================================================================
+    // 5. OCEAN DIORAMA SLAB, UNDERWATER SHELF & ANIMATED SHORE WAVE BANDS
+    // ============================================================================
+    const SLAB_WIDTH = 7.6;
+    const SLAB_DEPTH = 7.6;
+
+    // 5a. Sculptural base pedestal
+    const pedestalGeo = createBeveledSlabGeometry(SLAB_WIDTH + 0.16, 0.34, SLAB_DEPTH + 0.16, 0.16, 8, 2, 8);
+    const pedestalMesh = new THREE.Mesh(pedestalGeo, mats.basePedestal);
+    pedestalMesh.position.y = -0.92;
+    pedestalMesh.receiveShadow = true;
+    worldGroup.add(pedestalMesh);
+
+    // 5b. Layered blue water bands (3 distinct strata)
+    const deepSlabGeo = createBeveledSlabGeometry(SLAB_WIDTH, 0.38, SLAB_DEPTH, 0.14, 12, 2, 12);
+    const deepSlabMesh = new THREE.Mesh(deepSlabGeo, mats.deepWaterSlab);
+    deepSlabMesh.position.y = -0.58;
+    deepSlabMesh.receiveShadow = true;
+    worldGroup.add(deepSlabMesh);
+
+    const midSlabGeo = createBeveledSlabGeometry(SLAB_WIDTH - 0.06, 0.28, SLAB_DEPTH - 0.06, 0.12, 14, 2, 14);
+    const midSlabMesh = new THREE.Mesh(midSlabGeo, mats.midWaterSlab);
+    midSlabMesh.position.y = -0.26;
+    midSlabMesh.receiveShadow = true;
+    worldGroup.add(midSlabMesh);
+
+    // 5c. Visible underwater turquoise shelf around the island base (sits between mid & top water)
+    const shelfGeo = new THREE.CylinderGeometry(3.15, 3.48, 0.22, 32, 2);
+    const shelfPos = shelfGeo.attributes.position;
+    for (let i = 0; i < shelfPos.count; i++) {
+      const vx = shelfPos.getX(i);
+      const vy = shelfPos.getY(i);
+      const vz = shelfPos.getZ(i);
+      const ang = Math.atan2(vz, vx);
+      const radialMod = 1.0 + 0.06 * Math.sin(ang * 5.0 + 0.7) + 0.04 * Math.cos(ang * 3.0);
+      shelfPos.setXYZ(i, vx * radialMod, vy, vz * radialMod);
+    }
+    shelfGeo.computeVertexNormals();
+    const shelfMesh = new THREE.Mesh(shelfGeo, mats.underwaterShelf);
+    shelfMesh.position.y = -0.11;
+    shelfMesh.receiveShadow = true;
+    worldGroup.add(shelfMesh);
+
+    // 5d. Translucent top water surface slab with gentle vertex wave animation
+    const topSlabGeo = createBeveledSlabGeometry(SLAB_WIDTH - 0.12, 0.18, SLAB_DEPTH - 0.12, 0.1, 22, 2, 22);
+    const topSlabBasePos = new Float32Array(topSlabGeo.attributes.position.array);
+    const topSlabMesh = new THREE.Mesh(topSlabGeo, mats.topWaterSlab);
+    topSlabMesh.position.y = -0.06;
+    topSlabMesh.receiveShadow = true;
+    worldGroup.add(topSlabMesh);
+
+    // 5e. Animated concentric wave bands ringing the shore
+    const waveBands = [];
+    for (let b = 0; b < 3; b++) {
+      const ringGeo = new THREE.RingGeometry(2.55, 2.66, 48, 1);
+      ringGeo.rotateX(-Math.PI / 2);
+      const pos = ringGeo.attributes.position;
+      for (let i = 0; i < pos.count; i++) {
+        const x = pos.getX(i);
+        const z = pos.getZ(i);
+        const ang = Math.atan2(z, x);
+        // Match the organic island shoreline contour
+        const contour = 1.0 + 0.05 * Math.sin(ang * 3.0 + 0.4) + 0.035 * Math.cos(ang * 5.0 - 0.8);
+        pos.setXYZ(i, x * contour, 0, z * contour);
+      }
+      ringGeo.computeVertexNormals();
+      const mat = mats.waveFoam.clone();
+      const mesh = new THREE.Mesh(ringGeo, mat);
+      mesh.position.y = 0.042 + b * 0.002;
+      worldGroup.add(mesh);
+      waveBands.push({ mesh, mat, phaseOffset: b / 3 });
+    }
+
+    // ============================================================================
+    // 6. DARK SAND BEACH RING & VOLCANO CONE WITH STRATA, GULLIES & CRATER
+    // ============================================================================
+    // Helper function defining the shoreline and mountain profile so the lava channel can hug it accurately
+    function getIslandContour(angle) {
+      return (
+        1.0 +
+        0.055 * Math.sin(angle * 3.0 + 0.4) +
+        0.04 * Math.cos(angle * 5.0 - 0.8) +
+        0.025 * Math.sin(angle * 7.0 + 1.9)
+      );
+    }
+
+    // 6a. Wet & dry black sand beach rings
+    const wetBeachGeo = new THREE.CylinderGeometry(2.38, 2.64, 0.16, 42, 2);
+    const wetPos = wetBeachGeo.attributes.position;
+    for (let i = 0; i < wetPos.count; i++) {
+      const x = wetPos.getX(i);
+      const y = wetPos.getY(i);
+      const z = wetPos.getZ(i);
+      const ang = Math.atan2(z, x);
+      const c = getIslandContour(ang);
+      wetPos.setXYZ(i, x * c, y + (y > 0 ? Math.sin(ang * 6) * 0.015 : 0), z * c);
+    }
+    wetBeachGeo.computeVertexNormals();
+    const wetBeachMesh = new THREE.Mesh(wetBeachGeo, mats.wetSand);
+    wetBeachMesh.position.y = 0.04;
+    wetBeachMesh.receiveShadow = true;
+    wetBeachMesh.castShadow = true;
+    worldGroup.add(wetBeachMesh);
+
+    const dryBeachGeo = new THREE.CylinderGeometry(2.08, 2.42, 0.24, 42, 3);
+    const dryPos = dryBeachGeo.attributes.position;
+    for (let i = 0; i < dryPos.count; i++) {
+      const x = dryPos.getX(i);
+      const y = dryPos.getY(i);
+      const z = dryPos.getZ(i);
+      const ang = Math.atan2(z, x);
+      const c = getIslandContour(ang);
+      dryPos.setXYZ(i, x * c, y + 0.02 * Math.cos(ang * 4.0 + x), z * c);
+    }
+    dryBeachGeo.computeVertexNormals();
+    const dryBeachMesh = new THREE.Mesh(dryBeachGeo, mats.blackSand);
+    dryBeachMesh.position.y = 0.16;
+    dryBeachMesh.receiveShadow = true;
+    dryBeachMesh.castShadow = true;
+    worldGroup.add(dryBeachMesh);
+
+    // 6b. Procedural S-curve path helper for the lava channel
+    // Runs down the front-facing slope (+Z direction) with a clear S-bend
+    function getChannelAngleAtNormR(t) {
+      // t = 0 at crater rim, t = 1 at water pour point
+      const baseAngle = Math.PI * 0.52; // Facing front-right slightly (+Z)
+      const sCurve = 0.34 * Math.sin(t * Math.PI * 2.0 - 0.25);
+      return baseAngle + sCurve;
+    }
+
+    // 6c. Centered Volcano Cone with faceted dark basalt strata, shoulder peak, gullies & crater bowl
+    function createVolcanoGeometry() {
+      const radialSegs = 64;
+      const ringSegs = 28;
+      const maxR = 2.28;
+      const geo = new THREE.PlaneGeometry(maxR * 2, maxR * 2, radialSegs, ringSegs);
+
+      // Convert grid to polar disc mesh for crisp radial gullies and concentric basalt strata
+      const positions = [];
+      const colors = [];
+      const indices = [];
+
+      const colorCharcoal = new THREE.Color(0x4d4a55);
+      const colorBasaltDark = new THREE.Color(0x3a3b45);
+      const colorBasaltWarm = new THREE.Color(0x6b5a52);
+      const colorRimAsh = new THREE.Color(0x473a36);
+      const colorCraterHot = new THREE.Color(0x6e2511);
+
+      for (let ir = 0; ir <= ringSegs; ir++) {
+        const rNorm = ir / ringSegs; // 0 = center of crater, 1 = cone base
+        for (let ia = 0; ia <= radialSegs; ia++) {
+          const aNorm = ia / radialSegs;
+          const angle = aNorm * Math.PI * 2.0;
+
+          // Base radius with island contour
+          const contour = getIslandContour(angle);
+          let radius = rNorm * maxR * contour;
+
+          // Asymmetric shoulder peak on the upper-left (-X, -Z/mid)
+          const shoulderAng = Math.PI * 1.18;
+          let dShoulder = Math.atan2(Math.sin(angle - shoulderAng), Math.cos(angle - shoulderAng));
+          const shoulderBell = Math.exp(-(dShoulder * dShoulder) / 0.32) * Math.exp(-Math.pow(rNorm - 0.56, 2) / 0.045);
+
+          // Secondary craggy ridge on the right (+X)
+          const ridgeAng = Math.PI * 0.12;
+          let dRidge = Math.atan2(Math.sin(angle - ridgeAng), Math.cos(angle - ridgeAng));
+          const ridgeBell = Math.exp(-(dRidge * dRidge) / 0.28) * Math.exp(-Math.pow(rNorm - 0.62, 2) / 0.05);
+
+          let y = 0;
+          const rimNorm = 0.25; // Crater rim at 25% of radius
+
+          if (rNorm < rimNorm) {
+            // Inside crater bowl
+            const craterT = rNorm / rimNorm;
+            y = 1.95 + 1.05 * Math.pow(craterT, 2.2);
+            // Jagged rim lip
+            y += 0.12 * craterT * (Math.sin(angle * 7.0) * 0.6 + Math.cos(angle * 11.0) * 0.4);
+          } else {
+            // Outer volcanic slope from rim (rNorm = 0.25) to base (rNorm = 1.0)
+            const slopeT = (rNorm - rimNorm) / (1.0 - rimNorm); // 0 at rim, 1 at base
+            const baseCurve = Math.pow(1.0 - slopeT, 1.28);
+            y = 0.22 + 2.78 * baseCurve;
+
+            // Rim jagged crest
+            const rimInfluence = Math.exp(-slopeT * 5.5);
+            y += rimInfluence * (0.14 * Math.sin(angle * 7.0) + 0.09 * Math.cos(angle * 11.0));
+
+            // Add shoulder peak & secondary crag
+            y += shoulderBell * 0.72;
+            radius += shoulderBell * 0.26;
+            y += ridgeBell * 0.38;
+            radius += ridgeBell * 0.14;
+
+            // Stepped basalt strata terraces
+            const strataSteps = 7.0;
+            const stepWave = Math.sin(slopeT * Math.PI * strataSteps * 2.0 + Math.sin(angle * 4.0) * 0.6);
+            y += stepWave * 0.045 * (1.0 - slopeT * 0.4);
+
+            // Deep radial gullies & ridges around the cone
+            const gullies =
+              0.11 * Math.sin(angle * 9.0 + slopeT * 2.2) +
+              0.07 * Math.cos(angle * 15.0 - slopeT * 1.6);
+            y += gullies * Math.sin(slopeT * Math.PI);
+
+            // Carved S-curve lava channel trench on the front slope
+            const chanAngle = getChannelAngleAtNormR(slopeT);
+            const angDiff = Math.atan2(Math.sin(angle - chanAngle), Math.cos(angle - chanAngle));
+            const arcDist = Math.abs(angDiff) * radius;
+            const trenchWidth = 0.26 + slopeT * 0.08;
+            if (arcDist < trenchWidth) {
+              const trenchDepth = Math.cos((arcDist / trenchWidth) * Math.PI * 0.5);
+              y -= trenchDepth * trenchDepth * 0.22;
+            }
+          }
+
+          // Low-poly tactile facet jitter
+          const jitter = (rand() - 0.5) * 0.038 * (rNorm > 0.08 ? 1 : 0);
+          const x = Math.cos(angle) * (radius + jitter);
+          const z = Math.sin(angle) * (radius + jitter);
+
+          positions.push(x, y, z);
+
+          // Vertex color per stratum & elevation
+          tempColor.copy(colorCharcoal);
+          if (rNorm < rimNorm) {
+            tempColor.lerp(colorCraterHot, 1.0 - rNorm / rimNorm);
+          } else {
+            const stratumBand = Math.floor(y * 3.6) % 2;
+            if (stratumBand === 0) {
+              tempColor.lerp(colorBasaltDark, 0.45);
+            } else {
+              tempColor.lerp(colorBasaltWarm, 0.38);
+            }
+            if (rNorm < 0.36) {
+              tempColor.lerp(colorRimAsh, (0.36 - rNorm) / 0.11 * 0.6);
+            }
+          }
+          // Subtle per-vertex shade variation
+          const shade = 0.94 + rand() * 0.12;
+          colors.push(tempColor.r * shade, tempColor.g * shade, tempColor.b * shade);
+        }
+      }
+
+      for (let ir = 0; ir < ringSegs; ir++) {
+        for (let ia = 0; ia < radialSegs; ia++) {
+          const a = ir * (radialSegs + 1) + ia;
+          const b = a + radialSegs + 1;
+          const c = a + 1;
+          const d = b + 1;
+          indices.push(a, b, c);
+          indices.push(c, b, d);
+        }
+      }
+
+      const volcanoGeo = new THREE.BufferGeometry();
+      volcanoGeo.setIndex(indices);
+      volcanoGeo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+      volcanoGeo.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
+      volcanoGeo.computeVertexNormals();
+      return volcanoGeo;
+    }
+
+    const volcanoGeo = createVolcanoGeometry();
+    const volcanoMesh = new THREE.Mesh(volcanoGeo, mats.volcanoRock);
+    volcanoMesh.castShadow = true;
+    volcanoMesh.receiveShadow = true;
+    worldGroup.add(volcanoMesh);
+
+    // Helper to query approximate slope elevation along the S-curve channel
+    function getChannelSurfacePoint(t) {
+      // t in [0, 1] from crater rim to ocean waterline
+      const angle = getChannelAngleAtNormR(t);
+      const contour = getIslandContour(angle);
+      const rimR = 0.25 * 2.28 * contour;
+      const waterR = 2.58 * contour;
+      const radius = THREE.MathUtils.lerp(rimR, waterR, t);
+
+      let y;
+      if (t < 0.78) {
+        const slopeT = t / 0.78;
+        y = 0.24 + 2.62 * Math.pow(1.0 - slopeT, 1.28);
+      } else {
+        // Across the black sand beach and pouring over the waterline
+        const beachT = (t - 0.78) / 0.22;
+        y = THREE.MathUtils.lerp(0.24, 0.03, beachT);
+      }
+
+      return new THREE.Vector3(Math.cos(angle) * radius, y, Math.sin(angle) * radius);
+    }
+
+    // ============================================================================
+    // 7. CRATER LAVA BOWL & S-CURVE LAVA CHANNEL TO THE SEA
+    // ============================================================================
+    const craterGroup = new THREE.Group();
+    craterGroup.position.set(0, 2.38, 0);
+    worldGroup.add(craterGroup);
+
+    // Molten bubbling lava disc inside the crater
+    const lavaPoolGeo = new THREE.CylinderGeometry(0.52, 0.38, 0.18, 24, 1);
+    const lpPos = lavaPoolGeo.attributes.position;
+    for (let i = 0; i < lpPos.count; i++) {
+      if (lpPos.getY(i) > 0) {
+        const rx = lpPos.getX(i);
+        const rz = lpPos.getZ(i);
+        lpPos.setY(i, lpPos.getY(i) + Math.sin(rx * 8.0) * 0.03 + Math.cos(rz * 8.0) * 0.03);
+      }
+    }
+    lavaPoolGeo.computeVertexNormals();
+    const lavaPoolMesh = new THREE.Mesh(lavaPoolGeo, mats.craterLava);
+    craterGroup.add(lavaPoolMesh);
+
+    // Floating dark basalt crust plates on the crater lava
+    const crustGeo = new THREE.DodecahedronGeometry(0.11, 0);
+    crustGeo.scale(1.4, 0.32, 1.1);
+    const crustPlates = [];
+    for (let i = 0; i < 6; i++) {
+      const m = new THREE.Mesh(crustGeo, mats.lavaCrust);
+      const ang = (i / 6) * Math.PI * 2.0 + randRange(-0.2, 0.2);
+      const rad = randRange(0.12, 0.33);
+      m.position.set(Math.cos(ang) * rad, 0.09, Math.sin(ang) * rad);
+      m.rotation.set(randRange(-0.15, 0.15), randRange(0, Math.PI), randRange(-0.15, 0.15));
+      craterGroup.add(m);
+      crustPlates.push({ mesh: m, baseX: m.position.x, baseZ: m.position.z, phase: randRange(0, 6.28) });
+    }
+
+    // Carved S-curve Lava Channel Mesh
+    const channelPoints = [];
+    const numChannelSamples = 28;
+    for (let i = 0; i <= numChannelSamples; i++) {
+      const t = i / numChannelSamples;
+      const pt = getChannelSurfacePoint(t);
+      // Lift slightly so the glowing lava stream sits visibly inside the carved gully
+      pt.y += 0.035;
+      channelPoints.push(pt);
+    }
+    const lavaCurve = new THREE.CatmullRomCurve3(channelPoints);
+    const channelGeo = new THREE.TubeGeometry(lavaCurve, 44, 0.11, 7, false);
+
+    // Flatten the tube top & add vertex colors for animated pulse waves
+    const chanPos = channelGeo.attributes.position;
+    const chanUV = channelGeo.attributes.uv;
+    const chanColors = new Float32Array(chanPos.count * 3);
+    for (let i = 0; i < chanPos.count; i++) {
+      const u = chanUV.getX(i); // 0 at crater rim, 1 at sea pour point
+      // Narrow slightly near the top and widen into a delta fan at the beach
+      const center = lavaCurve.getPointAt(Math.min(1, Math.max(0, u)));
+      const vx = chanPos.getX(i) - center.x;
+      const vy = chanPos.getY(i) - center.y;
+      const vz = chanPos.getZ(i) - center.z;
+      const widthScale = 0.85 + 0.55 * Math.sin(u * Math.PI) + (u > 0.85 ? (u - 0.85) * 2.2 : 0);
+      chanPos.setXYZ(
+        i,
+        center.x + vx * widthScale,
+        center.y + vy * 0.42,
+        center.z + vz * widthScale
+      );
+
+      chanColors[i * 3 + 0] = 1.0;
+      chanColors[i * 3 + 1] = 0.55;
+      chanColors[i * 3 + 2] = 0.1;
+    }
+    channelGeo.setAttribute('color', new THREE.BufferAttribute(chanColors, 3));
+    channelGeo.computeVertexNormals();
+
+    const channelLavaMesh = new THREE.Mesh(channelGeo, mats.channelLava);
+    worldGroup.add(channelLavaMesh);
+
+    // Glowing pour delta pool where lava meets the sea
+    const pourPoint = getChannelSurfacePoint(1.0);
+    const pourPoolGeo = new THREE.CylinderGeometry(0.24, 0.34, 0.08, 14);
+    const pourPoolMesh = new THREE.Mesh(pourPoolGeo, mats.craterLava);
+    pourPoolMesh.position.set(pourPoint.x, 0.05, pourPoint.z);
+    worldGroup.add(pourPoolMesh);
+
+    // ============================================================================
+    // 8. INSTANCED BASALT CRAGS & BOULDERS AROUND CONE & BEACH
+    // ============================================================================
+    const CRAG_COUNT = 58;
+    const cragGeo = new THREE.DodecahedronGeometry(0.16, 0);
+    const cragInstanced = new THREE.InstancedMesh(cragGeo, mats.cragRock, CRAG_COUNT);
+    cragInstanced.castShadow = true;
+    cragInstanced.receiveShadow = true;
+
+    for (let i = 0; i < CRAG_COUNT; i++) {
+      // Avoid placing rocks directly inside the S-curve lava channel
+      let angle = randRange(0, Math.PI * 2);
+      const tNorm = randRange(0.15, 1.05);
+      const chanAng = getChannelAngleAtNormR(Math.min(1, tNorm));
+      if (Math.abs(Math.atan2(Math.sin(angle - chanAng), Math.cos(angle - chanAng))) < 0.26) {
+        angle += 0.45;
+      }
+
+      const contour = getIslandContour(angle);
+      const radius = THREE.MathUtils.lerp(0.65, 2.55, tNorm) * contour;
+      let y = 0.14;
+      if (tNorm < 0.82) {
+        const slopeT = (tNorm - 0.15) / 0.67;
+        y = 0.22 + 2.35 * Math.pow(Math.max(0, 1.0 - slopeT), 1.3);
+      }
+
+      dummy.position.set(Math.cos(angle) * radius, y, Math.sin(angle) * radius);
+      dummy.rotation.set(randRange(0, 3.14), randRange(0, 3.14), randRange(0, 3.14));
+      const sx = randRange(0.65, 1.65);
+      const sy = randRange(0.55, 1.45);
+      const sz = randRange(0.65, 1.65);
+      dummy.scale.set(sx, sy, sz);
+      dummy.updateMatrix();
+      cragInstanced.setMatrixAt(i, dummy.matrix);
+
+      const shade = randRange(0.75, 1.25);
+      tempColor.setRGB(0.18 * shade, 0.19 * shade, 0.22 * shade);
+      cragInstanced.setColorAt(i, tempColor);
+    }
+    cragInstanced.instanceMatrix.needsUpdate = true;
+    if (cragInstanced.instanceColor) cragInstanced.instanceColor.needsUpdate = true;
+    worldGroup.add(cragInstanced);
+
+    // ============================================================================
+    // 9. INSTANCED PARTICLES: LAVA BOMBS/SPARKS, CRATER SMOKE & SEA POUR STEAM
+    // ============================================================================
+    // 9a. Lava Bombs & Sparks (240 instances for dense unmistakable hero eruption)
+    const BOMB_COUNT = 240;
+    const bombGeo = new THREE.IcosahedronGeometry(0.075, 0);
+    const bombInstanced = new THREE.InstancedMesh(bombGeo, mats.lavaBomb, BOMB_COUNT);
+    const bombData = [];
+    for (let i = 0; i < BOMB_COUNT; i++) {
+      const angle = randRange(0, Math.PI * 2);
+      const spread = randRange(0.08, 0.92);
+      const speedUp = randRange(3.2, 6.6);
+      const radialSpeed = spread * randRange(0.85, 2.35);
+      bombData.push({
+        vx: Math.cos(angle) * radialSpeed,
+        vy: speedUp,
+        vz: Math.sin(angle) * radialSpeed,
+        x0: Math.cos(angle) * randRange(0.02, 0.34),
+        z0: Math.sin(angle) * randRange(0.02, 0.34),
+        phaseOffset: randRange(0, 1.0),
+        cycleSpeed: randRange(0.75, 1.35),
+        scale: randRange(0.45, 1.45),
+        rotSpeed: randRange(2.0, 6.0),
+        isSpark: i > 110
+      });
+      dummy.position.set(0, -10, 0);
+      dummy.scale.setScalar(0.001);
+      dummy.updateMatrix();
+      bombInstanced.setMatrixAt(i, dummy.matrix);
+    }
+    worldGroup.add(bombInstanced);
+
+    // 9b. Crater Smoke & Ash Plume (56 instances: continuous idle wisps + thick eruption plume)
+    const SMOKE_COUNT = 56;
+    const smokeGeo = new THREE.DodecahedronGeometry(0.24, 1);
+    const smokeInstanced = new THREE.InstancedMesh(smokeGeo, mats.smoke, SMOKE_COUNT);
+    smokeInstanced.castShadow = true;
+    const smokeData = [];
+    for (let i = 0; i < SMOKE_COUNT; i++) {
+      smokeData.push({
+        phase: i / SMOKE_COUNT,
+        speed: randRange(0.18, 0.32),
+        driftX: randRange(0.28, 0.72),
+        driftZ: randRange(-0.35, 0.25),
+        wobbleFreq: randRange(1.5, 3.2),
+        wobbleAmp: randRange(0.06, 0.18),
+        baseScale: randRange(0.45, 0.95),
+        eruptOnly: i >= 18 // First 18 puffs rise in idle; all 56 billow during eruption
+      });
+    }
+    worldGroup.add(smokeInstanced);
+
+    // 9c. Sea Pour Steam Puff (26 instances where the lava channel meets the ocean)
+    const STEAM_COUNT = 26;
+    const steamGeo = new THREE.IcosahedronGeometry(0.14, 1);
+    const steamInstanced = new THREE.InstancedMesh(steamGeo, mats.steam, STEAM_COUNT);
+    const steamData = [];
+    for (let i = 0; i < STEAM_COUNT; i++) {
+      steamData.push({
+        phase: i / STEAM_COUNT,
+        speed: randRange(0.45, 0.85),
+        offsetX: randRange(-0.22, 0.22),
+        offsetZ: randRange(-0.18, 0.18),
+        scale: randRange(0.55, 1.25)
+      });
+    }
+    worldGroup.add(steamInstanced);
+
+    // ============================================================================
+    // 10. SOFT DRIFTING CLOUDS & FLAPPING SEABIRDS
+    // ============================================================================
+    // 10a. Two soft drifting low-poly clouds
+    const clouds = [];
+    const puffGeo = new THREE.DodecahedronGeometry(0.28, 1);
+    for (let c = 0; c < 2; c++) {
+      const cloudGroup = new THREE.Group();
+      const puffSpecs = [
+        { x: 0, y: 0, z: 0, sx: 1.35, sy: 0.75, sz: 1.0 },
+        { x: -0.28, y: -0.04, z: 0.06, sx: 0.95, sy: 0.62, sz: 0.85 },
+        { x: 0.3, y: -0.03, z: -0.05, sx: 1.05, sy: 0.65, sz: 0.88 },
+        { x: 0.08, y: 0.1, z: 0.12, sx: 0.8, sy: 0.6, sz: 0.75 }
+      ];
+      puffSpecs.forEach((p) => {
+        const m = new THREE.Mesh(puffGeo, mats.cloud);
+        m.position.set(p.x, p.y, p.z);
+        m.scale.set(p.sx, p.sy, p.sz);
+        m.castShadow = true;
+        cloudGroup.add(m);
+      });
+      const baseAngle = c * Math.PI + 0.6;
+      const radius = 2.65 + c * 0.45;
+      const height = 3.55 + c * 0.28;
+      worldGroup.add(cloudGroup);
+      clouds.push({
+        group: cloudGroup,
+        baseAngle,
+        radius,
+        height,
+        speed: 0.055 - c * 0.012
+      });
+    }
+
+    // 10b. Three tiny seabirds circling high on slow orbits with flapping wings
+    const wingGeo = new THREE.BufferGeometry();
+    const wingVerts = new Float32Array([
+      0.0, 0.0, 0.08,
+      0.0, 0.0, -0.08,
+      0.22, 0.02, -0.02
+    ]);
+    wingGeo.setAttribute('position', new THREE.BufferAttribute(wingVerts, 3));
+    wingGeo.computeVertexNormals();
+
+    const birds = [];
+    for (let b = 0; b < 3; b++) {
+      const birdGroup = new THREE.Group();
+      const leftWing = new THREE.Mesh(wingGeo, mats.bird);
+      const rightWing = new THREE.Mesh(wingGeo, mats.bird);
+      rightWing.scale.x = -1;
+      birdGroup.add(leftWing);
+      birdGroup.add(rightWing);
+      worldGroup.add(birdGroup);
+
+      birds.push({
+        group: birdGroup,
+        leftWing,
+        rightWing,
+        angle: (b / 3) * Math.PI * 2.0 + 0.3,
+        baseRadius: 2.05 + b * 0.42,
+        baseHeight: 3.72 + b * 0.22,
+        baseSpeed: 0.36 - b * 0.04,
+        flapPhase: b * 2.1,
+        scatterDir: b === 0 ? 1 : b === 1 ? -1 : 0.6
+      });
+    }
+
+    // ============================================================================
+    // 11. WATER SPLASH RINGS & FOAMY DROPLETS (FOR WATER TAP INTERACTION)
+    // ============================================================================
+    const splashGroup = new THREE.Group();
+    worldGroup.add(splashGroup);
+
+    const splashRings = [];
+    const baseSplashRingGeo = new THREE.RingGeometry(0.12, 0.21, 32);
+    baseSplashRingGeo.rotateX(-Math.PI / 2);
+    for (let r = 0; r < 3; r++) {
+      const rMat = mats.splashRing.clone();
+      const rMesh = new THREE.Mesh(baseSplashRingGeo, rMat);
+      rMesh.position.y = 0.055;
+      rMesh.visible = false;
+      splashGroup.add(rMesh);
+      splashRings.push({ mesh: rMesh, mat: rMat, delay: r * 0.14 });
+    }
+
+    const DROP_COUNT = 28;
+    const dropGeo = new THREE.DodecahedronGeometry(0.055, 0);
+    const dropInstanced = new THREE.InstancedMesh(dropGeo, mats.splashDrop, DROP_COUNT);
+    const dropData = [];
+    for (let i = 0; i < DROP_COUNT; i++) {
+      const ang = (i / DROP_COUNT) * Math.PI * 2.0 + randRange(-0.15, 0.15);
+      const rSpeed = randRange(0.45, 1.35);
+      const ySpeed = randRange(1.4, 2.75);
+      dropData.push({
+        vx: Math.cos(ang) * rSpeed,
+        vy: ySpeed,
+        vz: Math.sin(ang) * rSpeed,
+        scale: randRange(0.6, 1.35)
+      });
+      dummy.position.set(0, -10, 0);
+      dummy.scale.setScalar(0.001);
+      dummy.updateMatrix();
+      dropInstanced.setMatrixAt(i, dummy.matrix);
+    }
+    splashGroup.add(dropInstanced);
+
+    // ============================================================================
+    // 12. GENEROUS INVISIBLE RAYCAST PROXIES (READABLE & TAPPABLE AT 320PX)
+    // ============================================================================
+    const proxyMat = new THREE.MeshBasicMaterial({ visible: false });
+
+    // Generous crater proxy sphere covering the upper cone and crater bowl
+    const craterProxyGeo = new THREE.SphereGeometry(1.38, 16, 12);
+    const craterProxy = new THREE.Mesh(craterProxyGeo, proxyMat);
+    craterProxy.position.set(0, 2.65, 0);
+    craterProxy.name = 'CRATER_TARGET';
+    worldGroup.add(craterProxy);
+
+    // Broad water tap proxy slab covering the entire ocean surface
+    const waterProxyGeo = new THREE.BoxGeometry(SLAB_WIDTH + 0.5, 0.5, SLAB_DEPTH + 0.5);
+    const waterProxy = new THREE.Mesh(waterProxyGeo, proxyMat);
+    waterProxy.position.set(0, -0.05, 0);
+    waterProxy.name = 'WATER_TARGET';
+    worldGroup.add(waterProxy);
+
+    // Cone body blocker so tapping lower rocky slopes doesn't accidentally trigger water behind it
+    const slopeBlockerGeo = new THREE.CylinderGeometry(0.85, 2.25, 2.2, 20);
+    const slopeBlocker = new THREE.Mesh(slopeBlockerGeo, proxyMat);
+    slopeBlocker.position.set(0, 1.1, 0);
+    slopeBlocker.name = 'SLOPE_BLOCKER';
+    worldGroup.add(slopeBlocker);
+
+    const interactables = [craterProxy, slopeBlocker, waterProxy];
+
+    // ============================================================================
+    // 13. ASPECT-AWARE SAFE-AREA CAMERA FRAMING (FITS 616x562, 390x844, 320x700)
+    // ============================================================================
+    // Explicit bounding box encompassing full ocean slab, cone, birds, and crater smoke headroom
+    const framingBounds = new THREE.Box3(
+      new THREE.Vector3(-4.05, -1.12, -4.05),
+      new THREE.Vector3(4.05, 4.85, 4.05)
+    );
+
+    const boundCorners = [
+      new THREE.Vector3(framingBounds.min.x, framingBounds.min.y, framingBounds.min.z),
+      new THREE.Vector3(framingBounds.max.x, framingBounds.min.y, framingBounds.min.z),
+      new THREE.Vector3(framingBounds.min.x, framingBounds.max.y, framingBounds.min.z),
+      new THREE.Vector3(framingBounds.max.x, framingBounds.max.y, framingBounds.min.z),
+      new THREE.Vector3(framingBounds.min.x, framingBounds.min.y, framingBounds.max.z),
+      new THREE.Vector3(framingBounds.max.x, framingBounds.min.y, framingBounds.max.z),
+      new THREE.Vector3(framingBounds.min.x, framingBounds.max.y, framingBounds.max.z),
+      new THREE.Vector3(framingBounds.max.x, framingBounds.max.y, framingBounds.max.z)
+    ];
+
+    function updateCameraFraming() {
+      const vw = Math.max(window.innerWidth, 1);
+      const vh = Math.max(window.innerHeight, 1);
+      renderer.setSize(vw, vh);
+
+      const aspect = vw / vh;
+      // Aspect-aware FOV: slightly wider vertical FOV in portrait viewports
+      camera.fov = aspect < 1.0 ? THREE.MathUtils.clamp(42 + (1.0 - aspect) * 14, 42, 54) : 36;
+      camera.aspect = aspect;
+      camera.updateProjectionMatrix();
+
+      // Measure actual DOM header and footer safe zones
+      const headerRect = headerEl.getBoundingClientRect();
+      const footerRect = footerEl.getBoundingClientRect();
+      const topSafePx = Math.max(headerRect.bottom, 58) + 12;
+      const bottomSafePx = Math.max(vh - footerRect.top, 32) + 12;
+
+      const usableHeightPx = Math.max(vh - topSafePx - bottomSafePx, vh * 0.45);
+      const usableWidthPx = vw * (aspect < 1.0 ? 1.30 : 0.90);
+
+      // Vertical screen offset between usable box center and viewport center
+      const usableCenterY = topSafePx + usableHeightPx * 0.5;
+      const screenCenterY = vh * 0.5;
+      const ndcShiftY = ((screenCenterY - usableCenterY) / (vh * 0.5));
+
+      // Elevated three-quarter view direction
+      const viewDir = new THREE.Vector3(0.56, 0.56, 0.82).normalize();
+      const targetCenter = new THREE.Vector3(0, 1.32, 0);
+
+      // Compute camera basis vectors
+      const worldUp = new THREE.Vector3(0, 1, 0);
+      const camRight = new THREE.Vector3().crossVectors(worldUp, viewDir).normalize();
+      const camUp = new THREE.Vector3().crossVectors(viewDir, camRight).normalize();
+
+      const halfFovRad = THREE.MathUtils.degToRad(camera.fov * 0.5);
+      const tanHalfFovY = Math.tan(halfFovRad) * (usableHeightPx / vh);
+      const tanHalfFovX = Math.tan(halfFovRad) * aspect * (usableWidthPx / vw);
+
+      let requiredDist = 8.0;
+      for (let i = 0; i < boundCorners.length; i++) {
+        const rel = tempVec3.subVectors(boundCorners[i], targetCenter);
+        const projX = Math.abs(rel.dot(camRight));
+        const projY = Math.abs(rel.dot(camUp));
+        const projZ = rel.dot(viewDir);
+
+        const distForX = projX / Math.max(tanHalfFovX, 0.1) + projZ;
+        const distForY = projY / Math.max(tanHalfFovY, 0.1) + projZ;
+        requiredDist = Math.max(requiredDist, distForX, distForY);
+      }
+
+      requiredDist *= 1.07; // Small breathing room padding
+
+      // Shift target slightly along camUp so the diorama centers cleanly between header and footer
+      const worldOffsetY = -ndcShiftY * requiredDist * Math.tan(halfFovRad) * 0.55;
+      controls.target.set(0, targetCenter.y + worldOffsetY, 0);
+
+      camera.position.copy(controls.target).addScaledVector(viewDir, requiredDist);
+      controls.minDistance = requiredDist * 0.78;
+      controls.maxDistance = requiredDist * 1.25;
+      controls.update();
+    }
+
+    window.addEventListener('resize', updateCameraFraming);
+
+    // ============================================================================
+    // 14. INTERACTION STATE & RAYCASTING (TAP VS DRAG DISTINCTION)
+    // ============================================================================
+    const ERUPT_DURATION = 7000; // ~7 seconds full eruption hero sequence
+    const SPLASH_DURATION = 4200; // ~4.2 seconds splash ripples + startled bird scatter
+
+    let eruptionStartTime = -99999;
+    let splashStartTime = -99999;
+    const splashOrigin = new THREE.Vector3(1.8, 0.05, 2.1);
+
+    const raycaster = new THREE.Raycaster();
+    const pointerNdc = new THREE.Vector2();
+    let pointerDownPos = { x: 0, y: 0, time: 0 };
+
+    function triggerEruption(now) {
+      eruptionStartTime = now;
+      hintBadge.classList.remove('active-splash');
+      hintBadge.classList.add('active-erupt');
+    }
+
+    function triggerWaterSplash(now, hitPoint) {
+      splashStartTime = now;
+      // Clamp splash point inside the open water band so rings stay on the slab
+      const clampedX = THREE.MathUtils.clamp(hitPoint.x, -3.15, 3.15);
+      const clampedZ = THREE.MathUtils.clamp(hitPoint.z, -3.15, 3.15);
+      const distFromCenter = Math.hypot(clampedX, clampedZ);
+      if (distFromCenter < 2.35) {
+        const ang = Math.atan2(clampedZ, clampedX);
+        splashOrigin.set(Math.cos(ang) * 2.55, 0.055, Math.sin(ang) * 2.55);
+      } else {
+        splashOrigin.set(clampedX, 0.055, clampedZ);
+      }
+      hintBadge.classList.remove('active-erupt');
+      hintBadge.classList.add('active-splash');
+    }
+
+    renderer.domElement.addEventListener('pointerdown', (e) => {
+      pointerDownPos.x = e.clientX;
+      pointerDownPos.y = e.clientY;
+      pointerDownPos.time = performance.now();
+    });
+
+    renderer.domElement.addEventListener('pointerup', (e) => {
+      const dx = e.clientX - pointerDownPos.x;
+      const dy = e.clientY - pointerDownPos.y;
+      const dist = Math.hypot(dx, dy);
+      const dt = performance.now() - pointerDownPos.time;
+
+      // Distinguish deliberate tap from orbit drag
+      if (dist > 9 || dt > 600) return;
+
+      const rect = renderer.domElement.getBoundingClientRect();
+      pointerNdc.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+      pointerNdc.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+
+      raycaster.setFromCamera(pointerNdc, camera);
+      const hits = raycaster.intersectObjects(interactables, false);
+
+      if (hits.length > 0) {
+        const now = performance.now();
+        // Prioritize crater if the ray intersects the generous crater proxy
+        const craterHit = hits.find((h) => h.object.name === 'CRATER_TARGET');
+        if (craterHit) {
+          triggerEruption(now);
+          return;
+        }
+
+        const firstHit = hits[0];
+        if (firstHit.object.name === 'SLOPE_BLOCKER') {
+          // Tapping high on the cone triggers the crater eruption; tapping near the beach triggers a shore splash
+          if (firstHit.point.y > 1.05) {
+            triggerEruption(now);
+          } else {
+            triggerWaterSplash(now, firstHit.point);
+          }
+          return;
+        }
+
+        if (firstHit.object.name === 'WATER_TARGET') {
+          triggerWaterSplash(now, firstHit.point);
+        }
+      }
+    });
+
+    // ============================================================================
+    // 15. MAIN ANIMATION LOOP (100% DRIVEN BY performance.now)
+    // ============================================================================
+    function animate(now) {
+      requestAnimationFrame(animate);
+
+      const tSec = now * 0.001;
+
+      // --------------------------------------------------------------------------
+      // A. Compute Eruption Envelope (0 = simmering baseline, >0 = erupting)
+      // --------------------------------------------------------------------------
+      const eruptElapsed = now - eruptionStartTime;
+      const isErupting = eruptElapsed >= 0 && eruptElapsed <= ERUPT_DURATION;
+      const eruptProgress = isErupting ? eruptElapsed / ERUPT_DURATION : 0;
+
+      // Envelope: rapid build (0..0.12), intense peak fountain (0.12..0.62), smooth settle (0.62..1.0)
+      let eruptEnvelope = 0;
+      if (isErupting) {
+        if (eruptProgress < 0.12) {
+          eruptEnvelope = THREE.MathUtils.smoothstep(eruptProgress, 0.0, 0.12);
+        } else if (eruptProgress < 0.62) {
+          eruptEnvelope = 1.0;
+        } else {
+          eruptEnvelope = 1.0 - THREE.MathUtils.smoothstep(eruptProgress, 0.62, 1.0);
+        }
+      } else if (hintBadge.classList.contains('active-erupt')) {
+        hintBadge.classList.remove('active-erupt');
+      }
+
+      // Subtle camera-space mountain rumble at the peak of the burst
+      if (eruptEnvelope > 0.25) {
+        const shakeAmt = (eruptEnvelope - 0.25) * 0.065;
+        worldGroup.position.set(
+          Math.sin(now * 0.055) * shakeAmt,
+          Math.cos(now * 0.072) * shakeAmt * 0.7,
+          Math.sin(now * 0.063 + 1.2) * shakeAmt
+        );
+      } else {
+        worldGroup.position.set(0, 0, 0);
+      }
+
+      // --------------------------------------------------------------------------
+      // B. Crater Lava, Dynamic Slopes Lighting & Channel Lava Pulse
+      // --------------------------------------------------------------------------
+      const idlePulse = 0.5 + 0.5 * Math.sin(tSec * 2.6);
+      lavaPoolMesh.position.y = 0.02 * Math.sin(tSec * 3.1) + eruptEnvelope * 0.22;
+      const poolScale = 1.0 + eruptEnvelope * 0.16;
+      lavaPoolMesh.scale.set(poolScale, 1.0 + eruptEnvelope * 0.8, poolScale);
+      mats.craterLava.emissiveIntensity = 1.6 + idlePulse * 0.5 + eruptEnvelope * 3.4;
+
+      // Floating crust plates bob and spread during eruption
+      for (let i = 0; i < crustPlates.length; i++) {
+        const cp = crustPlates[i];
+        const spread = 1.0 + eruptEnvelope * 0.28;
+        cp.mesh.position.x = cp.baseX * spread + Math.sin(tSec * 1.8 + cp.phase) * 0.02;
+        cp.mesh.position.z = cp.baseZ * spread + Math.cos(tSec * 1.6 + cp.phase) * 0.02;
+        cp.mesh.position.y = 0.09 + lavaPoolMesh.position.y + Math.sin(tSec * 3.2 + cp.phase) * 0.015;
+      }
+
+      // Warm orange light washes the volcanic slopes during eruption
+      craterLight.intensity = 2.8 + idlePulse * 0.9 + eruptEnvelope * 11.5;
+      craterLight.distance = 10.5 + eruptEnvelope * 8.0;
+
+      // Channel lava shimmer & travelling eruption surge pulse down to the sea
+      const surgeCenter = isErupting ? THREE.MathUtils.clamp((eruptProgress - 0.08) * 1.45, 0, 1.2) : -1;
+      const cAttr = channelGeo.attributes.color;
+      for (let i = 0; i < cAttr.count; i++) {
+        const u = chanUV.getX(i);
+        const idleFlow = 0.5 + 0.5 * Math.sin(u * 14.0 - tSec * 3.8);
+        let surgeBoost = 0;
+        if (surgeCenter >= 0) {
+          const distToSurge = Math.abs(u - surgeCenter);
+          surgeBoost = Math.exp(-(distToSurge * distToSurge) / 0.06) * eruptEnvelope * 1.35;
+        }
+        const heat = THREE.MathUtils.clamp(0.45 + idleFlow * 0.35 + surgeBoost, 0.2, 1.8);
+        cAttr.setXYZ(i, 1.0, THREE.MathUtils.clamp(0.28 + heat * 0.48, 0, 1), THREE.MathUtils.clamp(heat * 0.25, 0, 1));
+      }
+      cAttr.needsUpdate = true;
+      mats.channelLava.emissiveIntensity = 1.35 + idlePulse * 0.3 + eruptEnvelope * 2.4;
+      channelGlowLight.intensity = 1.2 + idlePulse * 0.35 + eruptEnvelope * 4.2;
+
+      // --------------------------------------------------------------------------
+      // C. Instanced Lava Bombs & Sparks Fountain (Hero Eruption Effect)
+      // --------------------------------------------------------------------------
+      if (isErupting && eruptProgress < 0.88) {
+        bombInstanced.visible = true;
+        const fountainWindow = THREE.MathUtils.clamp(eruptProgress / 0.82, 0, 1);
+        for (let i = 0; i < BOMB_COUNT; i++) {
+          const b = bombData[i];
+          const localT = (fountainWindow * 2.2 * b.cycleSpeed + b.phaseOffset) % 1.0;
+
+          // Parabolic ballistic trajectory from crater rim (y = 2.45), capped at y <= 4.35 to stay below header
+          const timeFlight = localT * 1.15;
+          const x = b.x0 + b.vx * timeFlight;
+          const z = b.z0 + b.vz * timeFlight;
+          let y = 2.45 + b.vy * timeFlight - 0.5 * 9.2 * timeFlight * timeFlight;
+          y = Math.min(y, 4.35);
+
+          const fadeEnv = Math.sin(localT * Math.PI) * eruptEnvelope;
+          const s = Math.max(0.001, b.scale * fadeEnv * (b.isSpark ? 0.55 : 1.05));
+
+          dummy.position.set(x, Math.max(0.15, y), z);
+          dummy.rotation.set(tSec * b.rotSpeed, tSec * b.rotSpeed * 1.3, i);
+          dummy.scale.setScalar(s);
+          dummy.updateMatrix();
+          bombInstanced.setMatrixAt(i, dummy.matrix);
+
+          // Hot yellow-white core cooling to deep orange
+          tempColor.setHSL(0.04 + (1.0 - localT) * 0.08, 1.0, 0.5 + (1.0 - localT) * 0.35);
+          bombInstanced.setColorAt(i, tempColor);
+        }
+        bombInstanced.instanceMatrix.needsUpdate = true;
+        if (bombInstanced.instanceColor) bombInstanced.instanceColor.needsUpdate = true;
+      } else {
+        bombInstanced.visible = false;
+      }
+
+      // --------------------------------------------------------------------------
+      // D. Instanced Crater Smoke Wisps (Idle) & Billowing Ash Plume (Eruption)
+      // --------------------------------------------------------------------------
+      for (let i = 0; i < SMOKE_COUNT; i++) {
+        const s = smokeData[i];
+        if (s.eruptOnly && eruptEnvelope < 0.02) {
+          dummy.position.set(0, -10, 0);
+          dummy.scale.setScalar(0.001);
+          dummy.updateMatrix();
+          smokeInstanced.setMatrixAt(i, dummy.matrix);
+          continue;
+        }
+
+        const speedMult = 1.0 + eruptEnvelope * 1.85;
+        const life = (tSec * s.speed * speedMult + s.phase) % 1.0;
+
+        // Rise from crater (2.55) up to safe ceiling (4.35) so smoke never crosses header
+        const maxRise = 1.45 + eruptEnvelope * 0.38;
+        const y = 2.55 + life * maxRise;
+        const x =
+          Math.sin(tSec * s.wobbleFreq + i) * s.wobbleAmp +
+          life * s.driftX * (1.0 + eruptEnvelope * 0.85);
+        const z =
+          Math.cos(tSec * s.wobbleFreq + i) * s.wobbleAmp +
+          life * s.driftZ * (1.0 + eruptEnvelope * 0.85);
+
+        const sizeCurve = Math.sin(life * Math.PI);
+        const puffScale =
+          s.baseScale *
+          sizeCurve *
+          (s.eruptOnly ? eruptEnvelope * 1.45 : 0.55 + eruptEnvelope * 0.95);
+
+        dummy.position.set(x, y, z);
+        dummy.rotation.set(tSec * 0.4 + i, tSec * 0.5 + i, 0);
+        dummy.scale.setScalar(Math.max(0.001, puffScale));
+        dummy.updateMatrix();
+        smokeInstanced.setMatrixAt(i, dummy.matrix);
+
+        // Darken into warm lit ash during eruption, soft pale smoke in idle
+        const ashDarkness = THREE.MathUtils.lerp(0.84, 0.32, eruptEnvelope * (1.0 - life * 0.5));
+        const underGlow = eruptEnvelope * Math.pow(1.0 - life, 1.8) * 0.65;
+        tempColor.setRGB(
+          ashDarkness + underGlow,
+          ashDarkness * 0.96 + underGlow * 0.35,
+          ashDarkness * 0.94
+        );
+        smokeInstanced.setColorAt(i, tempColor);
+      }
+      smokeInstanced.instanceMatrix.needsUpdate = true;
+      if (smokeInstanced.instanceColor) smokeInstanced.instanceColor.needsUpdate = true;
+
+      // --------------------------------------------------------------------------
+      // E. Sea Pour Point Steam Puff (Brighter & Bigger When Lava Surges to Sea)
+      // --------------------------------------------------------------------------
+      let pourBurst = 0;
+      if (isErupting && eruptProgress > 0.22) {
+        pourBurst = Math.sin(THREE.MathUtils.clamp((eruptProgress - 0.22) / 0.68, 0, 1) * Math.PI);
+      }
+      for (let i = 0; i < STEAM_COUNT; i++) {
+        const st = steamData[i];
+        const life = (tSec * st.speed * (1.0 + pourBurst * 1.4) + st.phase) % 1.0;
+        const y = 0.08 + life * (0.65 + pourBurst * 0.75);
+        const x = pourPoint.x + st.offsetX * (0.5 + life) + Math.sin(tSec * 2.5 + i) * 0.05;
+        const z = pourPoint.z + st.offsetZ * (0.5 + life) + life * 0.25;
+        const sc = st.scale * Math.sin(life * Math.PI) * (0.55 + pourBurst * 1.15);
+
+        dummy.position.set(x, y, z);
+        dummy.rotation.set(tSec + i, tSec * 0.8, 0);
+        dummy.scale.setScalar(Math.max(0.001, sc));
+        dummy.updateMatrix();
+        steamInstanced.setMatrixAt(i, dummy.matrix);
+      }
+      steamInstanced.instanceMatrix.needsUpdate = true;
+      mats.steam.emissiveIntensity = 0.12 + pourBurst * 0.65;
+
+      // --------------------------------------------------------------------------
+      // F. Ocean Slab Gentle Waves & Shore Wave Bands
+      // --------------------------------------------------------------------------
+      const topPos = topSlabGeo.attributes.position;
+      for (let i = 0; i < topPos.count; i++) {
+        const by = topSlabBasePos[i * 3 + 1];
+        if (by > 0.02) {
+          const bx = topSlabBasePos[i * 3 + 0];
+          const bz = topSlabBasePos[i * 3 + 2];
+          const wave =
+            Math.sin(bx * 1.6 + tSec * 1.9) * 0.018 +
+            Math.cos(bz * 1.5 - tSec * 1.6) * 0.018;
+          topPos.setY(i, by + wave);
+        }
+      }
+      topPos.needsUpdate = true;
+
+      for (let b = 0; b < waveBands.length; b++) {
+        const wb = waveBands[b];
+        const cycle = (tSec * 0.34 + wb.phaseOffset) % 1.0;
+        // Waves gently contract toward the black sand beach and fade
+        const scale = THREE.MathUtils.lerp(1.16, 0.97, cycle);
+        wb.mesh.scale.set(scale, 1, scale);
+        wb.mat.opacity = Math.sin(cycle * Math.PI) * 0.78;
+      }
+
+      // --------------------------------------------------------------------------
+      // G. Water Tap Splash Ripples, Foamy Burst & Startled Seabirds
+      // --------------------------------------------------------------------------
+      const splashElapsed = now - splashStartTime;
+      const isSplashing = splashElapsed >= 0 && splashElapsed <= SPLASH_DURATION;
+      const splashProgress = isSplashing ? splashElapsed / SPLASH_DURATION : 0;
+
+      if (isSplashing) {
+        // Expanding glowing ripple rings
+        for (let r = 0; r < splashRings.length; r++) {
+          const sr = splashRings[r];
+          const localT = (splashProgress * 1.65 - sr.delay);
+          if (localT > 0 && localT < 1.0) {
+            sr.mesh.visible = true;
+            sr.mesh.position.copy(splashOrigin);
+            const ringScale = 0.4 + localT * 4.2;
+            sr.mesh.scale.set(ringScale, 1, ringScale);
+            sr.mat.opacity = (1.0 - localT) * 0.92;
+          } else {
+            sr.mesh.visible = false;
+          }
+        }
+
+        // Quick foamy droplet splash burst over the first 1.25 seconds
+        const dropWindow = splashElapsed * 0.001;
+        if (dropWindow < 1.25) {
+          dropInstanced.visible = true;
+          const normD = dropWindow / 1.25;
+          for (let i = 0; i < DROP_COUNT; i++) {
+            const d = dropData[i];
+            const x = splashOrigin.x + d.vx * dropWindow;
+            const z = splashOrigin.z + d.vz * dropWindow;
+            const y = splashOrigin.y + d.vy * dropWindow - 0.5 * 5.6 * dropWindow * dropWindow;
+            const s = y > 0.02 ? d.scale * (1.0 - normD) : 0.001;
+            dummy.position.set(x, Math.max(0.02, y), z);
+            dummy.scale.setScalar(Math.max(0.001, s));
+            dummy.updateMatrix();
+            dropInstanced.setMatrixAt(i, dummy.matrix);
+          }
+          dropInstanced.instanceMatrix.needsUpdate = true;
+        } else {
+          dropInstanced.visible = false;
+        }
+      } else {
+        for (let r = 0; r < splashRings.length; r++) {
+          splashRings[r].mesh.visible = false;
+        }
+        dropInstanced.visible = false;
+        if (hintBadge.classList.contains('active-splash')) {
+          hintBadge.classList.remove('active-splash');
+        }
+      }
+
+      // Seabirds: lazy slow orbits in idle; startle (flap faster, climb & scatter wider) on water splash
+      const startleEnv = isSplashing ? Math.sin(Math.pow(splashProgress, 0.55) * Math.PI) : 0;
+      let prevTime = animate.prevTime || now;
+      const dtSec = Math.min((now - prevTime) * 0.001, 0.1);
+      animate.prevTime = now;
+
+      for (let b = 0; b < birds.length; b++) {
+        const bird = birds[b];
+        const speedBoost = 1.0 + startleEnv * 2.6;
+        bird.angle += dtSec * bird.baseSpeed * speedBoost;
+
+        const rad = bird.baseRadius + startleEnv * (0.85 + b * 0.22);
+        const climb = startleEnv * (0.42 + b * 0.08);
+        const bx = Math.cos(bird.angle) * rad;
+        const bz = Math.sin(bird.angle) * rad;
+        const by = Math.min(4.42, bird.baseHeight + climb + Math.sin(tSec * 1.7 + b) * 0.08);
+
+        bird.group.position.set(bx, by, bz);
+        // Face tangent along orbit
+        bird.group.rotation.y = -bird.angle;
+        bird.group.rotation.z = startleEnv * 0.25 * bird.scatterDir;
+
+        const flapSpeed = 6.5 + startleEnv * 14.0;
+        bird.flapPhase += dtSec * flapSpeed;
+        const wingAng = Math.sin(bird.flapPhase) * (0.48 + startleEnv * 0.28);
+        bird.leftWing.rotation.z = wingAng;
+        bird.rightWing.rotation.z = -wingAng;
+      }
+
+      // --------------------------------------------------------------------------
+      // H. Soft Drifting Clouds
+      // --------------------------------------------------------------------------
+      for (let c = 0; c < clouds.length; c++) {
+        const cl = clouds[c];
+        const ang = cl.baseAngle + tSec * cl.speed;
+        cl.group.position.set(
+          Math.cos(ang) * cl.radius,
+          cl.height + Math.sin(tSec * 0.8 + c) * 0.05,
+          Math.sin(ang) * cl.radius
+        );
+        cl.group.rotation.y = -ang + Math.PI * 0.5;
+      }
+
+      controls.update();
+      renderer.render(scene, camera);
+    }
+
+    // Perform initial framing once layout metrics are ready and start animation loop
+    updateCameraFraming();
+    requestAnimationFrame((t) => {
+      updateCameraFraming();
+      animate(t);
+    });
+  </script>
 </body>
 </html>
