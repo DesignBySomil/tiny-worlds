@@ -1,432 +1,1691 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Glacier Fjord - a tiny world</title>
-<style>
-  html, body { margin:0; padding:0; height:100%; background:#cfe4ec; overflow:hidden;
-    font-family: Georgia, 'Times New Roman', serif; }
-  #app { position:fixed; inset:0; }
-  header { position:fixed; top:0; left:0; right:0; text-align:center; pointer-events:none;
-    padding: max(18px, env(safe-area-inset-top)) 16px 18px; z-index:5;
-    background: linear-gradient(rgba(10,32,44,.62), rgba(10,32,44,.30) 55%, rgba(10,32,44,0)); }
-  header h1 { margin:0; font-size:15px; letter-spacing:.42em; font-weight:400;
-    color:#f4fafc; text-transform:uppercase; text-shadow:0 1px 8px rgba(6,24,34,.75); }
-  header .rule { width:44px; height:1px; background:rgba(244,250,252,.55); margin:9px auto; }
-  #hint { display:inline-block; font-size:11.5px; letter-spacing:.24em; text-transform:uppercase;
-    color:#f8fcfe; transition:opacity 1.2s ease; padding:5px 12px; border-radius:3px;
-    background:rgba(8,28,40,.45);
-    text-shadow:0 1px 3px rgba(4,18,28,.98), 0 0 8px rgba(4,18,28,.95), 0 0 18px rgba(4,18,28,.85); }
-  #hint.faded { opacity:.45; }
-  footer { position:fixed; bottom:0; left:0; right:0; text-align:center; pointer-events:none;
-    padding:0 16px max(14px, env(safe-area-inset-bottom)); z-index:5;
-    font-size:10px; letter-spacing:.34em; text-transform:uppercase; color:rgba(244,250,252,.62); }
-  canvas { display:block; touch-action:none; }
-</style>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Glacier fjord — a tiny world</title>
+  <style>
+    :root {
+      --bg-top: #d8e6f2;
+      --bg-mid: #e8f1f8;
+      --bg-bot: #c7d9e8;
+      --ink-primary: #132a3a;
+      --ink-secondary: #3f5e75;
+      --ink-pill: #1b3b52;
+      --pill-bg: rgba(255, 255, 255, 0.72);
+      --pill-border: rgba(19, 42, 58, 0.14);
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      user-select: none;
+      -webkit-user-select: none;
+      -webkit-touch-callout: none;
+    }
+
+    html, body {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: linear-gradient(180deg, var(--bg-top) 0%, var(--bg-mid) 52%, var(--bg-bot) 100%);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      color: var(--ink-primary);
+    }
+
+    #app {
+      position: relative;
+      width: 100%;
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      overflow: hidden;
+    }
+
+    header {
+      position: relative;
+      z-index: 10;
+      padding: clamp(10px, 2.2vh, 20px) 16px 8px;
+      text-align: center;
+      pointer-events: none;
+      flex-shrink: 0;
+    }
+
+    .title-row {
+      display: flex;
+      align-items: baseline;
+      justify-content: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    h1 {
+      font-size: clamp(1.15rem, 3.5vw, 1.5rem);
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      color: var(--ink-primary);
+      line-height: 1.15;
+    }
+
+    .subtitle {
+      font-size: clamp(0.82rem, 2.4vw, 0.98rem);
+      font-weight: 500;
+      color: var(--ink-secondary);
+      font-style: italic;
+    }
+
+    .hint {
+      display: inline-block;
+      margin-top: 6px;
+      padding: 4px 12px;
+      font-size: clamp(0.7rem, 2.1vw, 0.8rem);
+      font-weight: 600;
+      letter-spacing: 0.01em;
+      color: var(--ink-pill);
+      background: var(--pill-bg);
+      border: 1px solid var(--pill-border);
+      border-radius: 999px;
+      backdrop-filter: blur(6px);
+      -webkit-backdrop-filter: blur(6px);
+      box-shadow: 0 2px 8px rgba(19, 42, 58, 0.06);
+    }
+
+    #stage-wrap {
+      position: relative;
+      flex: 1 1 auto;
+      width: 100%;
+      min-height: 180px;
+      overflow: hidden;
+      touch-action: none;
+      cursor: grab;
+    }
+
+    #stage-wrap:active {
+      cursor: grabbing;
+    }
+
+    canvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+    }
+
+    footer {
+      position: relative;
+      z-index: 10;
+      padding: 6px 16px clamp(10px, 2vh, 18px);
+      text-align: center;
+      font-size: clamp(0.7rem, 2vw, 0.78rem);
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--ink-secondary);
+      pointer-events: none;
+      flex-shrink: 0;
+    }
+
+    #fallback {
+      display: none;
+      position: absolute;
+      inset: 0;
+      z-index: 30;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+      text-align: center;
+      background: rgba(232, 241, 248, 0.95);
+      color: var(--ink-primary);
+    }
+
+    #fallback .card {
+      max-width: 340px;
+      padding: 20px;
+      border-radius: 14px;
+      background: #ffffff;
+      border: 1px solid var(--pill-border);
+      box-shadow: 0 10px 28px rgba(19, 42, 58, 0.12);
+    }
+
+    #fallback h2 {
+      font-size: 1.05rem;
+      margin-bottom: 8px;
+    }
+
+    #fallback p {
+      font-size: 0.86rem;
+      color: var(--ink-secondary);
+      line-height: 1.45;
+    }
+  </style>
+
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+        "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+      }
+    }
+  </script>
 </head>
 <body>
-<div id="app"></div>
-<header>
-  <h1>Glacier Fjord</h1>
-  <div class="rule"></div>
-  <span id="hint"></span>
-</header>
-<footer>A tiny world</footer>
-<script type="importmap">
-{ "imports": {
-  "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
-  "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
-} }
-</script>
-<script type="module">
-import * as THREE from 'three';
-import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+  <div id="app">
+    <header id="header-bar">
+      <div class="title-row">
+        <h1>Glacier fjord</h1>
+        <span class="subtitle">a tiny world</span>
+      </div>
+      <div class="hint">tap the glacier to calve - tap the water for ripples</div>
+    </header>
 
-// pass 5
-const container = document.getElementById('app');
-const hintEl = document.getElementById('hint');
-const scene = new THREE.Scene();
-scene.background = new THREE.Color(0xcfe4ec);
-scene.fog = new THREE.Fog(0xcfe4ec, 60, 140);
+    <div id="stage-wrap">
+      <div id="fallback">
+        <div class="card">
+          <h2>WebGL Not Available</h2>
+          <p>This interactive 3D glacier fjord miniature requires a browser with WebGL enabled.</p>
+        </div>
+      </div>
+    </div>
 
-const camera = new THREE.PerspectiveCamera(38, innerWidth/innerHeight, 0.1, 240);
-function pickFov() {
-  const a = innerWidth / innerHeight;
-  camera.fov = a >= 0.9 ? 38 : (a >= 0.62 ? 46 : 58);
-  camera.updateProjectionMatrix();
-}
-pickFov();
-const renderer = new THREE.WebGLRenderer({ antialias: true });
-renderer.setSize(innerWidth, innerHeight);
-renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
-renderer.shadowMap.enabled = true;
-renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-container.appendChild(renderer.domElement);
-const controls = new OrbitControls(camera, renderer.domElement);
-controls.enableDamping = true; controls.dampingFactor = 0.06;
-controls.enablePan = false; controls.maxPolarAngle = Math.PI * 0.52;
+    <footer id="footer-bar">A tiny world</footer>
+  </div>
 
-const sun = new THREE.DirectionalLight(0xfff4e0, 2.0);
-sun.position.set(-8, 12, 7); sun.castShadow = true;
-sun.shadow.mapSize.set(1024, 1024);
-sun.shadow.camera.left = -14; sun.shadow.camera.right = 14;
-sun.shadow.camera.top = 14; sun.shadow.camera.bottom = -14;
-sun.shadow.camera.far = 60; sun.shadow.bias = -0.0006;
-scene.add(sun);
-scene.add(new THREE.HemisphereLight(0xdceef6, 0x36525e, 1.0));
+  <script type="module">
+    import * as THREE from 'three';
+    import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 
-function mulberry32(a) {
-  return function() {
-    a |= 0; a = a + 0x6D2B79F5 | 0;
-    let t = Math.imul(a ^ a >>> 15, 1 | a);
-    t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
-    return ((t ^ t >>> 14) >>> 0) / 4294967296;
-  };
-}
-const rng = mulberry32(20261101);
-function rand(a, b) { return a + rng() * (b - a); }
-
-// ---------- slab: rocky base + water ----------
-const SLAB_H = 1.5;
-const slabGroup = new THREE.Group(); scene.add(slabGroup);
-const WATER_Y = 0.0;
-{
-  const rockMat = new THREE.MeshStandardMaterial({ color: 0x4a5a63, roughness: 1 });
-  const rock = new THREE.Mesh(new THREE.BoxGeometry(12, SLAB_H, 12), rockMat);
-  rock.position.y = -SLAB_H/2 - 0.05; slabGroup.add(rock);
-  const baseMat = new THREE.MeshStandardMaterial({ color: 0x2e3c44, roughness: 1 });
-  const base = new THREE.Mesh(new THREE.BoxGeometry(12.4, 0.5, 12.4), baseMat);
-  base.position.y = -SLAB_H - 0.4; slabGroup.add(base);
-  const waterMat = new THREE.MeshStandardMaterial({ color: 0x2e7f96, roughness: 0.25,
-    metalness: 0.05, transparent: true, opacity: 0.92 });
-  const water = new THREE.Mesh(new THREE.BoxGeometry(11.9, 0.12, 11.9), waterMat);
-  water.position.y = WATER_Y - 0.06; water.receiveShadow = true; slabGroup.add(water);
-  // darker depth patches in the water
-  const deepMat = new THREE.MeshStandardMaterial({ color: 0x1d5d70, roughness: 0.4 });
-  for (let i = 0; i < 8; i++) {
-    const p = new THREE.Mesh(new THREE.CircleGeometry(rand(0.5, 1.2), 9), deepMat);
-    p.rotation.x = -Math.PI/2;
-    p.position.set(rand(-5.2, 5.2), WATER_Y + 0.012, rand(-5.2, 5.2));
-    slabGroup.add(p);
-  }
-}
-
-// ---------- glacier wall (back of the slab) ----------
-const glacierGroup = new THREE.Group(); glacierGroup.position.set(0, WATER_Y, -4.6); slabGroup.add(glacierGroup);
-const ICE = new THREE.MeshStandardMaterial({ color: 0x9fd4e6, roughness: 0.55 });
-const ICE_DEEP = new THREE.MeshStandardMaterial({ color: 0x5fa8c8, roughness: 0.45 });
-const SNOW = new THREE.MeshStandardMaterial({ color: 0xf4fafc, roughness: 0.9 });
-const wallBlocks = [];
-{
-  const W = 9.6;
-  // main wall in stepped blocks with slight offsets
-  const rows = [
-    { y: 0.55, h: 1.1, n: 5, d: 1.6 },
-    { y: 1.55, h: 1.0, n: 5, d: 1.5 },
-    { y: 2.5, h: 0.95, n: 4, d: 1.4 },
-    { y: 3.4, h: 0.9, n: 4, d: 1.3 }
-  ];
-  for (const row of rows) {
-    for (let i = 0; i < row.n; i++) {
-      const w = W / row.n * rand(0.82, 1.05);
-      const b = new THREE.Mesh(new THREE.BoxGeometry(w, row.h, row.d), (rng() < 0.4 ? ICE_DEEP : ICE));
-      b.position.set(-W/2 + (i + 0.5) * (W / row.n) + rand(-0.08, 0.08), row.y, rand(-0.12, 0.12));
-      b.castShadow = true; b.receiveShadow = true;
-      glacierGroup.add(b); wallBlocks.push(b);
+    function mulberry32(seed) {
+      let a = seed >>> 0;
+      return function () {
+        a |= 0;
+        a = (a + 0x6D2B79F5) | 0;
+        let t = Math.imul(a ^ (a >>> 15), 1 | a);
+        t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+        return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+      };
     }
-  }
-  // snow caps on the top row
-  for (let i = 0; i < 4; i++) {
-    const cap = new THREE.Mesh(new THREE.SphereGeometry(rand(0.85, 1.25), 10, 8), SNOW);
-    cap.scale.y = 0.38;
-    cap.position.set(-W/2 + (i + 0.5) * (W / 4), 3.95, rand(-0.2, 0.2));
-    cap.castShadow = true; glacierGroup.add(cap);
-  }
-  // taller ice spires for silhouette
-  for (const sx of [-2.4, 0.4, 2.6]) {
-    const sp = new THREE.Mesh(new THREE.ConeGeometry(rand(0.5, 0.75), rand(1.4, 2.2), 7), ICE);
-    sp.position.set(sx, 4.6, rand(-0.3, 0.1));
-    sp.castShadow = true; glacierGroup.add(sp); wallBlocks.push(sp);
-    const tip = new THREE.Mesh(new THREE.SphereGeometry(0.4, 8, 6), SNOW);
-    tip.scale.y = 0.4; tip.position.set(sx, 5.5, sp.position.z);
-    glacierGroup.add(tip);
-  }
-  // vertical crevasse lines (thin deep-blue boxes on the face)
-  for (let i = 0; i < 9; i++) {
-    const c = new THREE.Mesh(new THREE.BoxGeometry(0.09, rand(1.2, 3.4), 0.05), ICE_DEEP);
-    c.position.set(rand(-4.4, 4.4), rand(1.0, 2.6), 0.84);
-    glacierGroup.add(c);
-  }
-  // snow patches on the face
-  for (let i = 0; i < 7; i++) {
-    const s = new THREE.Mesh(new THREE.SphereGeometry(rand(0.25, 0.5), 8, 6), SNOW);
-    s.scale.set(1, rand(0.5, 0.8), 0.3);
-    s.position.set(rand(-4.4, 4.4), rand(0.8, 3.4), 0.8);
-    glacierGroup.add(s);
-  }
-}
 
-// ---------- side cliffs ----------
-function cliff(px, rotY) {
-  const g = new THREE.Group(); g.position.set(px, WATER_Y, 0); g.rotation.y = rotY; slabGroup.add(g);
-  const mat = new THREE.MeshStandardMaterial({ color: 0x5c6e76, roughness: 1 });
-  for (let i = 0; i < 4; i++) {
-    const w = rand(1.6, 2.6), h = rand(1.4, 2.6), d = rand(1.6, 2.8);
-    const b = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat);
-    b.position.set(rand(-0.5, 0.5), h/2 - 0.2, -4.4 + i * 2.6 + rand(-0.4, 0.4));
-    b.castShadow = true; b.receiveShadow = true; g.add(b);
-    const cap = new THREE.Mesh(new THREE.SphereGeometry(Math.min(w, d) * 0.55, 9, 7), SNOW);
-    cap.scale.y = 0.35; cap.position.set(b.position.x, h - 0.15, b.position.z);
-    g.add(cap);
-  }
-}
-cliff(-5.9, 0); cliff(5.9, 0);
+    const rand = mulberry32(20261102);
+    const randRange = (min, max) => min + (max - min) * rand();
 
-// ---------- floating icebergs ----------
-const bergs = [];
-const BERG_DEFS = [
-  { x: -2.6, z: -1.2, s: 1.05 }, { x: 2.2, z: 0.4, s: 0.8 },
-  { x: -0.4, z: 2.4, s: 0.6 }, { x: 3.4, z: -2.4, s: 0.55 },
-  { x: -3.6, z: 1.8, s: 0.5 }
-];
-{
-  const bergMat = new THREE.MeshStandardMaterial({ color: 0xe8f4f8, roughness: 0.5 });
-  const tipMat = new THREE.MeshStandardMaterial({ color: 0xbfe2ee, roughness: 0.4 });
-  for (const d of BERG_DEFS) {
-    const g = new THREE.Group(); g.position.set(d.x, WATER_Y, d.z);
-    const body = new THREE.Mesh(new THREE.DodecahedronGeometry(d.s, 0), bergMat);
-    body.scale.y = 0.55; body.position.y = 0.1; body.castShadow = true; g.add(body);
-    const peak = new THREE.Mesh(new THREE.ConeGeometry(d.s * 0.45, d.s * 0.9, 7), tipMat);
-    peak.position.set(rand(-0.15, 0.15), d.s * 0.55, rand(-0.15, 0.15));
-    peak.castShadow = true; g.add(peak);
-    slabGroup.add(g);
-    bergs.push({ g, baseY: WATER_Y, phase: rand(0, Math.PI * 2), bobAmp: rand(0.04, 0.08), bobSpd: rand(0.5, 0.9) });
-  }
-}
+    const stageWrap = document.getElementById('stage-wrap');
+    const fallbackEl = document.getElementById('fallback');
 
-// ---------- penguins on one floe ----------
-{
-  const bodyMat = new THREE.MeshStandardMaterial({ color: 0x222c34, roughness: 0.8 });
-  const bellyMat = new THREE.MeshStandardMaterial({ color: 0xf4fafc, roughness: 0.8 });
-  const beakMat = new THREE.MeshStandardMaterial({ color: 0xe8912a, roughness: 0.6 });
-  const spots = [ {x:-0.28, z:0.05, r:0.5}, {x:0.18, z:-0.2, r:-0.4}, {x:0.32, z:0.28, r:2.4} ];
-  for (const p of spots) {
-    const g = new THREE.Group(); g.position.set(BERG_DEFS[0].x + p.x, 0.62, BERG_DEFS[0].z + p.z);
-    g.rotation.y = p.r;
-    const body = new THREE.Mesh(new THREE.SphereGeometry(0.16, 10, 8), bodyMat);
-    body.scale.y = 1.35; body.castShadow = true; g.add(body);
-    const belly = new THREE.Mesh(new THREE.SphereGeometry(0.11, 8, 6), bellyMat);
-    belly.scale.y = 1.25; belly.position.set(0, -0.02, 0.08); g.add(belly);
-    const head = new THREE.Mesh(new THREE.SphereGeometry(0.09, 8, 6), bodyMat);
-    head.position.y = 0.26; g.add(head);
-    const beak = new THREE.Mesh(new THREE.ConeGeometry(0.028, 0.09, 6), beakMat);
-    beak.rotation.x = Math.PI/2; beak.position.set(0, 0.26, 0.1); g.add(beak);
-    slabGroup.add(g);
-  }
-}
-
-// ---------- drifting mist sprites (fills the upper band; fades in title band) ----------
-const mists = [];
-function makeMistTexture() {
-  const c = document.createElement('canvas'); c.width = c.height = 64;
-  const ctx = c.getContext('2d');
-  const g = ctx.createRadialGradient(32, 32, 4, 32, 32, 30);
-  g.addColorStop(0, 'rgba(255,255,255,0.85)'); g.addColorStop(1, 'rgba(255,255,255,0)');
-  ctx.fillStyle = g; ctx.fillRect(0, 0, 64, 64);
-  const tex = new THREE.CanvasTexture(c); return tex;
-}
-{
-  const tex = makeMistTexture();
-  for (let i = 0; i < 11; i++) {
-    const mat = new THREE.SpriteMaterial({ map: tex, transparent: true, opacity: rand(0.5, 0.8), depthWrite: false });
-    const s = new THREE.Sprite(mat);
-    const sc = rand(2.2, 4.2); s.scale.set(sc, sc * 0.7, 1);
-    s.position.set(rand(-7, 7), rand(2.6, 8.8), rand(-5, 4));
-    scene.add(s);
-    mists.push({ s, spd: rand(0.12, 0.3), baseOp: mat.opacity });
-  }
-}
-
-// ---------- calving event ----------
-const hintIdle = 'Tap the glacier';
-const hintCalve = 'Watch it calve';
-let hintOwner = 'idle';
-function setHint(text, owner) { hintEl.textContent = text; hintEl.classList.remove('faded'); hintOwner = owner; }
-function resetHintIf(owner) { if (hintOwner === owner) setHint(hintIdle, 'idle'); }
-setHint(hintIdle, 'idle');
-
-const chunks = []; // falling calved chunks
-const splashes = []; // splash rings
-const floaters = []; // new mini-bergs from calves
-const splashMat = new THREE.MeshBasicMaterial({ color: 0xeaf6fa, transparent: true, opacity: 0.85, side: THREE.DoubleSide });
-let lastCalve = 0;
-function calve(now) {
-  lastCalve = now;
-  setHint(hintCalve, 'user');
-  const bx = rand(-3.6, 3.6);
-  // crack flash on the face
-  const chunk = new THREE.Mesh(new THREE.DodecahedronGeometry(rand(0.3, 0.42), 0),
-    new THREE.MeshStandardMaterial({ color: 0xbfe2ee, roughness: 0.4 }));
-  const startY = rand(1.6, 2.6);
-  chunk.position.set(glacierGroup.position.x + bx, WATER_Y + startY, glacierGroup.position.z + 1.1);
-  chunk.castShadow = true; scene.add(chunk);
-  chunks.push({ m: chunk, x: chunk.position.x, y0: WATER_Y + startY, z: chunk.position.z, t0: now, fall: 0.9, spin: rand(-3, 3), done: false });
-  setTimeout(() => resetHintIf('user'), 5200);
-}
-function splashAt(x, z, now) {
-  for (let i = 0; i < 3; i++) {
-    const ring = new THREE.Mesh(new THREE.RingGeometry(0.1, 0.16, 24), splashMat.clone());
-    ring.rotation.x = -Math.PI/2; ring.position.set(x, WATER_Y + 0.02 + i * 0.004, z);
-    scene.add(ring);
-    splashes.push({ m: ring, t0: now + i * 0.14, dur: 1.6 });
-  }
-  // spray droplets
-  for (let i = 0; i < 10; i++) {
-    const d = new THREE.Mesh(new THREE.SphereGeometry(0.035, 6, 5), splashMat.clone());
-    d.position.set(x, WATER_Y + 0.05, z);
-    scene.add(d);
-    const a = rand(0, Math.PI * 2), v = rand(0.8, 1.8);
-    splashes.push({ m: d, t0: now, dur: rand(0.5, 0.8), vx: Math.cos(a) * v * 0.5, vz: Math.sin(a) * v * 0.5, vy: rand(1.6, 2.6), drop: true });
-  }
-  // new mini floe
-  const floe = new THREE.Mesh(new THREE.DodecahedronGeometry(rand(0.24, 0.34), 0),
-    new THREE.MeshStandardMaterial({ color: 0xe8f4f8, roughness: 0.5 }));
-  floe.scale.y = 0.5; floe.position.set(x + rand(-0.3, 0.3), WATER_Y + 0.08, z + rand(0.5, 0.9));
-  floe.castShadow = true; scene.add(floe);
-  floaters.push({ m: floe, t0: now, phase: rand(0, Math.PI * 2), born: now });
-  if (floaters.length > 6) { const old = floaters.shift(); scene.remove(old.m); }
-}
-
-// ---------- interaction ----------
-const ray = new THREE.Raycaster();
-const ptr = new THREE.Vector2();
-const wallProxy = new THREE.Mesh(new THREE.BoxGeometry(10, 4.4, 2.4),
-  new THREE.MeshBasicMaterial({ visible: false }));
-wallProxy.position.set(glacierGroup.position.x, WATER_Y + 2.0, glacierGroup.position.z + 0.4);
-scene.add(wallProxy);
-let downX = 0, downY = 0;
-renderer.domElement.addEventListener('pointerdown', e => { downX = e.clientX; downY = e.clientY; });
-renderer.domElement.addEventListener('pointerup', e => {
-  if (Math.hypot(e.clientX - downX, e.clientY - downY) > 8) return;
-  ptr.x = (e.clientX / innerWidth) * 2 - 1;
-  ptr.y = -(e.clientY / innerHeight) * 2 + 1;
-  ray.setFromCamera(ptr, camera);
-  if (ray.intersectObject(wallProxy, false).length) {
-    const now = performance.now() / 1000;
-    if (now - lastCalve > 0.8) calve(now);
-  }
-});
-
-// ---------- camera containment ----------
-const fitTargets = [];
-function collectFit() {
-  const pts = [];
-  const v = new THREE.Vector3();
-  for (const o of [slabGroup]) {
-    new THREE.Box3().setFromObject(o); // warm-up
-  }
-  const box = new THREE.Box3().setFromObject(scene);
-  // limit to slab + glacier + bergs (exclude mists)
-  const b2 = new THREE.Box3().setFromObject(slabGroup);
-  b2.expandByPoint(new THREE.Vector3(0, WATER_Y + 6.0, -6));
-  return b2;
-}
-let fitBox = collectFit();
-function fitCamera() {
-  const center = fitBox.getCenter(new THREE.Vector3());
-  controls.target.copy(center);
-  const dir = new THREE.Vector3(0.08, 0.85, 1).normalize();
-  // fit through live camera basis
-  const corners = [];
-  for (const x of [fitBox.min.x, fitBox.max.x])
-    for (const y of [fitBox.min.y, fitBox.max.y])
-      for (const z of [fitBox.min.z, fitBox.max.z])
-        corners.push(new THREE.Vector3(x, y, z));
-  const probe = new THREE.PerspectiveCamera(camera.fov, camera.aspect, 0.1, 240);
-  probe.position.copy(center).addScaledVector(dir, 0.001); probe.lookAt(center); probe.updateMatrixWorld();
-  const inv = probe.matrixWorldInverse;
-  let need = 0;
-  const vFov = THREE.MathUtils.degToRad(camera.fov) / 2;
-  const hFov = Math.atan(Math.tan(vFov) * camera.aspect);
-  for (const c of corners) {
-    const p = c.clone().applyMatrix4(inv);
-    const d = -p.z;
-    need = Math.max(need, d + Math.abs(p.y) / Math.tan(vFov), d + Math.abs(p.x) / Math.tan(hFov));
-  }
-  const dist = need * 1.1 + 0.2;
-  camera.position.copy(center).addScaledVector(dir, dist);
-  controls.target.y += -0.35;
-  camera.position.y += -0.35;
-  camera.lookAt(controls.target); controls.update();
-}
-fitCamera();
-addEventListener('resize', () => {
-  camera.aspect = innerWidth / innerHeight; pickFov();
-  renderer.setSize(innerWidth, innerHeight); fitCamera();
-});
-
-// ---------- animate ----------
-const clock = new THREE.Clock();
-const ndcV = new THREE.Vector3();
-function animate() {
-  requestAnimationFrame(animate);
-  const dt = Math.min(clock.getDelta(), 0.3);
-  const now = performance.now() / 1000;
-  // bobbing bergs + floaters
-  for (const b of bergs) {
-    b.g.position.y = b.baseY + Math.sin(now * b.bobSpd + b.phase) * b.bobAmp;
-    b.g.rotation.z = Math.sin(now * b.bobSpd * 0.7 + b.phase) * 0.03;
-  }
-  for (const f of floaters) {
-    const age = now - f.born;
-    f.m.position.y = WATER_Y + 0.08 + Math.sin(now * 0.9 + f.phase) * 0.05;
-    f.m.rotation.y += dt * 0.25;
-    f.m.scale.setScalar(Math.min(1, age * 2));
-    f.m.scale.y *= 0.5;
-  }
-  // calving chunks fall, then splash
-  for (const c of chunks) {
-    if (c.done) continue;
-    const t = (now - c.t0) / c.fall;
-    if (t >= 1) {
-      c.done = true; scene.remove(c.m);
-      splashAt(c.x, c.z, now);
-      continue;
+    let renderer;
+    try {
+      renderer = new THREE.WebGLRenderer({
+        antialias: true,
+        powerPreference: 'high-performance',
+        alpha: true
+      });
+    } catch (err) {
+      fallbackEl.style.display = 'flex';
+      throw err;
     }
-    c.m.position.y = c.y0 - (c.y0 - WATER_Y) * t * t;
-    c.m.rotation.x += c.spin * dt; c.m.rotation.z += c.spin * 0.7 * dt;
-  }
-  // splashes / droplets
-  for (let i = splashes.length - 1; i >= 0; i--) {
-    const s = splashes[i];
-    const t = (now - s.t0) / s.dur;
-    if (t < 0) continue;
-    if (t >= 1) { scene.remove(s.m); splashes.splice(i, 1); continue; }
-    if (s.drop) {
-      s.m.position.x += s.vx * dt; s.m.position.z += s.vz * dt;
-      s.m.position.y += s.vy * dt; s.vy -= 9.8 * dt * 0.35;
-      if (s.m.position.y < WATER_Y + 0.02) s.m.position.y = WATER_Y + 0.02;
-      s.m.material.opacity = 0.85 * (1 - t);
-    } else {
-      const sc = 0.2 + t * 3.2;
-      s.m.scale.setScalar(sc);
-      s.m.material.opacity = 0.85 * (1 - t);
+
+    if (!renderer || !renderer.getContext()) {
+      fallbackEl.style.display = 'flex';
+      throw new Error('WebGL context creation failed');
     }
-  }
-  // mist drift + NDC fade in title band
-  for (const m of mists) {
-    m.s.position.x += m.spd * dt;
-    if (m.s.position.x > 7.5) m.s.position.x = -7.5;
-    ndcV.copy(m.s.position).project(camera);
-    const inBand = ndcV.y > 0.45 && Math.abs(ndcV.x) < 0.62;
-    const target = inBand ? 0.1 : m.baseOp;
-    m.s.material.opacity += (target - m.s.material.opacity) * Math.min(1, dt * 3);
-  }
-  controls.update();
-  renderer.render(scene, camera);
-}
-animate();
-</script>
+
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.75));
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 1.08;
+    renderer.outputColorSpace = THREE.SRGBColorSpace;
+    stageWrap.appendChild(renderer.domElement);
+
+    const scene = new THREE.Scene();
+
+    const camera = new THREE.PerspectiveCamera(34, 1, 0.5, 160);
+    const controls = new OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.07;
+    controls.enablePan = false;
+    controls.enableZoom = true;
+    controls.minPolarAngle = THREE.MathUtils.degToRad(26);
+    controls.maxPolarAngle = THREE.MathUtils.degToRad(62);
+    controls.minAzimuthAngle = THREE.MathUtils.degToRad(-38);
+    controls.maxAzimuthAngle = THREE.MathUtils.degToRad(38);
+
+    // Crisp cold daylight setup
+    const hemiLight = new THREE.HemisphereLight(0xeaf6ff, 0x3b687c, 1.25);
+    hemiLight.position.set(0, 25, 0);
+    scene.add(hemiLight);
+
+    const sunLight = new THREE.DirectionalLight(0xfffdf8, 2.15);
+    sunLight.position.set(14, 24, 16);
+    sunLight.castShadow = true;
+    sunLight.shadow.mapSize.set(1024, 1024);
+    sunLight.shadow.camera.near = 6;
+    sunLight.shadow.camera.far = 52;
+    const sc = 13.5;
+    sunLight.shadow.camera.left = -sc;
+    sunLight.shadow.camera.right = sc;
+    sunLight.shadow.camera.top = sc;
+    sunLight.shadow.camera.bottom = -sc;
+    sunLight.shadow.bias = -0.0006;
+    scene.add(sunLight);
+
+    const rimLight = new THREE.DirectionalLight(0x7fd4ff, 0.95);
+    rimLight.position.set(-16, 12, -14);
+    scene.add(rimLight);
+
+    const bounceLight = new THREE.DirectionalLight(0x41a6be, 0.55);
+    bounceLight.position.set(0, -10, 12);
+    scene.add(bounceLight);
+
+    // Shared materials (Cold palette)
+    const mats = {
+      pedestal: new THREE.MeshStandardMaterial({
+        color: 0x1d2b36,
+        roughness: 0.72,
+        metalness: 0.08,
+        flatShading: true
+      }),
+      pedestalTrim: new THREE.MeshStandardMaterial({
+        color: 0x2c4152,
+        roughness: 0.6,
+        metalness: 0.12,
+        flatShading: true
+      }),
+      seabed: new THREE.MeshStandardMaterial({
+        color: 0x0b3948,
+        roughness: 0.85,
+        metalness: 0.05,
+        flatShading: true
+      }),
+      rockDark: new THREE.MeshStandardMaterial({
+        color: 0x43515e,
+        roughness: 0.84,
+        metalness: 0.06,
+        flatShading: true
+      }),
+      rockMid: new THREE.MeshStandardMaterial({
+        color: 0x576775,
+        roughness: 0.8,
+        metalness: 0.05,
+        flatShading: true
+      }),
+      rockLight: new THREE.MeshStandardMaterial({
+        color: 0x6c7d8c,
+        roughness: 0.76,
+        metalness: 0.05,
+        flatShading: true
+      }),
+      snow: new THREE.MeshStandardMaterial({
+        color: 0xf4f9fd,
+        roughness: 0.52,
+        metalness: 0.02,
+        flatShading: true
+      }),
+      iceDeep: new THREE.MeshStandardMaterial({
+        color: 0x4ba6d6,
+        roughness: 0.34,
+        metalness: 0.08,
+        flatShading: true
+      }),
+      iceMid: new THREE.MeshStandardMaterial({
+        color: 0x8ad2f5,
+        roughness: 0.28,
+        metalness: 0.06,
+        flatShading: true
+      }),
+      iceBright: new THREE.MeshStandardMaterial({
+        color: 0xd9f2ff,
+        roughness: 0.24,
+        metalness: 0.04,
+        flatShading: true
+      }),
+      iceSubmerged: new THREE.MeshStandardMaterial({
+        color: 0x1c7c9c,
+        roughness: 0.4,
+        metalness: 0.05,
+        flatShading: true
+      }),
+      crevasseGlow: new THREE.MeshBasicMaterial({
+        color: 0x7ce8ff,
+        transparent: true,
+        opacity: 0.0
+      }),
+      crevasseDark: new THREE.MeshStandardMaterial({
+        color: 0x1e5c82,
+        roughness: 0.35,
+        metalness: 0.1,
+        flatShading: true
+      }),
+      glint: new THREE.MeshBasicMaterial({
+        color: 0xffffff,
+        transparent: true,
+        opacity: 0.85
+      }),
+      foam: new THREE.MeshStandardMaterial({
+        color: 0xf2fbff,
+        roughness: 0.35,
+        metalness: 0.0,
+        flatShading: true
+      }),
+      spray: new THREE.MeshStandardMaterial({
+        color: 0xdbf4ff,
+        emissive: 0x2b6e8c,
+        emissiveIntensity: 0.25,
+        roughness: 0.2,
+        metalness: 0.05,
+        flatShading: true
+      }),
+      snowCrystal: new THREE.MeshBasicMaterial({
+        color: 0xffffff,
+        transparent: true,
+        opacity: 0.88
+      }),
+      rippleRing: new THREE.MeshBasicMaterial({
+        color: 0xdff8ff,
+        transparent: true,
+        opacity: 0.0,
+        side: THREE.DoubleSide,
+        depthWrite: false
+      }),
+      invisibleProxy: new THREE.MeshBasicMaterial({
+        visible: false
+      })
+    };
+
+    const worldRoot = new THREE.Group();
+    scene.add(worldRoot);
+
+    // Helper: create tactile beveled box geometry
+    function createBeveledSlab(w, h, d, bevel = 0.22, segW = 12, segH = 4, segD = 14, jitter = 0.0) {
+      const geo = new THREE.BoxGeometry(w, h, d, segW, segH, segD);
+      const pos = geo.attributes.position;
+      const hw = w * 0.5;
+      const hh = h * 0.5;
+      const hd = d * 0.5;
+      const v = new THREE.Vector3();
+
+      for (let i = 0; i < pos.count; i++) {
+        v.fromBufferAttribute(pos, i);
+        const dx = Math.max(0, Math.abs(v.x) - (hw - bevel)) / bevel;
+        const dy = Math.max(0, Math.abs(v.y) - (hh - bevel)) / bevel;
+        const dz = Math.max(0, Math.abs(v.z) - (hd - bevel)) / bevel;
+        const edgeCount = (dx > 0 ? 1 : 0) + (dy > 0 ? 1 : 0) + (dz > 0 ? 1 : 0);
+        if (edgeCount >= 2) {
+          const pull = 1 - 0.28 * Math.min(1, Math.sqrt(dx * dx + dy * dy + dz * dz) * 0.65);
+          v.x *= pull;
+          v.z *= pull;
+        }
+        if (jitter > 0) {
+          const n = Math.sin(v.x * 2.1 + v.z * 1.7) * Math.cos(v.y * 3.1 - v.z * 1.3);
+          v.x += n * jitter;
+          v.y += Math.cos(v.x * 1.9 + v.z * 2.3) * jitter * 0.65;
+          v.z += Math.sin(v.z * 1.5 - v.x * 2.2) * jitter;
+        }
+        pos.setXYZ(i, v.x, v.y, v.z);
+      }
+      geo.computeVertexNormals();
+      return geo;
+    }
+
+    // 1. DIORAMA SLAB & CHANNEL BASE
+    const SLAB_W = 14.4;
+    const SLAB_D = 16.4;
+    const WATER_Y = 0.0;
+
+    const baseGroup = new THREE.Group();
+    worldRoot.add(baseGroup);
+
+    // Outer dark tactile base frame (left, right, back, front underwater lip, bottom)
+    const bottomPlacaGeo = createBeveledSlab(SLAB_W, 1.35, SLAB_D, 0.35, 10, 3, 12, 0.03);
+    const bottomPlaca = new THREE.Mesh(bottomPlacaGeo, mats.pedestal);
+    bottomPlaca.position.set(0, -1.55, 0);
+    bottomPlaca.receiveShadow = true;
+    baseGroup.add(bottomPlaca);
+
+    const trimLipGeo = createBeveledSlab(SLAB_W + 0.28, 0.34, SLAB_D + 0.28, 0.12, 8, 2, 8, 0.015);
+    const trimLip = new THREE.Mesh(trimLipGeo, mats.pedestalTrim);
+    trimLip.position.set(0, -0.92, 0);
+    trimLip.receiveShadow = true;
+    baseGroup.add(trimLip);
+
+    // Seabed trough floor
+    const seabedGeo = createBeveledSlab(SLAB_W - 0.7, 0.45, SLAB_D - 0.7, 0.16, 14, 2, 16, 0.08);
+    const seabedMesh = new THREE.Mesh(seabedGeo, mats.seabed);
+    seabedMesh.position.set(0, -0.82, 0);
+    seabedMesh.receiveShadow = true;
+    baseGroup.add(seabedMesh);
+
+    // Translucent front water cross-section face so the diorama slab looks like cut glass/resin water at the front edge
+    const waterFrontWallMat = new THREE.MeshPhysicalMaterial({
+      color: 0x0e6b84,
+      roughness: 0.18,
+      metalness: 0.02,
+      transmission: 0.45,
+      transparent: true,
+      opacity: 0.86,
+      flatShading: true
+    });
+    const waterFrontWallGeo = new THREE.BoxGeometry(7.9, 0.78, 0.28, 12, 2, 1);
+    const waterFrontWall = new THREE.Mesh(waterFrontWallGeo, waterFrontWallMat);
+    waterFrontWall.position.set(0, -0.39, SLAB_D * 0.5 - 0.22);
+    baseGroup.add(waterFrontWall);
+
+    // 2. STEEP ROCKY CLIFFS WITH SNOW CAPS ON BOTH SIDES
+    const cliffsGroup = new THREE.Group();
+    worldRoot.add(cliffsGroup);
+
+    const reusableRockGeo = createBeveledSlab(1, 1, 1, 0.18, 4, 5, 4, 0.075);
+    const reusableSnowCapGeo = createBeveledSlab(1.04, 0.36, 1.04, 0.16, 4, 3, 4, 0.05);
+
+    function addCliffColumn(x, z, w, h, d, rotY, matIndex, snowThickness = 1.0) {
+      const rockMats = [mats.rockDark, mats.rockMid, mats.rockLight];
+      const rockMat = rockMats[matIndex % rockMats.length];
+
+      const colGroup = new THREE.Group();
+      colGroup.position.set(x, -0.8, z);
+      colGroup.rotation.y = rotY;
+
+      const rock = new THREE.Mesh(reusableRockGeo, rockMat);
+      rock.scale.set(w, h, d);
+      rock.position.y = h * 0.5;
+      rock.castShadow = true;
+      rock.receiveShadow = true;
+      colGroup.add(rock);
+
+      if (snowThickness > 0.05) {
+        const snow = new THREE.Mesh(reusableSnowCapGeo, mats.snow);
+        snow.scale.set(w * 0.96, snowThickness, d * 0.96);
+        snow.position.y = h + snowThickness * 0.14;
+        snow.castShadow = true;
+        snow.receiveShadow = true;
+        colGroup.add(snow);
+      }
+
+      cliffsGroup.add(colGroup);
+    }
+
+    // Populate Left (-X) and Right (+X) fjord cliffs from head (z = -7.6) to mouth (z = +7.6)
+    for (let side = -1; side <= 1; side += 2) {
+      const numMain = 11;
+      for (let i = 0; i < numMain; i++) {
+        const t = i / (numMain - 1); // 0 at glacier head, 1 at front mouth
+        const z = -7.3 + t * 14.6;
+        // Taller near the glacier head, tapering down slightly toward the front so view is open
+        const heightProfile = (1 - t * 0.45) * 4.4 + 2.2 + Math.sin(i * 1.7 + side) * 0.65;
+        const width = 2.4 + randRange(-0.25, 0.45);
+        const depth = 2.1 + randRange(-0.2, 0.45);
+        const xOuter = side * (SLAB_W * 0.5 - width * 0.48);
+
+        addCliffColumn(
+          xOuter,
+          z,
+          width,
+          heightProfile,
+          depth,
+          randRange(-0.14, 0.14),
+          (i + (side > 0 ? 1 : 0)) % 3,
+          randRange(0.9, 1.55)
+        );
+
+        // Inner stepped rocky ledges & buttresses dipping into the deep teal channel
+        const innerH = heightProfile * randRange(0.45, 0.72);
+        const innerW = randRange(1.35, 1.95);
+        const innerD = randRange(1.4, 2.0);
+        const xInner = side * (4.15 + t * 0.45 + randRange(-0.22, 0.25));
+
+        addCliffColumn(
+          xInner,
+          z + randRange(-0.35, 0.35),
+          innerW,
+          innerH,
+          innerD,
+          randRange(-0.28, 0.28),
+          (i + 2) % 3,
+          innerH > 2.4 ? randRange(0.65, 1.1) : 0.0
+        );
+
+        // Shoreline boulders at water level
+        if (i % 2 === 0) {
+          const bH = randRange(0.95, 1.55);
+          addCliffColumn(
+            side * (3.35 + t * 0.45 + randRange(-0.15, 0.2)),
+            z + randRange(-0.4, 0.4),
+            randRange(0.9, 1.3),
+            bH,
+            randRange(0.9, 1.35),
+            randRange(-0.5, 0.5),
+            0,
+            bH > 1.25 ? 0.45 : 0.0
+          );
+        }
+      }
+    }
+
+    // Back mountain ridge behind the glacier head
+    for (let i = -3; i <= 3; i++) {
+      const x = i * 1.85 + randRange(-0.2, 0.2);
+      const distFactor = 1 - Math.abs(i) / 4.2;
+      const h = 5.4 + distFactor * 1.4 + randRange(-0.3, 0.4);
+      addCliffColumn(
+        x,
+        -7.35 + randRange(-0.2, 0.15),
+        2.1,
+        h,
+        1.8,
+        randRange(-0.12, 0.12),
+        Math.abs(i) % 3,
+        randRange(1.2, 1.7)
+      );
+    }
+
+    // 3. TALL GLACIER FACE AT HEAD OF FJORD
+    const glacierGroup = new THREE.Group();
+    glacierGroup.position.set(0, 0, -5.55);
+    worldRoot.add(glacierGroup);
+
+    const iceShardGeo = createBeveledSlab(1, 1, 1, 0.14, 3, 5, 3, 0.055);
+
+    // Stratified blue-white glacier wall layers + jagged serac towers
+    const iceMaterials = [mats.iceDeep, mats.iceMid, mats.iceBright, mats.snow];
+    for (let row = 0; row < 3; row++) {
+      const zOff = -1.1 + row * 0.82;
+      const baseH = 5.0 - row * 0.55;
+      const cols = 9;
+      for (let c = 0; c < cols; c++) {
+        const u = (c / (cols - 1)) * 2 - 1; // -1 to 1
+        const x = u * 3.45 + randRange(-0.12, 0.12);
+        const h = baseH + Math.cos(u * 2.2) * 0.55 + randRange(-0.25, 0.45);
+        const w = randRange(0.85, 1.28);
+        const d = randRange(0.85, 1.25);
+
+        // Layered vertical stack (deep blue at waterline -> mid blue -> bright ice -> snow top)
+        const pillarGroup = new THREE.Group();
+        pillarGroup.position.set(x, -0.75, zOff + Math.abs(u) * 0.35);
+        pillarGroup.rotation.y = randRange(-0.18, 0.18);
+        pillarGroup.rotation.z = randRange(-0.04, 0.04);
+
+        const lowerH = h * 0.42;
+        const lowerMesh = new THREE.Mesh(iceShardGeo, row === 2 ? mats.iceDeep : mats.iceMid);
+        lowerMesh.scale.set(w, lowerH, d);
+        lowerMesh.position.y = lowerH * 0.5;
+        lowerMesh.castShadow = true;
+        lowerMesh.receiveShadow = true;
+        pillarGroup.add(lowerMesh);
+
+        const midH = h * 0.38;
+        const midMesh = new THREE.Mesh(iceShardGeo, mats.iceBright);
+        midMesh.scale.set(w * 0.94, midH, d * 0.94);
+        midMesh.position.y = lowerH + midH * 0.5 - 0.08;
+        midMesh.castShadow = true;
+        midMesh.receiveShadow = true;
+        pillarGroup.add(midMesh);
+
+        const topH = h * 0.28;
+        const topMesh = new THREE.Mesh(iceShardGeo, mats.snow);
+        topMesh.scale.set(w * 0.86, topH, d * 0.86);
+        topMesh.position.y = lowerH + midH + topH * 0.5 - 0.16;
+        topMesh.rotation.y = 0.22;
+        topMesh.castShadow = true;
+        topMesh.receiveShadow = true;
+        pillarGroup.add(topMesh);
+
+        glacierGroup.add(pillarGroup);
+      }
+    }
+
+    // Jagged serac pinnacles crowning the glacier top
+    for (let i = 0; i < 14; i++) {
+      const u = (i / 13) * 2 - 1;
+      const serac = new THREE.Mesh(iceShardGeo, i % 2 === 0 ? mats.iceBright : mats.snow);
+      const sh = randRange(0.9, 1.65);
+      serac.scale.set(randRange(0.42, 0.72), sh, randRange(0.45, 0.75));
+      serac.position.set(
+        u * 3.3 + randRange(-0.15, 0.15),
+        3.9 + Math.cos(u * 1.8) * 0.45 + randRange(-0.2, 0.25),
+        randRange(-1.1, 0.55)
+      );
+      serac.rotation.set(randRange(-0.18, 0.12), randRange(-0.6, 0.6), randRange(-0.16, 0.16));
+      serac.castShadow = true;
+      glacierGroup.add(serac);
+    }
+
+    // Permanent dark-blue vertical crevasse recesses across the glacier face
+    const crevasseBarGeo = new THREE.BoxGeometry(0.11, 1.0, 0.18);
+    for (let i = 0; i < 9; i++) {
+      const cx = -2.9 + i * 0.72 + randRange(-0.1, 0.1);
+      const ch = randRange(1.8, 3.2);
+      const cMesh = new THREE.Mesh(crevasseBarGeo, mats.crevasseDark);
+      cMesh.scale.set(1, ch, 1);
+      cMesh.position.set(cx, 1.3 + randRange(-0.3, 0.4), 0.92 + Math.abs(cx) * 0.08);
+      cMesh.rotation.z = randRange(-0.14, 0.14);
+      glacierGroup.add(cMesh);
+    }
+
+    // Glowing fracture crack segments (illuminate bottom-to-top during calving)
+    const crackSegments = [];
+    const crackGeo = new THREE.BoxGeometry(0.13, 0.55, 0.16);
+    const crackPaths = [
+      { xBase: -1.15, zBase: 1.32, lean: -0.15 },
+      { xBase: 0.0,   zBase: 1.38, lean: 0.06 },
+      { xBase: 1.15,  zBase: 1.32, lean: 0.18 },
+      { xBase: -0.55, zBase: 1.36, lean: 0.28 },
+      { xBase: 0.58,  zBase: 1.36, lean: -0.24 }
+    ];
+
+    crackPaths.forEach((path) => {
+      const steps = 7;
+      for (let s = 0; s < steps; s++) {
+        const frac = s / (steps - 1);
+        const mat = mats.crevasseGlow.clone();
+        const seg = new THREE.Mesh(crackGeo, mat);
+        const y = 0.25 + frac * 3.45;
+        const x = path.xBase + Math.sin(s * 1.4) * 0.16 + frac * path.lean * 1.2;
+        seg.position.set(x, y, path.zBase);
+        seg.rotation.z = path.lean + Math.cos(s * 1.7) * 0.18;
+        seg.scale.set(1.0 - frac * 0.25, 1.0, 1.0);
+        glacierGroup.add(seg);
+        crackSegments.push({ mesh: seg, mat, threshold: frac * 0.85 });
+      }
+    });
+
+    // Sparkle glints on the glacier face (idle shimmer)
+    const glintMeshes = [];
+    const glintGeo = new THREE.OctahedronGeometry(0.085, 0);
+    for (let i = 0; i < 14; i++) {
+      const gm = mats.glint.clone();
+      const m = new THREE.Mesh(glintGeo, gm);
+      m.position.set(
+        randRange(-3.1, 3.1),
+        randRange(0.45, 3.85),
+        randRange(0.95, 1.42)
+      );
+      glacierGroup.add(m);
+      glintMeshes.push({
+        mesh: m,
+        mat: gm,
+        phase: randRange(0, Math.PI * 2),
+        speed: randRange(1.8, 3.4)
+      });
+    }
+
+    // 4. HERO CALVING SLAB (Detaches from the front of the glacier, crashes, becomes newborn floating berg)
+    const calvingSlabGroup = new THREE.Group();
+    worldRoot.add(calvingSlabGroup);
+
+    const CALVE_HOME_POS = new THREE.Vector3(0.0, 1.55, -4.18);
+    calvingSlabGroup.position.copy(CALVE_HOME_POS);
+
+    // Build a chunky, multi-layered sculptural ice slab so it reads both as a cliff face and as a floating iceberg
+    const calveSubmerged = new THREE.Mesh(iceShardGeo, mats.iceSubmerged);
+    calveSubmerged.scale.set(2.35, 1.45, 1.15);
+    calveSubmerged.position.set(0, -0.85, 0);
+    calveSubmerged.castShadow = true;
+    calveSubmerged.receiveShadow = true;
+    calvingSlabGroup.add(calveSubmerged);
+
+    const calveCore = new THREE.Mesh(iceShardGeo, mats.iceMid);
+    calveCore.scale.set(2.28, 1.65, 1.1);
+    calveCore.position.set(0, 0.2, 0.04);
+    calveCore.castShadow = true;
+    calveCore.receiveShadow = true;
+    calvingSlabGroup.add(calveCore);
+
+    const calveUpper = new THREE.Mesh(iceShardGeo, mats.iceBright);
+    calveUpper.scale.set(2.05, 1.25, 0.98);
+    calveUpper.position.set(-0.08, 1.15, 0.05);
+    calveUpper.rotation.z = 0.04;
+    calveUpper.castShadow = true;
+    calveUpper.receiveShadow = true;
+    calvingSlabGroup.add(calveUpper);
+
+    const calveCrownL = new THREE.Mesh(iceShardGeo, mats.snow);
+    calveCrownL.scale.set(1.05, 0.85, 0.86);
+    calveCrownL.position.set(-0.48, 1.75, 0.02);
+    calveCrownL.rotation.set(0.08, 0.16, -0.12);
+    calveCrownL.castShadow = true;
+    calvingSlabGroup.add(calveCrownL);
+
+    const calveCrownR = new THREE.Mesh(iceShardGeo, mats.snow);
+    calveCrownR.scale.set(0.95, 0.95, 0.82);
+    calveCrownR.position.set(0.46, 1.82, -0.02);
+    calveCrownR.rotation.set(-0.06, -0.2, 0.14);
+    calveCrownR.castShadow = true;
+    calvingSlabGroup.add(calveCrownR);
+
+    // Backfill wall behind the calving slab so when it drops, fresh glowing blue ice is exposed behind it
+    const freshScarMat = new THREE.MeshStandardMaterial({
+      color: 0x62c8f5,
+      emissive: 0x1a7ba8,
+      emissiveIntensity: 0.15,
+      roughness: 0.25,
+      metalness: 0.08,
+      flatShading: true
+    });
+    const freshScarMesh = new THREE.Mesh(iceShardGeo, freshScarMat);
+    freshScarMesh.scale.set(2.4, 3.3, 0.85);
+    freshScarMesh.position.set(0, 1.5, -4.65);
+    freshScarMesh.receiveShadow = true;
+    worldRoot.add(freshScarMesh);
+
+    // 5. DEEP BLUE-GREEN WATER SURFACE WITH VERTEX WAVE DISPLACEMENT
+    const WATER_W = 8.4;
+    const WATER_D = 13.8;
+    const waterGeo = new THREE.PlaneGeometry(WATER_W, WATER_D, 56, 84);
+    waterGeo.rotateX(-Math.PI * 0.5);
+
+    const waterBasePos = new Float32Array(waterGeo.attributes.position.array.length);
+    waterBasePos.set(waterGeo.attributes.position.array);
+
+    // Vertex colors for subtle depth gradient & shoreline foam tint
+    const waterColors = new Float32Array(waterGeo.attributes.position.count * 3);
+    const cDeep = new THREE.Color(0x0b586e);
+    const cMid = new THREE.Color(0x137a94);
+    const cEdge = new THREE.Color(0x3ba8bf);
+    const cTmp = new THREE.Color();
+
+    for (let i = 0; i < waterGeo.attributes.position.count; i++) {
+      const vx = waterBasePos[i * 3];
+      const vz = waterBasePos[i * 3 + 2];
+      const edgeFactor = Math.min(1, Math.pow(Math.abs(vx) / 3.45, 2.4));
+      const headFactor = Math.max(0, 1 - (vz + 6.9) / 5.5);
+      cTmp.copy(cDeep).lerp(cMid, headFactor * 0.55).lerp(cEdge, edgeFactor * 0.55);
+      waterColors[i * 3] = cTmp.r;
+      waterColors[i * 3 + 1] = cTmp.g;
+      waterColors[i * 3 + 2] = cTmp.b;
+    }
+    waterGeo.setAttribute('color', new THREE.BufferAttribute(waterColors, 3));
+
+    const waterMat = new THREE.MeshStandardMaterial({
+      vertexColors: true,
+      roughness: 0.22,
+      metalness: 0.14,
+      transparent: true,
+      opacity: 0.93,
+      flatShading: true
+    });
+
+    const waterMesh = new THREE.Mesh(waterGeo, waterMat);
+    waterMesh.position.set(0, WATER_Y, 1.05);
+    waterMesh.receiveShadow = true;
+    worldRoot.add(waterMesh);
+
+    // Shoreline lapping foam strips along both cliff walls
+    const shoreFoamMeshes = [];
+    const shoreBarGeo = createBeveledSlab(0.22, 0.06, 1.15, 0.03, 2, 1, 3, 0.02);
+    for (let side = -1; side <= 1; side += 2) {
+      for (let i = 0; i < 10; i++) {
+        const z = -3.6 + i * 1.18;
+        const x = side * (3.12 + (i / 9) * 0.42 + Math.sin(i * 1.5) * 0.14);
+        const sf = new THREE.Mesh(shoreBarGeo, mats.foam);
+        sf.position.set(x, WATER_Y + 0.02, z);
+        sf.rotation.y = side * 0.05 + Math.cos(i * 1.9) * 0.12;
+        worldRoot.add(sf);
+        shoreFoamMeshes.push({
+          mesh: sf,
+          baseX: x,
+          baseZ: z,
+          side,
+          phase: i * 0.7 + (side > 0 ? 1.6 : 0)
+        });
+      }
+    }
+
+    // 6. FLOATING ICEBERGS IN THE FJORD CHANNEL
+    const bergs = [];
+    const bergSpecs = [
+      { x: -1.45, z: -1.15, scale: 0.92, rotY: 0.4,  driftAmpX: 0.22, driftAmpZ: 0.28, speed: 0.55, tall: true },
+      { x:  1.35, z: -0.35, scale: 0.78, rotY: -0.8, driftAmpX: 0.24, driftAmpZ: 0.22, speed: 0.62, tall: false },
+      { x: -0.35, z:  1.45, scale: 1.05, rotY: 1.1,  driftAmpX: 0.28, driftAmpZ: 0.32, speed: 0.48, tall: true },
+      { x:  1.62, z:  2.75, scale: 0.74, rotY: 2.1,  driftAmpX: 0.20, driftAmpZ: 0.26, speed: 0.68, tall: false },
+      { x: -1.55, z:  3.55, scale: 0.85, rotY: -1.5, driftAmpX: 0.25, driftAmpZ: 0.25, speed: 0.52, tall: true },
+      { x:  0.32, z:  4.85, scale: 0.88, rotY: 0.25, driftAmpX: 0.26, driftAmpZ: 0.28, speed: 0.58, tall: false },
+      { x: -0.85, z:  6.05, scale: 0.68, rotY: 1.75, driftAmpX: 0.18, driftAmpZ: 0.22, speed: 0.74, tall: false }
+    ];
+
+    bergSpecs.forEach((spec, idx) => {
+      const group = new THREE.Group();
+      group.position.set(spec.x, WATER_Y, spec.z);
+
+      // Underwater teal keel
+      const keel = new THREE.Mesh(iceShardGeo, mats.iceSubmerged);
+      keel.scale.set(1.28 * spec.scale, 0.72 * spec.scale, 1.15 * spec.scale);
+      keel.position.y = -0.32 * spec.scale;
+      group.add(keel);
+
+      // Waterline ice shelf
+      const base = new THREE.Mesh(iceShardGeo, mats.iceMid);
+      base.scale.set(1.18 * spec.scale, 0.48 * spec.scale, 1.05 * spec.scale);
+      base.position.y = 0.16 * spec.scale;
+      base.castShadow = true;
+      base.receiveShadow = true;
+      group.add(base);
+
+      // Upper sculpted spire / tabular ridge
+      const spireH = (spec.tall ? 0.98 : 0.62) * spec.scale;
+      const spire = new THREE.Mesh(iceShardGeo, mats.iceBright);
+      spire.scale.set(0.82 * spec.scale, spireH, 0.76 * spec.scale);
+      spire.position.set(0.08 * spec.scale, 0.28 * spec.scale + spireH * 0.45, -0.05 * spec.scale);
+      spire.rotation.set(0.08, 0.35, -0.1);
+      spire.castShadow = true;
+      spire.receiveShadow = true;
+      group.add(spire);
+
+      // Snow crown
+      const cap = new THREE.Mesh(reusableSnowCapGeo, mats.snow);
+      cap.scale.set(0.88 * spec.scale, 0.55 * spec.scale, 0.82 * spec.scale);
+      cap.position.set(-0.12 * spec.scale, 0.36 * spec.scale, 0.06 * spec.scale);
+      cap.rotation.z = 0.08;
+      cap.castShadow = true;
+      group.add(cap);
+
+      worldRoot.add(group);
+
+      bergs.push({
+        group,
+        homeX: spec.x,
+        homeZ: spec.z,
+        baseRotY: spec.rotY,
+        scale: spec.scale,
+        driftAmpX: spec.driftAmpX,
+        driftAmpZ: spec.driftAmpZ,
+        speed: spec.speed,
+        phase: idx * 1.37 + randRange(0, 1.5),
+        // Impulse state from water tap or wave
+        wobbleTime: -999,
+        wobbleStrength: 0,
+        spinOffset: 0,
+        spinVel: 0
+      });
+    });
+
+    // Small scattered brash ice bits (instanced for crisp density)
+    const BRASH_COUNT = 42;
+    const brashGeo = new THREE.DodecahedronGeometry(0.14, 0);
+    const brashInst = new THREE.InstancedMesh(brashGeo, mats.iceBright, BRASH_COUNT);
+    brashInst.castShadow = true;
+    brashInst.receiveShadow = true;
+    worldRoot.add(brashInst);
+
+    const brashData = [];
+    for (let i = 0; i < BRASH_COUNT; i++) {
+      brashData.push({
+        x: randRange(-2.65, 2.65),
+        z: randRange(-3.1, 6.8),
+        scaleX: randRange(0.7, 1.6),
+        scaleY: randRange(0.35, 0.85),
+        scaleZ: randRange(0.7, 1.5),
+        rotY: randRange(0, Math.PI * 2),
+        phase: randRange(0, Math.PI * 2),
+        speed: randRange(0.5, 1.1)
+      });
+    }
+
+    // 7. INSTANCED SPRAY DROPLETS, FOAM BURST, CLIFF SNOW DUST, SNOWFALL & MELT DRIPS
+    const dummy = new THREE.Object3D();
+
+    // 7a. Instanced Spray Droplets (420 droplets for calving & water splash)
+    const SPRAY_COUNT = 420;
+    const sprayGeo = new THREE.IcosahedronGeometry(0.075, 0);
+    const sprayInst = new THREE.InstancedMesh(sprayGeo, mats.spray, SPRAY_COUNT);
+    sprayInst.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+    worldRoot.add(sprayInst);
+
+    const sprayParticles = [];
+    for (let i = 0; i < SPRAY_COUNT; i++) {
+      // Pre-seeded deterministic directions for calving burst (0..319) and water tap splash (320..419)
+      const angle = randRange(-Math.PI * 0.88, Math.PI * 0.88);
+      const speedH = randRange(1.2, 5.8);
+      const speedV = randRange(3.2, 8.2);
+      sprayParticles.push({
+        vx: Math.sin(angle) * speedH,
+        vy: speedV,
+        vz: Math.cos(angle) * speedH * 0.85 + randRange(0.4, 2.6),
+        x0: randRange(-1.45, 1.45),
+        z0: randRange(-0.45, 0.45),
+        size: randRange(0.65, 1.55),
+        delay: randRange(0, 0.28),
+        // Water tap splash dedicated parameters
+        splashAngle: (i / 100) * Math.PI * 2 + randRange(-0.2, 0.2),
+        splashRadSpeed: randRange(0.8, 3.2),
+        splashUpSpeed: randRange(2.4, 5.6)
+      });
+      dummy.position.set(0, -50, 0);
+      dummy.scale.setScalar(0.001);
+      dummy.updateMatrix();
+      sprayInst.setMatrixAt(i, dummy.matrix);
+    }
+    sprayInst.instanceMatrix.needsUpdate = true;
+
+    // 7b. Instanced Foam Burst Ring & Plume (240 puffs)
+    const FOAM_COUNT = 240;
+    const foamGeo = new THREE.DodecahedronGeometry(0.16, 0);
+    const foamInst = new THREE.InstancedMesh(foamGeo, mats.foam, FOAM_COUNT);
+    foamInst.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+    worldRoot.add(foamInst);
+
+    const foamParticles = [];
+    for (let i = 0; i < FOAM_COUNT; i++) {
+      const a = (i / FOAM_COUNT) * Math.PI * 2 + randRange(-0.15, 0.15);
+      foamParticles.push({
+        angle: a,
+        radMin: randRange(0.4, 1.3),
+        radMax: randRange(2.1, 4.4),
+        yHop: randRange(0.15, 1.15),
+        scaleBase: randRange(0.65, 1.65),
+        phase: randRange(0, Math.PI * 2),
+        isCliffDust: i >= 180 // Last 60 puffs act as cliff snow dust avalanche during calving!
+      });
+      dummy.position.set(0, -50, 0);
+      dummy.scale.setScalar(0.001);
+      dummy.updateMatrix();
+      foamInst.setMatrixAt(i, dummy.matrix);
+    }
+    foamInst.instanceMatrix.needsUpdate = true;
+
+    // 7c. Instanced Glinting Snowfall Crystals (160 crystals)
+    const SNOW_COUNT = 160;
+    const snowCrystalGeo = new THREE.OctahedronGeometry(0.055, 0);
+    const snowInst = new THREE.InstancedMesh(snowCrystalGeo, mats.snowCrystal, SNOW_COUNT);
+    snowInst.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+    worldRoot.add(snowInst);
+
+    const snowData = [];
+    for (let i = 0; i < SNOW_COUNT; i++) {
+      snowData.push({
+        x: randRange(-6.2, 6.2),
+        y: randRange(0.2, 6.4),
+        z: randRange(-6.8, 7.2),
+        fallSpeed: randRange(0.45, 0.95),
+        swayAmp: randRange(0.15, 0.42),
+        swayFreq: randRange(0.8, 1.8),
+        phase: randRange(0, Math.PI * 2),
+        scale: randRange(0.65, 1.35)
+      });
+    }
+
+    // 7d. Idle Melt Drips falling from the glacier face
+    const DRIP_COUNT = 6;
+    const dripGeo = new THREE.ConeGeometry(0.045, 0.18, 5);
+    const drips = [];
+    for (let i = 0; i < DRIP_COUNT; i++) {
+      const mesh = new THREE.Mesh(dripGeo, mats.iceBright);
+      const ringMat = mats.rippleRing.clone();
+      const ringGeo = new THREE.RingGeometry(0.06, 0.13, 18);
+      ringGeo.rotateX(-Math.PI * 0.5);
+      const ring = new THREE.Mesh(ringGeo, ringMat);
+
+      worldRoot.add(mesh);
+      worldRoot.add(ring);
+
+      drips.push({
+        mesh,
+        ring,
+        ringMat,
+        x: -2.4 + i * 0.96 + randRange(-0.15, 0.15),
+        yStart: randRange(2.2, 3.6),
+        z: -4.05 + randRange(-0.12, 0.12),
+        period: randRange(3.2, 5.4),
+        offset: i * 0.85 + randRange(0, 1.2)
+      });
+    }
+
+    // 8. EXPANDING WATER RIPPLE RINGS (For Interaction 2: Water Tap + Interaction 1: Calving Wave)
+    const rippleRings = [];
+    const baseRingGeo = new THREE.RingGeometry(0.78, 1.0, 40);
+    baseRingGeo.rotateX(-Math.PI * 0.5);
+
+    for (let i = 0; i < 6; i++) {
+      const rMat = mats.rippleRing.clone();
+      const rMesh = new THREE.Mesh(baseRingGeo, rMat);
+      rMesh.position.set(0, WATER_Y + 0.04, 0);
+      rMesh.visible = false;
+      worldRoot.add(rMesh);
+      rippleRings.push({ mesh: rMesh, mat: rMat });
+    }
+
+    // 9. GENEROUS INVISIBLE RAYCAST PROXIES (Unmistakable at 320px)
+    const glacierProxyGeo = new THREE.BoxGeometry(8.8, 6.2, 3.8);
+    const glacierProxy = new THREE.Mesh(glacierProxyGeo, mats.invisibleProxy);
+    glacierProxy.position.set(0, 2.3, -5.2);
+    glacierProxy.name = 'glacierTarget';
+    worldRoot.add(glacierProxy);
+
+    const waterProxyGeo = new THREE.BoxGeometry(8.6, 0.7, 12.6);
+    const waterProxy = new THREE.Mesh(waterProxyGeo, mats.invisibleProxy);
+    waterProxy.position.set(0, WATER_Y, 1.65);
+    waterProxy.name = 'waterTarget';
+    worldRoot.add(waterProxy);
+
+    const interactiveTargets = [glacierProxy, waterProxy];
+
+    // 10. INTERACTION STATE MACHINES (All driven by performance.now)
+    const CALVE_DURATION = 6.2; // ~6 seconds full cycle
+    let calveState = {
+      active: false,
+      startTime: -999
+    };
+
+    const WATER_TAP_DURATION = 3.6;
+    let waterTapState = {
+      active: false,
+      startTime: -999,
+      point: new THREE.Vector3(0, WATER_Y, 1.5),
+      targetBergIndex: 2
+    };
+
+    // Wave sources array (each wave has origin x, z, startTime, amplitude, speed, wavelength, decay)
+    const activeWaves = [];
+
+    function triggerCalving(nowSec) {
+      // Allow re-trigger after reset (~6.2s); never locks
+      if (calveState.active && (nowSec - calveState.startTime) < CALVE_DURATION) {
+        return;
+      }
+      calveState.active = true;
+      calveState.startTime = nowSec;
+
+      // Schedule rolling calving wave when the slab hits the water at t = 1.72s
+      activeWaves.push({
+        x: 0.0,
+        z: -3.25,
+        startTime: nowSec + 1.72,
+        duration: 4.5,
+        amp: 0.42,
+        speed: 4.3,
+        freq: 2.3
+      });
+
+      // Keep activeWaves tidy
+      while (activeWaves.length > 8) activeWaves.shift();
+    }
+
+    function triggerWaterTap(point, nowSec) {
+      waterTapState.active = true;
+      waterTapState.startTime = nowSec;
+      waterTapState.point.set(
+        THREE.MathUtils.clamp(point.x, -2.7, 2.7),
+        WATER_Y,
+        THREE.MathUtils.clamp(point.z, -2.6, 6.6)
+      );
+
+      // Add radial wave on water mesh
+      activeWaves.push({
+        x: waterTapState.point.x,
+        z: waterTapState.point.z,
+        startTime: nowSec,
+        duration: 3.5,
+        amp: 0.24,
+        speed: 3.8,
+        freq: 3.4
+      });
+      while (activeWaves.length > 8) activeWaves.shift();
+
+      // Find nearest floating iceberg and give it a wobble + slow spin impulse
+      let bestIdx = 0;
+      let bestDistSq = Infinity;
+      bergs.forEach((b, idx) => {
+        const dx = b.group.position.x - waterTapState.point.x;
+        const dz = b.group.position.z - waterTapState.point.z;
+        const d2 = dx * dx + dz * dz;
+        if (d2 < bestDistSq) {
+          bestDistSq = d2;
+          bestIdx = idx;
+        }
+      });
+
+      waterTapState.targetBergIndex = bestIdx;
+      const targetBerg = bergs[bestIdx];
+      targetBerg.wobbleTime = nowSec;
+      targetBerg.wobbleStrength = 1.0;
+      targetBerg.spinVel = 2.6;
+    }
+
+    // Raycaster & Pointer Tap vs Drag Detection
+    const raycaster = new THREE.Raycaster();
+    const pointerNdc = new THREE.Vector2();
+    let pointerDownPos = { x: 0, y: 0 };
+    let pointerDownTime = 0;
+    let isPointerDown = false;
+
+    function onPointerDown(e) {
+      isPointerDown = true;
+      pointerDownPos.x = e.clientX;
+      pointerDownPos.y = e.clientY;
+      pointerDownTime = performance.now();
+    }
+
+    function onPointerUp(e) {
+      if (!isPointerDown) return;
+      isPointerDown = false;
+
+      const dx = e.clientX - pointerDownPos.x;
+      const dy = e.clientY - pointerDownPos.y;
+      const dist = Math.hypot(dx, dy);
+      const elapsed = performance.now() - pointerDownTime;
+
+      // Distinguish intentional tap from orbit drag
+      if (dist > 9 || elapsed > 550) return;
+
+      const rect = renderer.domElement.getBoundingClientRect();
+      pointerNdc.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+      pointerNdc.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+
+      raycaster.setFromCamera(pointerNdc, camera);
+      const hits = raycaster.intersectObjects(interactiveTargets, false);
+
+      const nowSec = performance.now() * 0.001;
+      if (hits.length > 0) {
+        const first = hits[0];
+        if (first.object.name === 'glacierTarget') {
+          triggerCalving(nowSec);
+        } else if (first.object.name === 'waterTarget') {
+          triggerWaterTap(first.point, nowSec);
+        }
+      }
+    }
+
+    renderer.domElement.addEventListener('pointerdown', onPointerDown);
+    renderer.domElement.addEventListener('pointerup', onPointerUp);
+
+    // 11. ASPECT-AWARE BOUNDING-BOX CAMERA FRAMING
+    // Include ALL important geometry: slab base, glacier top, cliffs, berg field, and splash headroom
+    const SCENE_BOUNDS = new THREE.Box3(
+      new THREE.Vector3(-7.55, -2.35, -8.55),
+      new THREE.Vector3(7.55, 6.45, 8.55)
+    );
+    const SCENE_CENTER = new THREE.Vector3(0, 1.35, 0.25);
+
+    const boundCorners = [
+      new THREE.Vector3(SCENE_BOUNDS.min.x, SCENE_BOUNDS.min.y, SCENE_BOUNDS.min.z),
+      new THREE.Vector3(SCENE_BOUNDS.max.x, SCENE_BOUNDS.min.y, SCENE_BOUNDS.min.z),
+      new THREE.Vector3(SCENE_BOUNDS.min.x, SCENE_BOUNDS.max.y, SCENE_BOUNDS.min.z),
+      new THREE.Vector3(SCENE_BOUNDS.max.x, SCENE_BOUNDS.max.y, SCENE_BOUNDS.min.z),
+      new THREE.Vector3(SCENE_BOUNDS.min.x, SCENE_BOUNDS.min.y, SCENE_BOUNDS.max.z),
+      new THREE.Vector3(SCENE_BOUNDS.max.x, SCENE_BOUNDS.min.y, SCENE_BOUNDS.max.z),
+      new THREE.Vector3(SCENE_BOUNDS.min.x, SCENE_BOUNDS.max.y, SCENE_BOUNDS.max.z),
+      new THREE.Vector3(SCENE_BOUNDS.max.x, SCENE_BOUNDS.max.y, SCENE_BOUNDS.max.z)
+    ];
+
+    // Elevated three-quarter view direction
+    const VIEW_DIR = new THREE.Vector3(0.36, 0.56, 0.745).normalize();
+
+    function updateLayoutAndCamera() {
+      const width = Math.max(1, stageWrap.clientWidth);
+      const height = Math.max(1, stageWrap.clientHeight);
+      const aspect = width / height;
+
+      renderer.setSize(width, height, false);
+
+      // Aspect-aware vertical FOV (portrait wider so narrow 320x700 & 390x844 have generous breathing room)
+      const vFovDeg = aspect < 1.0
+        ? THREE.MathUtils.clamp(38 + (1.0 - aspect) * 14, 38, 48)
+        : 34;
+
+      camera.fov = vFovDeg;
+      camera.aspect = aspect;
+      camera.updateProjectionMatrix();
+
+      // Compute exact camera distance from projected bounding box of all important geometry
+      const vFovRad = THREE.MathUtils.degToRad(vFovDeg);
+      const tanHalfV = Math.tan(vFovRad * 0.5);
+      const tanHalfH = tanHalfV * aspect;
+
+      // Build camera basis at unit distance looking at SCENE_CENTER along VIEW_DIR
+      const camForward = VIEW_DIR.clone().negate();
+      const worldUp = new THREE.Vector3(0, 1, 0);
+      const camRight = new THREE.Vector3().crossVectors(camForward, worldUp).normalize();
+      const camUp = new THREE.Vector3().crossVectors(camRight, camForward).normalize();
+
+      // Reserve small safe padding inside the stage canvas (header/footer already sit outside #stage-wrap)
+      const padFactor = aspect < 0.75 ? 1.07 : 1.11;
+
+      let requiredDist = 14.0;
+      for (let i = 0; i < boundCorners.length; i++) {
+        const rel = boundCorners[i].clone().sub(SCENE_CENTER);
+        const projX = Math.abs(rel.dot(camRight));
+        const projY = Math.abs(rel.dot(camUp));
+        const projZ = rel.dot(VIEW_DIR); // offset toward camera along view axis
+
+        const distForX = (projX * padFactor) / tanHalfH + projZ;
+        const distForY = (projY * padFactor) / tanHalfV + projZ;
+        requiredDist = Math.max(requiredDist, distForX, distForY);
+      }
+
+      controls.target.copy(SCENE_CENTER);
+      camera.position.copy(SCENE_CENTER).addScaledVector(VIEW_DIR, requiredDist);
+      controls.minDistance = requiredDist * 0.86;
+      controls.maxDistance = requiredDist * 1.18;
+      controls.update();
+    }
+
+    window.addEventListener('resize', updateLayoutAndCamera);
+    updateLayoutAndCamera();
+
+    // Helper for evaluating water surface height at (x, z, nowSec)
+    function sampleWaterHeight(x, z, nowSec) {
+      // Gentle idle lapping swells
+      let h =
+        Math.sin(x * 0.85 + nowSec * 1.65) * 0.045 +
+        Math.cos(z * 0.65 - nowSec * 1.35) * 0.045 +
+        Math.sin((x + z) * 1.2 + nowSec * 2.1) * 0.025;
+
+      // Add active dynamic waves (from calving impact or water tap)
+      for (let i = 0; i < activeWaves.length; i++) {
+        const w = activeWaves[i];
+        const age = nowSec - w.startTime;
+        if (age <= 0 || age > w.duration) continue;
+
+        const dist = Math.hypot(x - w.x, z - w.z);
+        const waveFront = age * w.speed;
+        const delta = dist - waveFront;
+
+        // Packet envelope around the expanding wave crest
+        const envelope = Math.exp(-(delta * delta) * 0.42) * Math.max(0, 1 - age / w.duration);
+        const distAtten = 1 / (1 + dist * 0.14);
+        h += Math.sin(delta * w.freq * -1.0) * w.amp * envelope * distAtten;
+      }
+
+      return h;
+    }
+
+    // 12. MAIN ANIMATION LOOP (100% performance.now driven)
+    function animate(nowMs) {
+      requestAnimationFrame(animate);
+
+      const nowSec = nowMs * 0.001;
+
+      // A. Update Water Surface Mesh Vertices
+      const wPos = waterGeo.attributes.position;
+      for (let i = 0; i < wPos.count; i++) {
+        const bx = waterBasePos[i * 3];
+        const bz = waterBasePos[i * 3 + 2];
+        const worldZ = bz + waterMesh.position.z;
+        const wy = sampleWaterHeight(bx, worldZ, nowSec);
+        wPos.setY(i, wy);
+      }
+      wPos.needsUpdate = true;
+      waterGeo.computeVertexNormals();
+
+      // B. Update Shoreline Lapping Foam Strips
+      for (let i = 0; i < shoreFoamMeshes.length; i++) {
+        const sf = shoreFoamMeshes[i];
+        const lap = Math.sin(nowSec * 1.9 + sf.phase);
+        const waveH = sampleWaterHeight(sf.baseX, sf.baseZ, nowSec);
+        sf.mesh.position.x = sf.baseX - sf.side * (lap * 0.07);
+        sf.mesh.position.y = WATER_Y + 0.025 + Math.max(0, waveH * 0.7);
+        sf.mesh.scale.x = 0.85 + (lap + 1) * 0.25;
+      }
+
+      // C. Update Idle Glacier Glints & Melt Drips
+      for (let i = 0; i < glintMeshes.length; i++) {
+        const g = glintMeshes[i];
+        const pulse = 0.5 + 0.5 * Math.sin(nowSec * g.speed + g.phase);
+        const s = 0.4 + Math.pow(pulse, 3.0) * 1.15;
+        g.mesh.scale.setScalar(s);
+        g.mesh.rotation.y = nowSec * 1.2 + g.phase;
+        g.mat.opacity = 0.25 + Math.pow(pulse, 2.0) * 0.75;
+      }
+
+      for (let i = 0; i < drips.length; i++) {
+        const d = drips[i];
+        const cycle = ((nowSec + d.offset) % d.period) / d.period;
+        if (cycle < 0.35) {
+          // Falling droplet from glacier face
+          const t = cycle / 0.35;
+          d.mesh.visible = true;
+          d.mesh.position.set(d.x, d.yStart * (1 - t * t), d.z);
+          d.mesh.scale.set(0.85, 0.85 + t * 0.6, 0.85);
+          d.ring.visible = false;
+        } else if (cycle < 0.75) {
+          // Tiny impact ripple on water
+          const t = (cycle - 0.35) / 0.4;
+          d.mesh.visible = false;
+          d.ring.visible = true;
+          d.ring.position.set(d.x, WATER_Y + 0.03, d.z);
+          const rScale = 0.6 + t * 3.8;
+          d.ring.scale.setScalar(rScale);
+          d.ringMat.opacity = (1 - t) * 0.52;
+        } else {
+          d.mesh.visible = false;
+          d.ring.visible = false;
+        }
+      }
+
+      // D. Update Floating Icebergs (Idle slow drift + wave rocking + water tap wobble/spin)
+      for (let i = 0; i < bergs.length; i++) {
+        const b = bergs[i];
+        const driftX = Math.sin(nowSec * b.speed + b.phase) * b.driftAmpX;
+        const driftZ = Math.cos(nowSec * b.speed * 0.82 + b.phase) * b.driftAmpZ;
+        const bx = b.homeX + driftX;
+        const bz = b.homeZ + driftZ;
+
+        // Sample wave heights around the berg to compute realistic pitch & roll from rolling waves
+        const hCenter = sampleWaterHeight(bx, bz, nowSec);
+        const hFront = sampleWaterHeight(bx, bz + 0.45, nowSec);
+        const hRight = sampleWaterHeight(bx + 0.45, bz, nowSec);
+
+        const wavePitch = (hFront - hCenter) * 1.55;
+        const waveRoll = (hCenter - hRight) * 1.55;
+
+        // Additional wobble & spin if tapped near this berg
+        let tapWobblePitch = 0;
+        let tapWobbleRoll = 0;
+        const tapElapsed = nowSec - b.wobbleTime;
+        if (tapElapsed >= 0 && tapElapsed < 3.4) {
+          const decay = Math.exp(-tapElapsed * 1.35) * (1 - tapElapsed / 3.4);
+          tapWobblePitch = Math.sin(tapElapsed * 9.5) * 0.28 * decay * b.wobbleStrength;
+          tapWobbleRoll = Math.cos(tapElapsed * 8.2) * 0.26 * decay * b.wobbleStrength;
+          b.spinOffset += (b.spinVel * decay) * 0.016;
+        }
+
+        b.group.position.set(bx, WATER_Y + hCenter * 0.88, bz);
+        b.group.rotation.x = Math.sin(nowSec * 1.3 + b.phase) * 0.04 + wavePitch + tapWobblePitch;
+        b.group.rotation.z = Math.cos(nowSec * 1.15 + b.phase) * 0.04 + waveRoll + tapWobbleRoll;
+        b.group.rotation.y = b.baseRotY + Math.sin(nowSec * 0.4 + b.phase) * 0.12 + b.spinOffset;
+      }
+
+      // E. Update Brash Ice Fragments
+      for (let i = 0; i < BRASH_COUNT; i++) {
+        const bd = brashData[i];
+        const bx = bd.x + Math.sin(nowSec * bd.speed + bd.phase) * 0.12;
+        const bz = bd.z + Math.cos(nowSec * bd.speed * 0.9 + bd.phase) * 0.12;
+        const wh = sampleWaterHeight(bx, bz, nowSec);
+        dummy.position.set(bx, WATER_Y + wh * 0.92, bz);
+        dummy.rotation.set(
+          Math.sin(nowSec * 1.8 + bd.phase) * 0.12,
+          bd.rotY + nowSec * 0.15,
+          Math.cos(nowSec * 1.6 + bd.phase) * 0.12
+        );
+        dummy.scale.set(bd.scaleX, bd.scaleY, bd.scaleZ);
+        dummy.updateMatrix();
+        brashInst.setMatrixAt(i, dummy.matrix);
+      }
+      brashInst.instanceMatrix.needsUpdate = true;
+
+      // F. Update Glinting Snowfall (Strictly bounded inside diorama airspace so it never crosses header/footer)
+      for (let i = 0; i < SNOW_COUNT; i++) {
+        const s = snowData[i];
+        let y = (s.y - nowSec * s.fallSpeed) % 5.6;
+        if (y < 0) y += 5.6;
+        y += 0.15; // range 0.15 .. 5.75
+        const x = s.x + Math.sin(nowSec * s.swayFreq + s.phase) * s.swayAmp;
+        const z = s.z + Math.cos(nowSec * s.swayFreq * 0.8 + s.phase) * s.swayAmp;
+
+        dummy.position.set(x, y, z);
+        dummy.rotation.set(nowSec * 1.5 + s.phase, nowSec * 2.1 + s.phase, 0);
+        const glintScale = s.scale * (0.75 + 0.35 * Math.sin(nowSec * 4.0 + s.phase));
+        dummy.scale.setScalar(glintScale);
+        dummy.updateMatrix();
+        snowInst.setMatrixAt(i, dummy.matrix);
+      }
+      snowInst.instanceMatrix.needsUpdate = true;
+
+      // G. INTERACTION 1: HERO GLACIER CALVING SEQUENCE (~6.2 seconds)
+      let calveSprayActive = false;
+      let calveSprayTime = 0;
+
+      if (calveState.active) {
+        const ct = nowSec - calveState.startTime;
+
+        if (ct >= CALVE_DURATION) {
+          // Clean reset to baseline
+          calveState.active = false;
+          calvingSlabGroup.position.copy(CALVE_HOME_POS);
+          calvingSlabGroup.rotation.set(0, 0, 0);
+          calvingSlabGroup.scale.setScalar(1);
+          crackSegments.forEach((cs) => { cs.mat.opacity = 0.0; });
+        } else {
+          // Phase 1 (0.0s -> 1.05s): Glowing cyan crack lines race up the glacier face + high-frequency tremor
+          if (ct < 1.05) {
+            const p = ct / 1.05;
+            crackSegments.forEach((cs) => {
+              const localP = THREE.MathUtils.clamp((p - cs.threshold) / 0.25, 0, 1);
+              cs.mat.opacity = localP * (0.75 + 0.25 * Math.sin(ct * 28.0));
+            });
+            const tremor = Math.sin(ct * 55.0) * 0.06 * p;
+            calvingSlabGroup.position.set(
+              CALVE_HOME_POS.x + tremor,
+              CALVE_HOME_POS.y,
+              CALVE_HOME_POS.z + p * 0.14
+            );
+            calvingSlabGroup.rotation.set(p * 0.08, tremor * 0.3, tremor * 0.2);
+            calvingSlabGroup.scale.setScalar(1.0);
+          }
+          // Phase 2 (1.05s -> 1.72s): Slab splits off with a jolt and accelerates down into the water
+          else if (ct < 1.72) {
+            const p = (ct - 1.05) / 0.67;
+            const easeIn = p * p;
+            crackSegments.forEach((cs) => {
+              cs.mat.opacity = Math.max(0, 1 - p * 1.2);
+            });
+            calvingSlabGroup.position.set(
+              CALVE_HOME_POS.x,
+               THREE.MathUtils.lerp(CALVE_HOME_POS.y, -0.58, easeIn),
+              THREE.MathUtils.lerp(CALVE_HOME_POS.z + 0.14, -2.95, p)
+            );
+            calvingSlabGroup.rotation.set(0.08 + easeIn * 0.58, -p * 0.12, p * 0.06);
+            calvingSlabGroup.scale.setScalar(1.0 - p * 0.12);
+          }
+          // Phase 3 (1.72s -> 5.3s): Deep plunge, violent foam & spray burst, newborn iceberg bobs and drifts forward
+          else if (ct < 5.3) {
+            const p = (ct - 1.72) / 3.58;
+            crackSegments.forEach((cs) => { cs.mat.opacity = 0; });
+
+            // Damped vertical bobbing after plunge
+            const bob = -Math.cos(p * Math.PI * 4.5) * Math.exp(-p * 3.1) * 0.62;
+            const driftZ = -2.95 + (1 - Math.pow(1 - p, 2.2)) * 1.15;
+            const waveY = sampleWaterHeight(0, driftZ, nowSec) * 0.6;
+
+            calvingSlabGroup.position.set(
+              Math.sin(p * 3.0) * 0.12,
+              WATER_Y - 0.15 + bob + waveY,
+              driftZ
+            );
+            const rockDecay = Math.exp(-p * 2.5);
+            calvingSlabGroup.rotation.set(
+              0.66 * rockDecay + Math.sin(p * 9.0) * 0.22 * rockDecay,
+              -0.12 - p * 0.25,
+              Math.cos(p * 7.5) * 0.16 * rockDecay
+            );
+            calvingSlabGroup.scale.setScalar(0.88);
+          }
+          // Phase 4 (5.3s -> 6.2s): Newborn berg submerges cleanly while fresh glacier face advances into place
+          else {
+            const p = (ct - 5.3) / 0.9;
+            if (p < 0.45) {
+              const subP = p / 0.45;
+              calvingSlabGroup.position.y = (WATER_Y - 0.15) - subP * 1.8;
+              calvingSlabGroup.scale.setScalar(0.88 * (1 - subP));
+            } else {
+              const emergeP = (p - 0.45) / 0.55;
+              const smooth = emergeP * emergeP * (3 - 2 * emergeP);
+              calvingSlabGroup.position.set(
+                CALVE_HOME_POS.x,
+                CALVE_HOME_POS.y,
+                THREE.MathUtils.lerp(CALVE_HOME_POS.z - 0.45, CALVE_HOME_POS.z, smooth)
+              );
+              calvingSlabGroup.rotation.set(0, 0, 0);
+              calvingSlabGroup.scale.setScalar(smooth);
+            }
+          }
+
+          // Trigger spray & foam burst from t = 1.68s to t = 4.2s
+          if (ct >= 1.68 && ct <= 4.2) {
+            calveSprayActive = true;
+            calveSprayTime = ct - 1.68;
+          }
+        }
+      }
+
+      // H. Update Instanced Spray (0..319 = Calving Spray, 320..419 = Water Tap Splash) & Foam/Cliff Dust
+      const waterSplashElapsed = nowSec - waterTapState.startTime;
+      const waterSplashActive = waterTapState.active && waterSplashElapsed >= 0 && waterSplashElapsed < 1.35;
+
+      for (let i = 0; i < SPRAY_COUNT; i++) {
+        const sp = sprayParticles[i];
+
+        if (i < 320) {
+          // Calving spray droplets
+          const t = calveSprayTime - sp.delay;
+          if (calveSprayActive && t > 0 && t < 1.85) {
+            const grav = 9.4;
+            const px = sp.x0 + sp.vx * t * 0.48;
+            let py = WATER_Y + 0.1 + sp.vy * t - 0.5 * grav * t * t;
+            const pz = -3.15 + sp.vz * t * 0.48;
+
+            // Clamp spray headroom so it never crosses header
+            py = Math.min(py, 5.35);
+
+            if (py >= WATER_Y - 0.1) {
+              dummy.position.set(px, py, pz);
+              const s = sp.size * (1 - t / 1.85);
+              dummy.scale.set(s, s * 1.35, s);
+              dummy.rotation.set(t * 3.0, t * 2.0, 0);
+            } else {
+              dummy.position.set(0, -50, 0);
+              dummy.scale.setScalar(0.001);
+            }
+          } else {
+            dummy.position.set(0, -50, 0);
+            dummy.scale.setScalar(0.001);
+          }
+        } else {
+          // Water tap splash droplets (indices 320..419)
+          const t = waterSplashElapsed;
+          if (waterSplashActive && t > 0 && t < 1.1) {
+            const grav = 10.5;
+            const rad = sp.splashRadSpeed * t * 0.42;
+            const px = waterTapState.point.x + Math.cos(sp.splashAngle) * rad;
+            const pz = waterTapState.point.z + Math.sin(sp.splashAngle) * rad;
+            const py = Math.min(4.5, WATER_Y + 0.06 + sp.splashUpSpeed * t - 0.5 * grav * t * t);
+
+            if (py >= WATER_Y - 0.05) {
+              dummy.position.set(px, py, pz);
+              const s = sp.size * (1 - t / 1.1) * 0.9;
+              dummy.scale.set(s, s * 1.4, s);
+            } else {
+              dummy.position.set(0, -50, 0);
+              dummy.scale.setScalar(0.001);
+            }
+          } else {
+            dummy.position.set(0, -50, 0);
+            dummy.scale.setScalar(0.001);
+          }
+        }
+
+        dummy.updateMatrix();
+        sprayInst.setMatrixAt(i, dummy.matrix);
+      }
+      sprayInst.instanceMatrix.needsUpdate = true;
+
+      // Update Instanced Foam Burst & Cliff Snow Dust
+      const ct = calveState.active ? (nowSec - calveState.startTime) : -1;
+      for (let i = 0; i < FOAM_COUNT; i++) {
+        const fp = foamParticles[i];
+
+        if (!fp.isCliffDust) {
+          // Waterline foam plume & radiating foam ring during calving impact (1.70s .. 4.6s)
+          const ft = ct - 1.70;
+          if (calveState.active && ft > 0 && ft < 2.9) {
+            const p = ft / 2.9;
+            const easeOut = 1 - Math.pow(1 - p, 2.6);
+            const r = THREE.MathUtils.lerp(fp.radMin * 0.35, fp.radMax, easeOut);
+            const fx = Math.cos(fp.angle) * r * 0.72;
+            const fz = -3.1 + Math.sin(fp.angle) * r * 0.65 + p * 0.9;
+
+            // Keep inside water channel width
+            if (Math.abs(fx) < 2.95 && fz > -4.2 && fz < 7.2) {
+              const hop = Math.sin(Math.min(1, ft * 2.2) * Math.PI) * fp.yHop * (1 - p);
+              const fy = WATER_Y + 0.05 + Math.max(0, hop);
+              const s = fp.scaleBase * Math.sin(p * Math.PI) * 1.25;
+              dummy.position.set(fx, fy, fz);
+              dummy.scale.set(s * 1.2, s * 0.65, s * 1.2);
+              dummy.rotation.set(0, fp.angle + ft, 0);
+            } else {
+              dummy.position.set(0, -50, 0);
+              dummy.scale.setScalar(0.001);
+            }
+          } else {
+            dummy.position.set(0, -50, 0);
+            dummy.scale.setScalar(0.001);
+          }
+        } else {
+          // Cliff snow dusting off both steep rocky cliffs when the glacier jolts (0.6s .. 3.4s)
+          const dt = ct - 0.6;
+          if (calveState.active && dt > 0 && dt < 2.8) {
+            const p = dt / 2.8;
+            const side = (i % 2 === 0) ? -1 : 1;
+            const idxLocal = i - 180;
+            const zCliff = -4.2 + (idxLocal / 60) * 5.8;
+            const xCliff = side * (3.25 - p * 0.55) + Math.sin(fp.phase + dt * 3) * 0.15;
+            const yCliff = 3.6 - p * p * 3.8;
+
+            if (yCliff > WATER_Y + 0.05) {
+              dummy.position.set(xCliff, yCliff, zCliff);
+              const s = fp.scaleBase * 0.55 * (1 - p * 0.7);
+              dummy.scale.setScalar(s);
+              dummy.rotation.set(dt * 2, dt * 3, 0);
+            } else {
+              dummy.position.set(0, -50, 0);
+              dummy.scale.setScalar(0.001);
+            }
+          } else {
+            dummy.position.set(0, -50, 0);
+            dummy.scale.setScalar(0.001);
+          }
+        }
+
+        dummy.updateMatrix();
+        foamInst.setMatrixAt(i, dummy.matrix);
+      }
+      foamInst.instanceMatrix.needsUpdate = true;
+
+      // I. Update Expanding Ripple Rings (0..2 = Water Tap rings, 3..5 = Calving Wave rings)
+      for (let i = 0; i < 3; i++) {
+        const ringObj = rippleRings[i];
+        const delay = i * 0.24;
+        const rt = waterSplashElapsed - delay;
+        if (waterTapState.active && rt > 0 && rt < 2.2) {
+          const p = rt / 2.2;
+          ringObj.mesh.visible = true;
+          ringObj.mesh.position.set(
+            waterTapState.point.x,
+            WATER_Y + 0.045 + sampleWaterHeight(waterTapState.point.x, waterTapState.point.z, nowSec) * 0.4,
+            waterTapState.point.z
+          );
+          const scale = 0.18 + (1 - Math.pow(1 - p, 2.0)) * 2.55;
+          ringObj.mesh.scale.setScalar(scale);
+          ringObj.mat.opacity = (1 - p) * (1 - p) * 0.82;
+        } else {
+          ringObj.mesh.visible = false;
+        }
+      }
+
+      for (let i = 0; i < 3; i++) {
+        const ringObj = rippleRings[i + 3];
+        const delay = 1.72 + i * 0.32;
+        const rt = ct - delay;
+        if (calveState.active && rt > 0 && rt < 2.8) {
+          const p = rt / 2.8;
+          ringObj.mesh.visible = true;
+          ringObj.mesh.position.set(0, WATER_Y + 0.05, -2.85 + p * 2.4);
+          const scale = 0.55 + p * 3.1;
+          ringObj.mesh.scale.set(scale * 0.85, scale, scale * 1.15);
+          ringObj.mat.opacity = (1 - p) * 0.72;
+        } else {
+          ringObj.mesh.visible = false;
+        }
+      }
+
+      if (waterTapState.active && waterSplashElapsed > WATER_TAP_DURATION) {
+        waterTapState.active = false;
+      }
+
+      controls.update();
+      renderer.render(scene, camera);
+    }
+
+    requestAnimationFrame(animate);
+  </script>
 </body>
 </html>
