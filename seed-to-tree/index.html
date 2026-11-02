@@ -1,499 +1,1897 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Seed to Tree - a tiny world</title>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+<title>Seed to tree — a tiny world</title>
 <style>
-  html, body { margin:0; padding:0; height:100%; background:#a9d6ee; overflow:hidden;
-    font-family: Georgia, 'Times New Roman', serif; }
-  #app { position:fixed; inset:0; }
-  header { position:fixed; top:0; left:0; right:0; text-align:center; pointer-events:none;
-    padding: max(18px, env(safe-area-inset-top)) 16px 18px; z-index:5;
-    background: linear-gradient(rgba(28,50,38,.60), rgba(28,50,38,.28) 55%, rgba(28,50,38,0)); }
-  header h1 { margin:0; font-size:15px; letter-spacing:.42em; font-weight:400;
-    color:#f7fbf4; text-transform:uppercase; text-shadow:0 1px 8px rgba(30,48,36,.7); }
-  header .rule { width:44px; height:1px; background:rgba(247,251,244,.55); margin:9px auto; }
-  #hint { display:inline-block; font-size:11.5px; letter-spacing:.24em; text-transform:uppercase;
-    color:#fbfef9; transition:opacity 1.2s ease; padding:5px 12px; border-radius:3px;
-    background:rgba(24,42,32,.40);
-    text-shadow:0 1px 3px rgba(12,22,16,.98), 0 0 8px rgba(12,22,16,.95), 0 0 18px rgba(12,22,16,.85); }
-  #hint.faded { opacity:.45; }
-  footer { position:fixed; bottom:0; left:0; right:0; text-align:center; pointer-events:none;
-    padding:0 16px max(14px, env(safe-area-inset-bottom)); z-index:5;
-    font-size:10px; letter-spacing:.34em; text-transform:uppercase; color:rgba(247,251,244,.6); }
-  canvas { display:block; touch-action:none; }
+  *, *::before, *::after {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+    user-select: none;
+    -webkit-user-select: none;
+    -webkit-touch-callout: none;
+  }
+
+  html, body {
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    background: linear-gradient(180deg, #b8e1f5 0%, #e6f4f1 48%, #f8ebd7 100%);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    color: #36291e;
+  }
+
+  #app {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    overflow: hidden;
+  }
+
+  /* Header & Footer Safe Zones — strictly separate from WebGL viewport so particles never cross them */
+  #ui-header {
+    position: relative;
+    z-index: 10;
+    flex: 0 0 auto;
+    padding: clamp(8px, 1.8vh, 16px) 16px clamp(6px, 1.2vh, 12px);
+    text-align: center;
+    background: linear-gradient(180deg, rgba(244, 250, 253, 0.92) 0%, rgba(235, 246, 250, 0.78) 80%, rgba(235, 246, 250, 0.0) 100%);
+    border-bottom: 1px solid rgba(92, 72, 52, 0.08);
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+  }
+
+  .title-row {
+    display: flex;
+    align-items: baseline;
+    justify-content: center;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+
+  h1 {
+    font-family: Georgia, "Times New Roman", serif;
+    font-size: clamp(1.15rem, 2.8vw, 1.55rem);
+    font-weight: 700;
+    letter-spacing: -0.01em;
+    color: #2c2016;
+    line-height: 1.15;
+  }
+
+  .subtitle {
+    font-family: Georgia, "Times New Roman", serif;
+    font-style: italic;
+    font-size: clamp(0.85rem, 2vw, 1.05rem);
+    color: #6b533b;
+    line-height: 1.15;
+  }
+
+  #hint-pill {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    margin-top: 5px;
+    padding: 3px 12px;
+    border-radius: 999px;
+    background: rgba(255, 251, 244, 0.85);
+    border: 1px solid rgba(130, 98, 66, 0.22);
+    box-shadow: 0 2px 6px rgba(60, 40, 20, 0.06);
+    font-size: clamp(0.7rem, 1.75vw, 0.82rem);
+    font-weight: 500;
+    color: #4f3b28;
+    letter-spacing: 0.01em;
+    transition: transform 0.25s ease, background-color 0.25s ease, border-color 0.25s ease;
+  }
+
+  #hint-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: #67b854;
+    box-shadow: 0 0 0 3px rgba(103, 184, 84, 0.22);
+    transition: background-color 0.3s ease, box-shadow 0.3s ease;
+  }
+
+  /* Viewport strictly between header & footer so petals/leaves/pollen never cross header or footer */
+  #stage-wrap {
+    position: relative;
+    flex: 1 1 auto;
+    width: 100%;
+    min-height: 200px;
+    overflow: hidden;
+    touch-action: none;
+    cursor: grab;
+  }
+
+  #stage-wrap:active {
+    cursor: grabbing;
+  }
+
+  #stage-wrap.pointer-target {
+    cursor: pointer;
+  }
+
+  canvas {
+    display: block;
+    width: 100%;
+    height: 100%;
+  }
+
+  #ui-footer {
+    position: relative;
+    z-index: 10;
+    flex: 0 0 auto;
+    padding: clamp(5px, 1vh, 10px) 16px clamp(7px, 1.4vh, 13px);
+    text-align: center;
+    background: linear-gradient(0deg, rgba(248, 236, 217, 0.94) 0%, rgba(248, 236, 217, 0.78) 78%, rgba(248, 236, 217, 0.0) 100%);
+    border-top: 1px solid rgba(92, 72, 52, 0.08);
+    font-family: Georgia, "Times New Roman", serif;
+    font-size: clamp(0.72rem, 1.6vw, 0.84rem);
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: #6d553e;
+  }
+
+  #fallback-error {
+    display: none;
+    position: absolute;
+    inset: 16px;
+    margin: auto;
+    max-width: 360px;
+    max-height: 220px;
+    padding: 20px;
+    border-radius: 14px;
+    background: rgba(255, 252, 247, 0.96);
+    border: 1px solid rgba(110, 82, 57, 0.25);
+    box-shadow: 0 12px 32px rgba(45, 30, 15, 0.14);
+    text-align: center;
+    z-index: 30;
+  }
+
+  #fallback-error h2 {
+    font-family: Georgia, serif;
+    font-size: 1.05rem;
+    margin-bottom: 8px;
+    color: #362517;
+  }
+
+  #fallback-error p {
+    font-size: 0.85rem;
+    line-height: 1.45;
+    color: #5e4733;
+  }
 </style>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
 </head>
 <body>
-<div id="app"></div>
-<header>
-  <h1>Seed to Tree</h1>
-  <div class="rule"></div>
-  <span id="hint"></span>
-</header>
-<footer>A tiny world</footer>
-<script type="importmap">
-{ "imports": {
-  "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
-  "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
-} }
-</script>
+<div id="app">
+  <header id="ui-header">
+    <div class="title-row">
+      <h1>Seed to tree</h1>
+      <span class="subtitle">a tiny world</span>
+    </div>
+    <div id="hint-pill">
+      <span id="hint-dot"></span>
+      <span id="hint-text">tap the soil to grow - tap the tree to replant</span>
+    </div>
+  </header>
+
+  <main id="stage-wrap">
+    <div id="fallback-error">
+      <h2>WebGL Unavailable</h2>
+      <p>Your browser or device could not initialize a 3D WebGL context required for this interactive miniature garden.</p>
+    </div>
+  </main>
+
+  <footer id="ui-footer">A tiny world</footer>
+</div>
+
 <script type="module">
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 
-const container = document.getElementById('app');
-const hintEl = document.getElementById('hint');
-const scene = new THREE.Scene();
-scene.background = new THREE.Color(0xa9d6ee);
-scene.fog = new THREE.Fog(0xa9d6ee, 60, 140);
-
-const camera = new THREE.PerspectiveCamera(38, innerWidth/innerHeight, 0.1, 240);
-function pickFov() {
-  const a = innerWidth / innerHeight;
-  camera.fov = a >= 0.9 ? 38 : (a >= 0.62 ? 46 : 58);
-  camera.updateProjectionMatrix();
-}
-pickFov();
-const renderer = new THREE.WebGLRenderer({ antialias: true });
-renderer.setSize(innerWidth, innerHeight);
-renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
-renderer.shadowMap.enabled = true;
-renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-container.appendChild(renderer.domElement);
-const controls = new OrbitControls(camera, renderer.domElement);
-controls.enableDamping = true; controls.dampingFactor = 0.06;
-controls.enablePan = false; controls.maxPolarAngle = Math.PI * 0.52;
-
-const sun = new THREE.DirectionalLight(0xfff2d8, 2.3);
-sun.position.set(9, 14, 7); sun.castShadow = true;
-sun.shadow.mapSize.set(1024, 1024);
-sun.shadow.camera.left = -14; sun.shadow.camera.right = 14;
-sun.shadow.camera.top = 14; sun.shadow.camera.bottom = -14;
-sun.shadow.camera.far = 60; sun.shadow.bias = -0.0006;
-scene.add(sun);
-scene.add(new THREE.HemisphereLight(0xd8ecf8, 0x5f7a4a, 1.1));
-
+/* ==========================================================================
+   DETERMINISTIC PRNG: mulberry32(20261103) — ZERO Math.random
+   ========================================================================== */
 function mulberry32(a) {
   return function() {
-    a |= 0; a = a + 0x6D2B79F5 | 0;
-    let t = Math.imul(a ^ a >>> 15, 1 | a);
-    t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
-    return ((t ^ t >>> 14) >>> 0) / 4294967296;
+    let t = (a += 0x6D2B79F5);
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
   };
 }
-const rng = mulberry32(20261101);
-function rand(a, b) { return a + rng() * (b - a); }
 
-// ---------- slab: grass-topped garden plot ----------
-const SLAB_H = 1.4;
-const slabGroup = new THREE.Group(); scene.add(slabGroup);
-const grassMat = new THREE.MeshStandardMaterial({ color: 0x7cb44e, roughness: 0.95 });
-const earthMat = new THREE.MeshStandardMaterial({ color: 0x8a6844, roughness: 1 });
-const rockMat  = new THREE.MeshStandardMaterial({ color: 0x5d5148, roughness: 1 });
-{
-  const grass = new THREE.Mesh(new THREE.BoxGeometry(12, 0.22, 12), grassMat);
-  grass.position.y = -0.11; grass.receiveShadow = true; slabGroup.add(grass);
-  const earth = new THREE.Mesh(new THREE.BoxGeometry(12, SLAB_H, 12), earthMat);
-  earth.position.y = -SLAB_H/2 - 0.2; slabGroup.add(earth);
-  const rock = new THREE.Mesh(new THREE.BoxGeometry(12.4, 0.5, 12.4), rockMat);
-  rock.position.y = -SLAB_H - 0.45; slabGroup.add(rock);
-  // grass colour patches
-  const patchMat = new THREE.MeshStandardMaterial({ color: 0x8dc259, roughness: 1 });
-  for (let i = 0; i < 14; i++) {
-    const p = new THREE.Mesh(new THREE.CircleGeometry(rand(0.5, 1.3), 9), patchMat);
-    p.rotation.x = -Math.PI/2; p.position.set(rand(-5.4, 5.4), 0.011, rand(-5.4, 5.4));
-    p.receiveShadow = true; slabGroup.add(p);
-  }
+const rng = mulberry32(20261103);
+function randRange(min, max) {
+  return min + (max - min) * rng();
 }
 
-// ---------- tilled soil bed (the planting spot) ----------
-const soilMat = new THREE.MeshStandardMaterial({ color: 0x5e422b, roughness: 1 });
-const soilGroup = new THREE.Group(); slabGroup.add(soilGroup);
-{
-  const bed = new THREE.Mesh(new THREE.CylinderGeometry(1.7, 1.9, 0.3, 18), soilMat);
-  bed.position.y = 0.15; bed.receiveShadow = true; bed.castShadow = true; soilGroup.add(bed);
-  const ridgeMat = new THREE.MeshStandardMaterial({ color: 0x523823, roughness: 1 });
-  for (let i = -2; i <= 2; i++) {
-    const r = new THREE.Mesh(new THREE.BoxGeometry(2.9, 0.09, 0.16), ridgeMat);
-    r.position.set(0, 0.32, i * 0.55); r.castShadow = true; soilGroup.add(r);
-  }
-  const mound = new THREE.Mesh(new THREE.SphereGeometry(0.42, 12, 8), soilMat);
-  mound.scale.y = 0.45; mound.position.y = 0.32; mound.castShadow = true; soilGroup.add(mound);
+/* ==========================================================================
+   MATH & EASING HELPERS
+   ========================================================================== */
+function clamp(v, lo, hi) {
+  return Math.max(lo, Math.min(hi, v));
 }
 
-// ---------- picket fence (back edge) ----------
-{
-  const fenceMat = new THREE.MeshStandardMaterial({ color: 0xe8e2d2, roughness: 0.9 });
-  const fz = -5.5;
-  for (let i = 0; i < 9; i++) {
-    const post = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.85, 0.1), fenceMat);
-    post.position.set(-4.8 + i * 1.2, 0.42, fz); post.castShadow = true; slabGroup.add(post);
-    const tip = new THREE.Mesh(new THREE.ConeGeometry(0.1, 0.16, 4), fenceMat);
-    tip.position.set(-4.8 + i * 1.2, 0.93, fz); tip.rotation.y = Math.PI/4; slabGroup.add(tip);
-  }
-  for (const ry of [0.32, 0.62]) {
-    const rail = new THREE.Mesh(new THREE.BoxGeometry(10.2, 0.09, 0.06), fenceMat);
-    rail.position.set(0, ry, fz + 0.07); rail.castShadow = true; slabGroup.add(rail);
-  }
+function smoothstep(e0, e1, x) {
+  const t = clamp((x - e0) / (e1 - e0), 0, 1);
+  return t * t * (3 - 2 * t);
 }
 
-// ---------- watering can ----------
-{
-  const canMat = new THREE.MeshStandardMaterial({ color: 0x4f7fa0, roughness: 0.5, metalness: 0.55 });
-  const g = new THREE.Group();
-  const body = new THREE.Mesh(new THREE.CylinderGeometry(0.34, 0.4, 0.55, 12), canMat);
-  body.castShadow = true; g.add(body);
-  const spout = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.075, 0.7, 8), canMat);
-  spout.position.set(0.48, 0.12, 0); spout.rotation.z = -1.0; spout.castShadow = true; g.add(spout);
-  const rose = new THREE.Mesh(new THREE.CylinderGeometry(0.11, 0.09, 0.1, 8), canMat);
-  rose.position.set(0.76, 0.42, 0); rose.rotation.z = -1.0; g.add(rose);
-  const handle = new THREE.Mesh(new THREE.TorusGeometry(0.22, 0.035, 8, 14, Math.PI), canMat);
-  handle.position.set(-0.28, 0.28, 0); handle.rotation.z = 0.5; g.add(handle);
-  g.position.set(2.9, 0.28, 1.6); g.rotation.y = -0.6; slabGroup.add(g);
+function easeOutCubic(t) {
+  const u = clamp(t, 0, 1);
+  return 1 - Math.pow(1 - u, 3);
 }
 
-// ---------- terracotta pot + trowel ----------
-{
-  const potMat = new THREE.MeshStandardMaterial({ color: 0xb5663f, roughness: 0.85 });
-  const pot = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.22, 0.4, 10), potMat);
-  pot.position.set(-2.6, 0.2, 1.9); pot.castShadow = true; slabGroup.add(pot);
-  const rim = new THREE.Mesh(new THREE.CylinderGeometry(0.34, 0.32, 0.1, 10), potMat);
-  rim.position.set(-2.6, 0.42, 1.9); slabGroup.add(rim);
-  const soilTop = new THREE.Mesh(new THREE.CircleGeometry(0.27, 10), soilMat);
-  soilTop.rotation.x = -Math.PI/2; soilTop.position.set(-2.6, 0.44, 1.9); slabGroup.add(soilTop);
-  const trowelMat = new THREE.MeshStandardMaterial({ color: 0x9aa4ac, roughness: 0.4, metalness: 0.6 });
-  const blade = new THREE.Mesh(new THREE.ConeGeometry(0.09, 0.4, 6), trowelMat);
-  blade.position.set(-2.2, 0.07, 2.4); blade.rotation.set(Math.PI/2, 0, 0.8); blade.castShadow = true; slabGroup.add(blade);
-  const grip = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.035, 0.22, 6),
-    new THREE.MeshStandardMaterial({ color: 0x7a4a2a, roughness: 0.8 }));
-  grip.position.set(-2.32, 0.07, 2.62); grip.rotation.set(Math.PI/2, 0, 0.8); slabGroup.add(grip);
+function easeInOutCubic(t) {
+  const u = clamp(t, 0, 1);
+  return u < 0.5 ? 4 * u * u * u : 1 - Math.pow(-2 * u + 2, 3) / 2;
 }
 
-// ---------- wildflowers + grass tufts + rocks ----------
-const flowers = [];
-{
-  const headMats = [0xe86a8a, 0xf2d45c, 0xffffff, 0xb678e0].map(c =>
-    new THREE.MeshStandardMaterial({ color: c, roughness: 0.8 }));
-  const stemMat = new THREE.MeshStandardMaterial({ color: 0x4e7a33, roughness: 1 });
-  for (let i = 0; i < 12; i++) {
-    const g = new THREE.Group();
-    const h = rand(0.22, 0.4);
-    const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.025, h, 5), stemMat);
-    stem.position.y = h/2; g.add(stem);
-    const head = new THREE.Mesh(new THREE.SphereGeometry(0.07, 7, 6), headMats[i % headMats.length]);
-    head.position.y = h + 0.04; head.castShadow = true; g.add(head);
-    let x, z; do { x = rand(-5.2, 5.2); z = rand(-5.2, 5.2); } while (Math.hypot(x, z) < 2.4);
-    g.position.set(x, 0, z); g.userData.ph = rand(0, 6.28);
-    slabGroup.add(g); flowers.push(g);
-  }
-  const tuftMat = new THREE.MeshStandardMaterial({ color: 0x6aa544, roughness: 1, side: THREE.DoubleSide });
-  for (let i = 0; i < 22; i++) {
-    const t = new THREE.Mesh(new THREE.ConeGeometry(0.06, rand(0.16, 0.3), 4), tuftMat);
-    let x, z; do { x = rand(-5.5, 5.5); z = rand(-5.5, 5.5); } while (Math.hypot(x, z) < 2.2);
-    t.position.set(x, 0.1, z); t.rotation.y = rand(0, 3); slabGroup.add(t);
-  }
-  const rMat = new THREE.MeshStandardMaterial({ color: 0x9a948a, roughness: 1 });
-  for (let i = 0; i < 4; i++) {
-    const r = new THREE.Mesh(new THREE.DodecahedronGeometry(rand(0.12, 0.24)), rMat);
-    r.position.set(rand(-5, 5), 0.1, rand(-4.6, 4.6));
-    if (Math.hypot(r.position.x, r.position.z) < 2.3) { r.position.x += 3; }
-    r.castShadow = true; slabGroup.add(r);
-  }
+function easeOutBack(t) {
+  const u = clamp(t, 0, 1);
+  const c1 = 1.70158;
+  const c3 = c1 + 1;
+  return 1 + c3 * Math.pow(u - 1, 3) + c1 * Math.pow(u - 1, 2);
 }
 
-// ---------- clouds + sun sprite ----------
-const clouds = [];
-{
-  const cMatBase = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 1, transparent: true, opacity: 0.92 });
-  for (let i = 0; i < 3; i++) {
-    const cMat = cMatBase.clone();
-    const g = new THREE.Group();
-    for (let b = 0; b < 4; b++) {
-      const m = new THREE.Mesh(new THREE.SphereGeometry(rand(0.5, 0.9), 10, 8), cMat);
-      m.position.set(b * rand(0.55, 0.8) - 1, rand(-0.1, 0.25), rand(-0.2, 0.2));
-      m.scale.y = 0.6; g.add(m);
-    }
-    const lane = i % 2 === 0 ? [-13, -7] : [7, 13];   // wide side lanes: projected x stays clear of centered title/hint
-    g.position.set(rand(lane[0], lane[1]), rand(6, 7.5), rand(-6, -4.5));
-    g.userData.v = rand(0.08, 0.2);
-    g.userData.lane = lane;
-    g.userData.mat = cMat;
-    scene.add(g); clouds.push(g);
-  }
-  const cv = document.createElement('canvas'); cv.width = cv.height = 128;
-  const cx = cv.getContext('2d');
-  const grad = cx.createRadialGradient(64, 64, 6, 64, 64, 64);
-  grad.addColorStop(0, 'rgba(255,246,214,1)'); grad.addColorStop(0.35, 'rgba(255,236,180,.85)');
-  grad.addColorStop(1, 'rgba(255,236,180,0)');
-  cx.fillStyle = grad; cx.fillRect(0, 0, 128, 128);
-  const spr = new THREE.Sprite(new THREE.SpriteMaterial({
-    map: new THREE.CanvasTexture(cv), transparent: true, depthWrite: false }));
-  spr.scale.setScalar(9); spr.position.set(11, 9.5, -14); scene.add(spr);
-}
+/* ==========================================================================
+   DOM REFERENCES & STATE
+   ========================================================================== */
+const stageWrap = document.getElementById('stage-wrap');
+const fallbackError = document.getElementById('fallback-error');
+const hintDot = document.getElementById('hint-dot');
+const hintPill = document.getElementById('hint-pill');
 
-// ---------- the tree (growth state machine) ----------
-const tree = new THREE.Group(); slabGroup.add(tree);
-const trunkMat = new THREE.MeshStandardMaterial({ color: 0x7a5230, roughness: 0.95 });
-const leafMat  = new THREE.MeshStandardMaterial({ color: 0x4e8f3a, roughness: 0.9 });
-const leafMat2 = new THREE.MeshStandardMaterial({ color: 0x63a848, roughness: 0.9 });
-const blossomMat = new THREE.MeshStandardMaterial({ color: 0xf2aec2, roughness: 0.7 });
-const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.30, 1, 9), trunkMat);
-trunk.castShadow = true; tree.add(trunk);
-const branches = [];
-for (let i = 0; i < 4; i++) {
-  const b = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.09, 1, 7), trunkMat);
-  b.castShadow = true; tree.add(b); branches.push(b);
-}
-const canopy = [];
-for (let i = 0; i < 6; i++) {
-  const m = new THREE.Mesh(new THREE.IcosahedronGeometry(0.6, 1), i % 2 ? leafMat : leafMat2);
-  m.castShadow = true; tree.add(m); canopy.push(m);
-}
-const blossoms = [];
-for (let i = 0; i < 14; i++) {
-  const m = new THREE.Mesh(new THREE.SphereGeometry(0.12, 6, 5), blossomMat);
-  tree.add(m); blossoms.push(m);
-}
-const sprout = new THREE.Group();
-{
-  const sMat = new THREE.MeshStandardMaterial({ color: 0x66b84a, roughness: 0.8, side: THREE.DoubleSide });
-  const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.03, 0.3, 5), sMat);
-  stem.position.y = 0.15; sprout.add(stem);
-  for (const d of [-1, 1]) {
-    const leaf = new THREE.Mesh(new THREE.SphereGeometry(0.09, 6, 5), sMat);
-    leaf.scale.set(1.6, 0.4, 0.8); leaf.position.set(d * 0.12, 0.3, 0);
-    leaf.rotation.z = d * 0.5; sprout.add(leaf);
-  }
-}
-sprout.position.y = 0.42; tree.add(sprout);
-const seedMesh = new THREE.Mesh(new THREE.SphereGeometry(0.11, 8, 6),
-  new THREE.MeshStandardMaterial({ color: 0x3d2a18, roughness: 0.6 }));
-seedMesh.scale.set(1, 0.75, 0.8); seedMesh.position.y = 0.5; tree.add(seedMesh);
-
-// blossom petals (ambient once mature)
-const PETALS = 26;
-const petalGeo = new THREE.BufferGeometry();
-const petalPos = new Float32Array(PETALS * 3);
-const petalSeed = [];
-for (let i = 0; i < PETALS; i++) { petalPos[i*3+1] = -50; petalSeed.push(rand(0, 6.28)); }
-petalGeo.setAttribute('position', new THREE.BufferAttribute(petalPos, 3));
-const petalCv = document.createElement('canvas'); petalCv.width = petalCv.height = 32;
-{ const c = petalCv.getContext('2d'); c.fillStyle = '#f7c9d8';
-  c.beginPath(); c.ellipse(16, 16, 9, 6, 0.6, 0, 6.29); c.fill(); }
-const petals = new THREE.Points(petalGeo, new THREE.PointsMaterial({
-  map: new THREE.CanvasTexture(petalCv), size: 0.2, transparent: true, depthWrite: false }));
-petals.frustumCulled = false; scene.add(petals);
-
-// butterflies (appear at maturity)
-const butterflies = [];
-{
-  for (let i = 0; i < 2; i++) {
-    const g = new THREE.Group();
-    const wMat = new THREE.MeshBasicMaterial({ color: i ? 0xf2d45c : 0xe8863a, side: THREE.DoubleSide });
-    for (const d of [-1, 1]) {
-      const w = new THREE.Mesh(new THREE.PlaneGeometry(0.2, 0.14), wMat);
-      w.position.x = d * 0.1; w.userData.d = d; g.add(w);
-    }
-    g.visible = false; g.userData = { ph: rand(0, 6.28), r: rand(1.1, 1.7), h: rand(2.6, 3.6), s: rand(0.5, 0.8) };
-    scene.add(g); butterflies.push(g);
-  }
-}
-
-// ---------- growth driver (wall-clock) ----------
-const GROW_MS = 9000;
-let phase = 'seed';            // seed -> growing -> mature
-let growT0 = -1;
-function smooth(a, b, x) { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); }
-function layoutTree(g, t) {
-  const sway = Math.sin(t * 1.1) * 0.02 * g;
-  tree.rotation.z = sway;
-  seedMesh.visible = g < 0.06;
-  seedMesh.position.y = 0.5 - smooth(0, 0.06, g) * 0.22;
-  sprout.visible = g > 0.04 && g < 0.5;
-  const sp = smooth(0.04, 0.3, g); sprout.scale.setScalar(Math.max(0.001, sp));
-  const th = 3.6 * smooth(0.12, 0.62, g);
-  const tw = 0.4 + 0.6 * smooth(0.12, 0.75, g);
-  trunk.visible = th > 0.01;
-  trunk.scale.set(tw, Math.max(0.001, th), tw); trunk.position.y = 0.3 + th / 2;
-  branches.forEach((b, i) => {
-    const bs = smooth(0.4 + i * 0.05, 0.75, g);
-    const a = i * 1.65 + 0.6;
-    b.visible = bs > 0.01;
-    b.scale.set(bs, bs * 1.1, bs);
-    b.position.set(Math.cos(a) * 0.35 * bs, 0.3 + th * (0.62 + i * 0.09), Math.sin(a) * 0.35 * bs);
-    b.rotation.set(Math.sin(a) * 0.9, 0, -Math.cos(a) * 0.9);
-  });
-  const cs = smooth(0.5, 0.88, g);
-  canopy.forEach((m, i) => {
-    const a = i * 1.05, rr = i === 0 ? 0 : 0.75;
-    m.visible = cs > 0.01;
-    const s = cs * (i === 0 ? 1.9 : rand0(i) * 0.6 + 0.95);
-    m.scale.setScalar(Math.max(0.001, s));
-    m.position.set(Math.cos(a) * rr * cs, 0.3 + th + (i === 0 ? 0.7 : 0.2 + 0.34 * Math.sin(i * 2.1)) , Math.sin(a) * rr * cs);
-  });
-  const bs = smooth(0.78, 1, g);
-  blossoms.forEach((m, i) => {
-    const a = i * 2.4, rr = 0.9 + 0.45 * Math.sin(i * 3.7);
-    m.visible = bs > 0.01;
-    m.scale.setScalar(Math.max(0.001, bs));
-    m.position.set(Math.cos(a) * rr * cs * 1.05, 0.3 + th + 0.6 + 0.4 * Math.sin(i * 1.3), Math.sin(a) * rr * cs * 1.05);
-  });
-}
-function rand0(i) { return (Math.sin(i * 12.9898) * 43758.5453) % 1 * 0.5 + 0.5; }
-layoutTree(0, 0);
-
-// leaf swirl on replant
-const swirl = { t0: -1 };
-function swirlStep() {
-  if (swirl.t0 < 0) return;
-  const e = (performance.now() - swirl.t0) / 1000;
-  if (e > 1.6) { swirl.t0 = -1; return; }
-}
-
-// ---------- hints (ownership-checked) ----------
-const HINTS = {
-  seed: 'Tap the soil to plant a seed',
-  growing: 'Watch it grow',
-  mature: 'Tap the tree to replant'
+const STATE = {
+  SEED_WAITING: 'SEED_WAITING',
+  GROWING: 'GROWING',
+  MATURE: 'MATURE',
+  REPLANTING: 'REPLANTING'
 };
-function setHint(s) {
-  hintEl.textContent = HINTS[s]; hintEl.dataset.s = s; hintEl.classList.remove('faded');
-  clearTimeout(setHint._t);
-  setHint._t = setTimeout(() => hintEl.classList.add('faded'), 6000);
+
+let currentState = STATE.SEED_WAITING;
+let stateStartTime = performance.now();
+const GROW_DURATION = 12000;   // ~12 seconds full staged growth cycle
+const REPLANT_DURATION = 3800; // graceful replant cycle
+
+function setGardenState(nextState, now) {
+  currentState = nextState;
+  stateStartTime = now;
+
+  if (nextState === STATE.SEED_WAITING) {
+    hintDot.style.background = '#67b854';
+    hintDot.style.boxShadow = '0 0 0 3px rgba(103, 184, 84, 0.25)';
+  } else if (nextState === STATE.GROWING) {
+    hintDot.style.background = '#f0a830';
+    hintDot.style.boxShadow = '0 0 0 4px rgba(240, 168, 48, 0.30)';
+  } else if (nextState === STATE.MATURE) {
+    hintDot.style.background = '#f486a8';
+    hintDot.style.boxShadow = '0 0 0 4px rgba(244, 134, 168, 0.32)';
+  } else if (nextState === STATE.REPLANTING) {
+    hintDot.style.background = '#78b5e8';
+    hintDot.style.boxShadow = '0 0 0 4px rgba(120, 181, 232, 0.28)';
+  }
+
+  hintPill.style.transform = 'scale(1.04)';
+  setTimeout(() => {
+    hintPill.style.transform = 'scale(1)';
+  }, 220);
 }
-setHint('seed');
 
-// ---------- fit ----------
-const FIT_CENTER = new THREE.Vector3(0, 1.1, 0);
-const FIT_PTS = [];
-for (const x of [-6, 6]) for (const y of [-SLAB_H, 0.4]) for (const z of [-6, 6])
-  FIT_PTS.push(new THREE.Vector3(x, y, z));
-FIT_PTS.push(new THREE.Vector3(0, 5.9, 0));      // mature tree top
-FIT_PTS.push(new THREE.Vector3(2.9, 1.0, 1.6));  // watering can
-function fitDir() {
-  const a = innerWidth / innerHeight;
-  if (a < 0.62) return new THREE.Vector3(0.05, 0.9, 1).normalize();
-  if (a < 0.9) return new THREE.Vector3(0.42, 0.4, 1).normalize();
-  return new THREE.Vector3(0.62, 0.42, 1).normalize();
+/* ==========================================================================
+   WEBGL INITIALIZATION
+   ========================================================================== */
+let renderer, scene, camera, controls;
+
+try {
+  renderer = new THREE.WebGLRenderer({
+    antialias: true,
+    powerPreference: 'high-performance',
+    alpha: true
+  });
+} catch (err) {
+  fallbackError.style.display = 'block';
+  throw err;
 }
-const _rel = new THREE.Vector3();
-function requiredDistance(right, up, fwd, target) {
-  const fovV = THREE.MathUtils.degToRad(camera.fov);
-  const tanH = Math.tan(Math.atan(Math.tan(fovV/2) * camera.aspect));
-  const tanV = Math.tan(fovV/2);
-  let d = 4;
-  for (const c of FIT_PTS) {
-    _rel.copy(c).sub(target);
-    const cf = _rel.dot(fwd);
-    d = Math.max(d, Math.abs(_rel.dot(right)) / tanH - cf, Math.abs(_rel.dot(up)) / tanV - cf);
-  }
-  return d;
+
+if (!renderer || !renderer.getContext()) {
+  fallbackError.style.display = 'block';
+  throw new Error('WebGL context creation failed');
 }
-function frameInitialCamera() {
-  pickFov();
-  const fd = fitDir();
-  const fwd = fd.clone().negate();
-  const right = new THREE.Vector3().crossVectors(fwd, new THREE.Vector3(0,1,0)).normalize();
-  const up = new THREE.Vector3().crossVectors(right, fwd).normalize();
-  const dist = requiredDistance(right, up, fwd, FIT_CENTER) * (innerWidth / innerHeight < 0.62 ? 1.01 : 1.06);
-  camera.position.copy(FIT_CENTER).addScaledVector(fd, dist);
-  controls.target.copy(FIT_CENTER);
-  camera.updateProjectionMatrix(); controls.update();
+
+renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.75));
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.08;
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+stageWrap.appendChild(renderer.domElement);
+
+scene = new THREE.Scene();
+scene.fog = new THREE.FogExp2(0xeaf4f5, 0.016);
+
+camera = new THREE.PerspectiveCamera(36, 1, 0.5, 120);
+
+controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+controls.dampingFactor = 0.065;
+controls.enablePan = false;
+controls.enableZoom = true;
+controls.minPolarAngle = THREE.MathUtils.degToRad(42);
+controls.maxPolarAngle = THREE.MathUtils.degToRad(68);
+controls.minAzimuthAngle = THREE.MathUtils.degToRad(-48);
+controls.maxAzimuthAngle = THREE.MathUtils.degToRad(48);
+
+/* ==========================================================================
+   LIGHTING & WARM SPRING DAYLIGHT ATMOSPHERE
+   ========================================================================== */
+const hemiLight = new THREE.HemisphereLight(0xdff3ff, 0x7b583b, 1.25);
+hemiLight.position.set(0, 18, 0);
+scene.add(hemiLight);
+
+const sunLight = new THREE.DirectionalLight(0xfff1d0, 2.35);
+sunLight.position.set(8.5, 15.5, 7.5);
+sunLight.castShadow = true;
+sunLight.shadow.mapSize.set(1024, 1024);
+sunLight.shadow.camera.near = 2;
+sunLight.shadow.camera.far = 32;
+const shadowBound = 6.6;
+sunLight.shadow.camera.left = -shadowBound;
+sunLight.shadow.camera.right = shadowBound;
+sunLight.shadow.camera.top = shadowBound;
+sunLight.shadow.camera.bottom = -shadowBound;
+sunLight.shadow.bias = -0.0008;
+sunLight.shadow.normalBias = 0.025;
+scene.add(sunLight);
+
+const fillLight = new THREE.DirectionalLight(0xcbe8ff, 0.65);
+fillLight.position.set(-9, 7, -6);
+scene.add(fillLight);
+
+const bounceLight = new THREE.PointLight(0xffcf8b, 0.6, 14);
+bounceLight.position.set(0, 1.5, 3.2);
+scene.add(bounceLight);
+
+/* ==========================================================================
+   SHARED MATERIALS & REUSABLE GEOMETRIES
+   ========================================================================== */
+const MAT = {
+  slabRim: new THREE.MeshStandardMaterial({
+    color: 0xd9c2a3,
+    roughness: 0.72,
+    metalness: 0.04
+  }),
+  slabBase: new THREE.MeshStandardMaterial({
+    color: 0xb59876,
+    roughness: 0.82,
+    metalness: 0.03
+  }),
+  soilRich: new THREE.MeshStandardMaterial({
+    color: 0x472d1b,
+    roughness: 0.92,
+    metalness: 0.02,
+    flatShading: true
+  }),
+  soilTurned: new THREE.MeshStandardMaterial({
+    color: 0x362011,
+    roughness: 0.95,
+    metalness: 0.01,
+    flatShading: true
+  }),
+  soilClod: new THREE.MeshStandardMaterial({
+    color: 0x593922,
+    roughness: 0.93,
+    metalness: 0.02,
+    flatShading: true
+  }),
+  seedCoat: new THREE.MeshStandardMaterial({
+    color: 0xd99b4e,
+    roughness: 0.45,
+    metalness: 0.06,
+    emissive: 0x4a2908,
+    emissiveIntensity: 0.25
+  }),
+  seedStripe: new THREE.MeshStandardMaterial({
+    color: 0xf7d288,
+    roughness: 0.4,
+    metalness: 0.05
+  }),
+  targetRing: new THREE.MeshBasicMaterial({
+    color: 0xfce092,
+    transparent: true,
+    opacity: 0.65,
+    side: THREE.DoubleSide
+  }),
+  sproutStem: new THREE.MeshStandardMaterial({
+    color: 0x7ecf48,
+    roughness: 0.52,
+    metalness: 0.02
+  }),
+  sproutLeaf: new THREE.MeshStandardMaterial({
+    color: 0x8be053,
+    roughness: 0.46,
+    metalness: 0.03
+  }),
+  bark: new THREE.MeshStandardMaterial({
+    color: 0x6e472b,
+    roughness: 0.86,
+    metalness: 0.02,
+    flatShading: true
+  }),
+  pebbleLight: new THREE.MeshStandardMaterial({
+    color: 0xc8bfb5,
+    roughness: 0.68,
+    metalness: 0.03,
+    flatShading: true
+  }),
+  pebbleWarm: new THREE.MeshStandardMaterial({
+    color: 0xa89b8c,
+    roughness: 0.74,
+    metalness: 0.03,
+    flatShading: true
+  }),
+  cloud: new THREE.MeshStandardMaterial({
+    color: 0xffffff,
+    roughness: 0.9,
+    metalness: 0.0,
+    emissive: 0xfff5e4,
+    emissiveIntensity: 0.18,
+    transparent: true,
+    opacity: 0.92
+  }),
+  sunCore: new THREE.MeshBasicMaterial({
+    color: 0xfff7cc
+  }),
+  sunHaloOuter: new THREE.MeshBasicMaterial({
+    color: 0xffe494,
+    transparent: true,
+    opacity: 0.34,
+    depthWrite: false
+  }),
+  sunHaloInner: new THREE.MeshBasicMaterial({
+    color: 0xffefb5,
+    transparent: true,
+    opacity: 0.55,
+    depthWrite: false
+  }),
+  flowerCenter: new THREE.MeshStandardMaterial({
+    color: 0xf7b934,
+    roughness: 0.55
+  }),
+  flowerPetalPink: new THREE.MeshStandardMaterial({
+    color: 0xffb3c8,
+    roughness: 0.48
+  }),
+  flowerPetalWhite: new THREE.MeshStandardMaterial({
+    color: 0xfff7f2,
+    roughness: 0.48
+  }),
+  flowerPetalSoftRose: new THREE.MeshStandardMaterial({
+    color: 0xf683a6,
+    roughness: 0.48
+  }),
+  invisibleProxy: new THREE.MeshBasicMaterial({
+    color: 0xff0000,
+    transparent: true,
+    opacity: 0.0,
+    depthWrite: false
+  })
+};
+
+/* ==========================================================================
+   ROOT SCENE GROUP
+   ========================================================================== */
+const worldGroup = new THREE.Group();
+scene.add(worldGroup);
+
+/* ==========================================================================
+   1. SCULPTURAL DIORAMA SLAB, RICH SOIL BED, TURNED CENTER SPOT, PEBBLES
+   ========================================================================== */
+const slabGroup = new THREE.Group();
+worldGroup.add(slabGroup);
+
+function buildDioramaSlab() {
+  // Tactile beveled stone/terracotta plinth base
+  const baseGeo = new THREE.CylinderGeometry(4.42, 4.12, 0.95, 48, 1);
+  const baseMesh = new THREE.Mesh(baseGeo, MAT.slabBase);
+  baseMesh.position.y = -0.62;
+  baseMesh.receiveShadow = true;
+  baseMesh.castShadow = true;
+  slabGroup.add(baseMesh);
+
+  // Upper beveled lip collar
+  const rimGeo = new THREE.CylinderGeometry(4.56, 4.44, 0.34, 48, 1);
+  const rimMesh = new THREE.Mesh(rimGeo, MAT.slabRim);
+  rimMesh.position.y = -0.14;
+  rimMesh.receiveShadow = true;
+  rimMesh.castShadow = true;
+  slabGroup.add(rimMesh);
+
+  // Decorative carved groove ring around the slab
+  const torusRimGeo = new THREE.TorusGeometry(4.49, 0.085, 12, 64);
+  torusRimGeo.rotateX(Math.PI / 2);
+  const torusRim = new THREE.Mesh(torusRimGeo, MAT.slabRim);
+  torusRim.position.y = 0.01;
+  torusRim.receiveShadow = true;
+  slabGroup.add(torusRim);
+
+  // Rich dark soil bed filling the slab with tactile sculpted mounds
+  const soilGeo = new THREE.CylinderGeometry(4.36, 4.30, 0.42, 40, 6);
+  const posAttr = soilGeo.attributes.position;
+  const v = new THREE.Vector3();
+  for (let i = 0; i < posAttr.count; i++) {
+    v.fromBufferAttribute(posAttr, i);
+    if (v.y > 0) {
+      const r = Math.hypot(v.x, v.z);
+      const normR = r / 4.36;
+      // Gentle pillow bevel at edge, slight dip near center spot
+      const edgeFalloff = Math.cos(normR * Math.PI * 0.48);
+      const centerBasin = r < 1.05 ? -0.06 * Math.cos((r / 1.05) * Math.PI * 0.5) : 0;
+      const microUndulation =
+        0.045 * Math.sin(v.x * 2.1 + 0.7) * Math.cos(v.z * 2.3 - 0.4) +
+        0.025 * Math.cos(v.x * 4.3 - v.z * 3.7);
+      v.y += edgeFalloff * 0.14 + centerBasin + microUndulation * (1 - normR * 0.4);
+      posAttr.setXYZ(i, v.x, v.y, v.z);
+    }
+  }
+  soilGeo.computeVertexNormals();
+  const soilMesh = new THREE.Mesh(soilGeo, MAT.soilRich);
+  soilMesh.position.y = -0.10;
+  soilMesh.receiveShadow = true;
+  slabGroup.add(soilMesh);
 }
-frameInitialCamera();
+buildDioramaSlab();
 
-// ---------- tap ----------
-const ray = new THREE.Raycaster(); const ndc = new THREE.Vector2();
-let downX = 0, downY = 0, downT = 0;
-renderer.domElement.addEventListener('pointerdown', e => { downX = e.clientX; downY = e.clientY; downT = performance.now(); });
-renderer.domElement.addEventListener('pointerup', e => {
-  if (Math.hypot(e.clientX - downX, e.clientY - downY) > 7 || performance.now() - downT > 450) return;
-  ndc.set((e.clientX / innerWidth) * 2 - 1, -(e.clientY / innerHeight) * 2 + 1);
-  ray.setFromCamera(ndc, camera);
-  const hits = ray.intersectObjects([soilGroup, tree], true);
-  if (!hits.length) return;
-  if (phase === 'seed') {
-    phase = 'growing'; growT0 = performance.now(); setHint('growing');
-  } else if (phase === 'mature') {
-    swirl.t0 = performance.now();
-    phase = 'growing'; growT0 = performance.now() - 120; setHint('growing');
+/* ==========================================================================
+   2. MARKED BARE SPOT OF TURNED SOIL & WAITING SEED AT CENTER
+   ========================================================================== */
+const soilSpotGroup = new THREE.Group();
+soilSpotGroup.position.set(0, 0.13, 0);
+worldGroup.add(soilSpotGroup);
+
+const soilClodMeshes = [];
+const puffClods = [];
+let seedGroup, targetHaloRing, targetOuterRing;
+
+function buildSoilSpotAndSeed() {
+  // Turned dark soil mound ring at the center
+  const moundGeo = new THREE.CylinderGeometry(0.86, 1.04, 0.14, 24, 2);
+  const pos = moundGeo.attributes.position;
+  for (let i = 0; i < pos.count; i++) {
+    const vx = pos.getX(i);
+    const vy = pos.getY(i);
+    const vz = pos.getZ(i);
+    if (vy > 0) {
+      const r = Math.hypot(vx, vz);
+      const crater = r < 0.42 ? -0.045 : 0.035 * Math.sin(Math.atan2(vz, vx) * 6);
+      pos.setY(i, vy + crater);
+    }
   }
-});
+  moundGeo.computeVertexNormals();
+  const moundMesh = new THREE.Mesh(moundGeo, MAT.soilTurned);
+  moundMesh.receiveShadow = true;
+  soilSpotGroup.add(moundMesh);
 
-addEventListener('resize', () => {
-  camera.aspect = innerWidth/innerHeight;
-  renderer.setSize(innerWidth, innerHeight);
-  renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
-  pickFov(); frameInitialCamera();
-});
-
-// ---------- animate ----------
-const clock = new THREE.Clock();
-function animate() {
-  requestAnimationFrame(animate);
-  const dt = Math.min(clock.getDelta(), 0.3);
-  const t = clock.elapsedTime;
-
-  if (phase === 'growing') {
-    const g = Math.min(1, (performance.now() - growT0) / GROW_MS);
-    layoutTree(g, t);
-    if (g >= 1) { phase = 'mature'; setHint('mature'); }
-  } else {
-    layoutTree(phase === 'mature' ? 1 : 0, t);
+  // Hand-placed ring of turned soil clods around the bare center spot
+  const clodGeo = new THREE.DodecahedronGeometry(0.11, 0);
+  const clodCount = 18;
+  for (let i = 0; i < clodCount; i++) {
+    const angle = (i / clodCount) * Math.PI * 2 + randRange(-0.12, 0.12);
+    const radius = randRange(0.42, 0.84);
+    const clod = new THREE.Mesh(clodGeo, i % 2 === 0 ? MAT.soilTurned : MAT.soilClod);
+    const sx = randRange(0.75, 1.35);
+    const sy = randRange(0.55, 0.95);
+    const sz = randRange(0.75, 1.3);
+    clod.scale.set(sx, sy, sz);
+    const bx = Math.cos(angle) * radius;
+    const bz = Math.sin(angle) * radius;
+    const by = 0.04;
+    clod.position.set(bx, by, bz);
+    clod.rotation.set(randRange(0, 3), randRange(0, 3), randRange(0, 3));
+    clod.castShadow = true;
+    clod.receiveShadow = true;
+    soilSpotGroup.add(clod);
+    soilClodMeshes.push({
+      mesh: clod,
+      baseX: bx,
+      baseY: by,
+      baseZ: bz,
+      angle,
+      scale: new THREE.Vector3(sx, sy, sz)
+    });
   }
 
-  for (const f of flowers) f.rotation.z = Math.sin(t * 1.3 + f.userData.ph) * 0.08;
-  const pv = new THREE.Vector3();
-  for (const c of clouds) {
-    c.position.x += c.userData.v * dt;
-    if (c.position.x > c.userData.lane[1]) c.position.x = c.userData.lane[0];
-    // deterministic overlap guard: fade any cloud that projects into the top-center band (title/hint zone), any viewport
-    pv.copy(c.position).project(camera);
-    const inBand = pv.y > 0.45 && Math.abs(pv.x) < 0.62;
-    const m = c.userData.mat;
-    m.opacity += ((inBand ? 0.1 : 0.92) - m.opacity) * Math.min(1, dt * 3);
+  // Dynamic soil puff particles when seed cracks soil
+  const puffGeo = new THREE.DodecahedronGeometry(0.065, 0);
+  for (let i = 0; i < 16; i++) {
+    const mesh = new THREE.Mesh(puffGeo, MAT.soilClod);
+    mesh.visible = false;
+    soilSpotGroup.add(mesh);
+    const a = (i / 16) * Math.PI * 2 + randRange(-0.2, 0.2);
+    puffClods.push({
+      mesh,
+      angle: a,
+      speedR: randRange(0.35, 0.85),
+      peakH: randRange(0.28, 0.62),
+      rotSpeed: randRange(2.5, 6.0)
+    });
   }
 
-  const mature = phase === 'mature' || (phase === 'growing' && (performance.now() - growT0) / GROW_MS > 0.8);
-  const pp = petalGeo.attributes.position;
-  for (let i = 0; i < PETALS; i++) {
-    if (!mature) { pp.setY(i, -50); continue; }
-    let y = pp.getY(i);
-    if (y < 0.1) { pp.setX(i, rand(-1.4, 1.4)); pp.setZ(i, rand(-1.4, 1.4)); y = rand(3.4, 4.4); }
-    y -= dt * 0.35;
-    pp.setY(i, y);
-    pp.setX(i, pp.getX(i) + Math.sin(t * 1.6 + petalSeed[i]) * dt * 0.4);
-  }
-  pp.needsUpdate = true;
+  // Subtle glowing rings marking the interactive bare soil spot (unmistakable at 320px)
+  const ringGeo = new THREE.RingGeometry(0.72, 0.82, 36);
+  ringGeo.rotateX(-Math.PI / 2);
+  targetHaloRing = new THREE.Mesh(ringGeo, MAT.targetRing);
+  targetHaloRing.position.y = 0.045;
+  soilSpotGroup.add(targetHaloRing);
 
-  butterflies.forEach((b, i) => {
-    b.visible = mature;
-    if (!mature) return;
-    const u = b.userData, a = t * u.s + u.ph;
-    b.position.set(Math.cos(a) * u.r, u.h + Math.sin(t * 1.7 + u.ph) * 0.25, Math.sin(a) * u.r);
-    b.rotation.y = -a;
-    for (const w of b.children) w.rotation.y = w.userData.d * (0.4 + Math.sin(t * 18 + u.ph) * 0.55);
+  const outerRingGeo = new THREE.RingGeometry(0.92, 0.97, 36);
+  outerRingGeo.rotateX(-Math.PI / 2);
+  targetOuterRing = new THREE.Mesh(outerRingGeo, MAT.targetRing.clone());
+  targetOuterRing.material.opacity = 0.35;
+  targetOuterRing.position.y = 0.035;
+  soilSpotGroup.add(targetOuterRing);
+
+  // Plump golden-brown seed nestled in the center soil hollow
+  seedGroup = new THREE.Group();
+  seedGroup.position.set(0, 0.09, 0);
+  soilSpotGroup.add(seedGroup);
+
+  const seedBodyGeo = new THREE.SphereGeometry(0.19, 18, 14);
+  seedBodyGeo.scale(1.0, 1.32, 0.82);
+  const seedBody = new THREE.Mesh(seedBodyGeo, MAT.seedCoat);
+  seedBody.castShadow = true;
+  seedBody.receiveShadow = true;
+  seedGroup.add(seedBody);
+
+  const seedCapGeo = new THREE.SphereGeometry(0.14, 14, 10);
+  seedCapGeo.scale(1.05, 0.55, 0.88);
+  const seedCap = new THREE.Mesh(seedCapGeo, MAT.seedStripe);
+  seedCap.position.y = 0.14;
+  seedGroup.add(seedCap);
+
+  seedGroup.rotation.z = 0.18;
+  seedGroup.rotation.x = -0.12;
+}
+buildSoilSpotAndSeed();
+
+/* ==========================================================================
+   3. MEADOW GRASS TUFTS (INSTANCED), PEBBLES, AND WILDFLOWERS AT SLAB EDGES
+   ========================================================================== */
+const GRASS_COUNT = 520;
+let grassInstancedMesh;
+const grassData = [];
+const dummyObj = new THREE.Object3D();
+
+function buildMeadowGrass() {
+  // Sculpted tapered curved grass blade geometry
+  const bladeGeo = new THREE.ConeGeometry(0.055, 0.48, 5, 4);
+  bladeGeo.translate(0, 0.24, 0);
+  const pos = bladeGeo.attributes.position;
+  for (let i = 0; i < pos.count; i++) {
+    const y = pos.getY(i);
+    const bend = Math.pow(y / 0.48, 2) * 0.09;
+    pos.setZ(i, pos.getZ(i) + bend);
+  }
+  bladeGeo.computeVertexNormals();
+
+  const grassMat = new THREE.MeshStandardMaterial({
+    color: 0xffffff,
+    roughness: 0.62,
+    metalness: 0.02
   });
 
-  const fwd = new THREE.Vector3(); camera.getWorldDirection(fwd);
-  const right = new THREE.Vector3().crossVectors(fwd, new THREE.Vector3(0,1,0)).normalize();
-  const up2 = new THREE.Vector3().crossVectors(right, fwd).normalize();
-  controls.minDistance = Math.min(requiredDistance(right, up2, fwd, controls.target) * 1.04, 26);
+  grassInstancedMesh = new THREE.InstancedMesh(bladeGeo, grassMat, GRASS_COUNT);
+  grassInstancedMesh.castShadow = true;
+  grassInstancedMesh.receiveShadow = true;
+  worldGroup.add(grassInstancedMesh);
+
+  const palette = [
+    new THREE.Color(0x5eb544),
+    new THREE.Color(0x74c750),
+    new THREE.Color(0x4ea339),
+    new THREE.Color(0x88d459),
+    new THREE.Color(0x63ba47)
+  ];
+
+  for (let i = 0; i < GRASS_COUNT; i++) {
+    // Concentrate tufts along the outer meadow ring, keeping the center soil spot clear
+    const u = rng();
+    const radius = 1.25 + Math.pow(u, 0.58) * 2.88;
+    const angle = rng() * Math.PI * 2;
+    const x = Math.cos(angle) * radius;
+    const z = Math.sin(angle) * radius;
+
+    const normR = clamp(radius / 4.3, 0, 1);
+    const groundY = 0.08 + Math.cos(normR * Math.PI * 0.48) * 0.11;
+
+    const scaleXZ = randRange(0.75, 1.45);
+    const scaleY = randRange(0.65, 1.55) * (0.75 + 0.35 * Math.sin(angle * 3));
+    const rotY = rng() * Math.PI * 2;
+    const baseTiltX = randRange(0.08, 0.34);
+    const phase = rng() * Math.PI * 2;
+
+    grassData.push({
+      x,
+      y: groundY,
+      z,
+      scaleXZ,
+      scaleY,
+      rotY,
+      baseTiltX,
+      phase
+    });
+
+    const col = palette[i % palette.length].clone();
+    col.offsetHSL(randRange(-0.02, 0.02), randRange(-0.04, 0.04), randRange(-0.04, 0.04));
+    grassInstancedMesh.setColorAt(i, col);
+  }
+  grassInstancedMesh.instanceColor.needsUpdate = true;
+}
+buildMeadowGrass();
+
+const wildflowerGroups = [];
+
+function buildPebblesAndWildflowers() {
+  // Smooth river pebbles arranged in natural clusters
+  const pebbleGeo = new THREE.SphereGeometry(0.16, 12, 10);
+  const pebblePositions = [
+    { r: 1.32, a: 0.45, sx: 1.3, sy: 0.55, sz: 1.0 },
+    { r: 1.48, a: 0.62, sx: 0.85, sy: 0.48, sz: 0.78 },
+    { r: 1.26, a: 2.35, sx: 1.15, sy: 0.52, sz: 0.95 },
+    { r: 2.65, a: 1.18, sx: 1.45, sy: 0.60, sz: 1.15 },
+    { r: 2.82, a: 1.28, sx: 0.90, sy: 0.46, sz: 0.85 },
+    { r: 2.40, a: 3.72, sx: 1.35, sy: 0.58, sz: 1.05 },
+    { r: 2.55, a: 3.86, sx: 0.80, sy: 0.42, sz: 0.72 },
+    { r: 3.15, a: 5.10, sx: 1.50, sy: 0.62, sz: 1.18 },
+    { r: 3.32, a: 5.22, sx: 0.95, sy: 0.50, sz: 0.84 },
+    { r: 1.95, a: 4.55, sx: 1.10, sy: 0.48, sz: 0.90 },
+    { r: 3.45, a: 2.80, sx: 1.28, sy: 0.55, sz: 1.04 },
+    { r: 1.42, a: 5.65, sx: 0.95, sy: 0.45, sz: 0.82 }
+  ];
+
+  pebblePositions.forEach((p, idx) => {
+    const mesh = new THREE.Mesh(
+      pebbleGeo,
+      idx % 2 === 0 ? MAT.pebbleLight : MAT.pebbleWarm
+    );
+    const x = Math.cos(p.a) * p.r;
+    const z = Math.sin(p.a) * p.r;
+    const normR = p.r / 4.35;
+    const y = 0.10 + Math.cos(normR * Math.PI * 0.48) * 0.12;
+    mesh.position.set(x, y, z);
+    mesh.scale.set(p.sx, p.sy, p.sz);
+    mesh.rotation.set(randRange(-0.15, 0.15), randRange(0, Math.PI * 2), randRange(-0.15, 0.15));
+    mesh.castShadow = true;
+    mesh.receiveShadow = true;
+    worldGroup.add(mesh);
+  });
+
+  // Hand-placed small wildflowers around the meadow
+  const stemGeo = new THREE.CylinderGeometry(0.018, 0.024, 0.42, 6);
+  stemGeo.translate(0, 0.21, 0);
+  const centerGeo = new THREE.SphereGeometry(0.065, 10, 8);
+  const petalGeo = new THREE.SphereGeometry(0.068, 10, 8);
+  petalGeo.scale(0.82, 0.35, 1.45);
+
+  const flowerCount = 22;
+  const petalMaterials = [
+    MAT.flowerPetalPink,
+    MAT.flowerPetalWhite,
+    MAT.flowerPetalSoftRose
+  ];
+
+  for (let i = 0; i < flowerCount; i++) {
+    const r = randRange(1.55, 3.85);
+    const a = (i / flowerCount) * Math.PI * 2 + randRange(-0.18, 0.18);
+    const x = Math.cos(a) * r;
+    const z = Math.sin(a) * r;
+    const normR = r / 4.35;
+    const y = 0.11 + Math.cos(normR * Math.PI * 0.48) * 0.11;
+
+    const fGroup = new THREE.Group();
+    fGroup.position.set(x, y, z);
+
+    const stem = new THREE.Mesh(stemGeo, MAT.sproutStem);
+    stem.castShadow = true;
+    fGroup.add(stem);
+
+    const head = new THREE.Group();
+    head.position.y = 0.42;
+    head.rotation.x = randRange(-0.28, 0.28);
+    head.rotation.z = randRange(-0.28, 0.28);
+    fGroup.add(head);
+
+    const center = new THREE.Mesh(centerGeo, MAT.flowerCenter);
+    center.scale.y = 0.65;
+    head.add(center);
+
+    const pMat = petalMaterials[i % petalMaterials.length];
+    const numPetals = 6;
+    for (let p = 0; p < numPetals; p++) {
+      const pa = (p / numPetals) * Math.PI * 2;
+      const petal = new THREE.Mesh(petalGeo, pMat);
+      petal.position.set(Math.cos(pa) * 0.095, 0.0, Math.sin(pa) * 0.095);
+      petal.rotation.y = -pa + Math.PI / 2;
+      petal.rotation.x = 0.18;
+      petal.castShadow = true;
+      head.add(petal);
+    }
+
+    const s = randRange(0.78, 1.25);
+    fGroup.scale.setScalar(s);
+    worldGroup.add(fGroup);
+
+    wildflowerGroups.push({
+      group: fGroup,
+      phase: rng() * Math.PI * 2,
+      baseRotX: randRange(-0.08, 0.08),
+      baseRotZ: randRange(-0.08, 0.08)
+    });
+  }
+}
+buildPebblesAndWildflowers();
+
+/* ==========================================================================
+   4. HERO SPROUT, SAPLING & MATURE TREE (TRUNK, BRANCHES, INSTANCED CANOPY & BLOSSOMS)
+   ========================================================================== */
+const treeRootGroup = new THREE.Group();
+treeRootGroup.position.set(0, 0.14, 0);
+worldGroup.add(treeRootGroup);
+
+// 4A. Tender green sprout with two unfurling cotyledon leaves
+const sproutGroup = new THREE.Group();
+treeRootGroup.add(sproutGroup);
+
+const sproutStemMesh = new THREE.Mesh(
+  new THREE.CylinderGeometry(0.038, 0.062, 0.85, 10, 4).translate(0, 0.425, 0),
+  MAT.sproutStem
+);
+sproutStemMesh.castShadow = true;
+sproutGroup.add(sproutStemMesh);
+
+const cotyledonGeo = new THREE.SphereGeometry(0.22, 12, 10);
+cotyledonGeo.scale(1.35, 0.24, 0.72);
+cotyledonGeo.translate(0.20, 0, 0);
+
+const leftSproutLeaf = new THREE.Mesh(cotyledonGeo, MAT.sproutLeaf);
+leftSproutLeaf.position.set(0, 0.78, 0);
+leftSproutLeaf.castShadow = true;
+sproutGroup.add(leftSproutLeaf);
+
+const rightSproutLeaf = new THREE.Mesh(cotyledonGeo, MAT.sproutLeaf);
+rightSproutLeaf.position.set(0, 0.78, 0);
+rightSproutLeaf.rotation.y = Math.PI;
+rightSproutLeaf.castShadow = true;
+sproutGroup.add(rightSproutLeaf);
+
+// 4B. Sculptural branching wooden trunk
+const trunkGroup = new THREE.Group();
+treeRootGroup.add(trunkGroup);
+
+const branchParts = [];
+
+function addBranchSegment(parent, radiusBottom, radiusTop, length, pos, rotEuler, startWindow, endWindow) {
+  const geo = new THREE.CylinderGeometry(radiusTop, radiusBottom, length, 10, 4);
+  geo.translate(0, length * 0.5, 0);
+  // Subtle organic curve in vertices
+  const posAttr = geo.attributes.position;
+  for (let i = 0; i < posAttr.count; i++) {
+    const y = posAttr.getY(i);
+    const t = y / length;
+    const curveX = Math.sin(t * Math.PI) * 0.07 * length;
+    posAttr.setX(i, posAttr.getX(i) + curveX);
+  }
+  geo.computeVertexNormals();
+
+  const pivot = new THREE.Group();
+  pivot.position.copy(pos);
+  pivot.rotation.copy(rotEuler);
+  parent.add(pivot);
+
+  const mesh = new THREE.Mesh(geo, MAT.bark);
+  mesh.castShadow = true;
+  mesh.receiveShadow = true;
+  pivot.add(mesh);
+
+  branchParts.push({
+    pivot,
+    mesh,
+    startWindow,
+    endWindow,
+    baseRot: rotEuler.clone()
+  });
+
+  return pivot;
+}
+
+// Root flare + Main trunk + Primary & Secondary limbs
+const mainTrunk = addBranchSegment(
+  trunkGroup,
+  0.46, 0.28, 2.35,
+  new THREE.Vector3(0, -0.05, 0),
+  new THREE.Euler(0.03, 0, -0.04),
+  0.22, 0.62
+);
+
+// Root buttresses
+for (let r = 0; r < 5; r++) {
+  const ra = (r / 5) * Math.PI * 2 + 0.3;
+  addBranchSegment(
+    trunkGroup,
+    0.20, 0.07, 0.75,
+    new THREE.Vector3(Math.cos(ra) * 0.32, -0.02, Math.sin(ra) * 0.32),
+    new THREE.Euler(Math.sin(ra) * -0.68, 0, Math.cos(ra) * 0.68),
+    0.26, 0.60
+  );
+}
+
+// Primary boughs radiating from upper trunk
+const boughSpecs = [
+  { y: 1.85, len: 1.55, rB: 0.23, rT: 0.11, rx: 0.52, ry: 0.2, rz: -0.46, s: 0.38, e: 0.70 },
+  { y: 1.95, len: 1.62, rB: 0.22, rT: 0.10, rx: -0.48, ry: 1.4, rz: 0.48, s: 0.40, e: 0.72 },
+  { y: 2.05, len: 1.50, rB: 0.21, rT: 0.10, rx: 0.44, ry: 2.7, rz: 0.52, s: 0.42, e: 0.74 },
+  { y: 2.15, len: 1.45, rB: 0.20, rT: 0.09, rx: -0.50, ry: 4.1, rz: -0.44, s: 0.44, e: 0.76 },
+  { y: 2.22, len: 1.38, rB: 0.18, rT: 0.09, rx: 0.18, ry: 5.2, rz: 0.22, s: 0.46, e: 0.78 }
+];
+
+const canopyClusterCenters = [
+  new THREE.Vector3(0.0, 3.65, 0.0),
+  new THREE.Vector3(1.18, 3.15, 0.62),
+  new THREE.Vector3(-1.15, 3.10, 0.68),
+  new THREE.Vector3(0.78, 3.20, -1.08),
+  new THREE.Vector3(-0.92, 3.15, -0.95),
+  new THREE.Vector3(0.05, 3.98, 0.42),
+  new THREE.Vector3(-0.48, 3.72, -0.35),
+  new THREE.Vector3(0.62, 3.68, 0.28)
+];
+
+boughSpecs.forEach((b) => {
+  const bough = addBranchSegment(
+    mainTrunk,
+    b.rB, b.rT, b.len,
+    new THREE.Vector3(0, b.y, 0),
+    new THREE.Euler(b.rx, b.ry, b.rz),
+    b.s, b.e
+  );
+  // Secondary twigs
+  addBranchSegment(
+    bough,
+    b.rT * 0.95, b.rT * 0.45, b.len * 0.62,
+    new THREE.Vector3(0, b.len * 0.72, 0),
+    new THREE.Euler(0.38, 0.6, -0.35),
+    b.s + 0.10, b.e + 0.08
+  );
+  addBranchSegment(
+    bough,
+    b.rT * 0.85, b.rT * 0.42, b.len * 0.55,
+    new THREE.Vector3(0, b.len * 0.85, 0),
+    new THREE.Euler(-0.34, -0.5, 0.40),
+    b.s + 0.12, b.e + 0.10
+  );
+});
+
+// 4C. Instanced Leaf Canopy (420 tactile leaf clusters growing outward in visible waves)
+const CANOPY_LEAF_COUNT = 420;
+let canopyInstancedMesh;
+const canopyLeafData = [];
+
+function buildCanopyLeaves() {
+  const leafClusterGeo = new THREE.DodecahedronGeometry(0.32, 1);
+  leafClusterGeo.scale(1.18, 0.78, 1.05);
+
+  const leafMat = new THREE.MeshStandardMaterial({
+    color: 0xffffff,
+    roughness: 0.56,
+    metalness: 0.02,
+    flatShading: true
+  });
+
+  canopyInstancedMesh = new THREE.InstancedMesh(leafClusterGeo, leafMat, CANOPY_LEAF_COUNT);
+  canopyInstancedMesh.castShadow = true;
+  canopyInstancedMesh.receiveShadow = true;
+  treeRootGroup.add(canopyInstancedMesh);
+
+  const leafColors = [
+    new THREE.Color(0x4ca638),
+    new THREE.Color(0x63ba45),
+    new THREE.Color(0x78cc4e),
+    new THREE.Color(0x8cdb58),
+    new THREE.Color(0x56b03e)
+  ];
+
+  for (let i = 0; i < CANOPY_LEAF_COUNT; i++) {
+    const clusterCenter = canopyClusterCenters[i % canopyClusterCenters.length];
+    const u = rng();
+    const v = rng();
+    const theta = u * 2 * Math.PI;
+    const phi = Math.acos(2 * v - 1);
+    const r = Math.pow(rng(), 0.45) * 1.18;
+
+    const lx = clusterCenter.x + r * Math.sin(phi) * Math.cos(theta) * 1.12;
+    const ly = clusterCenter.y + r * Math.cos(phi) * 0.78;
+    const lz = clusterCenter.z + r * Math.sin(phi) * Math.sin(theta) * 1.12;
+
+    // Distance from trunk crown center determines visible outward wave timing
+    const distFromCrown = Math.hypot(lx, ly - 3.1, lz);
+    const waveDelay = clamp(distFromCrown / 2.6, 0, 1);
+    const appearStart = 0.50 + waveDelay * 0.24; // 0.50 -> 0.74
+    const appearEnd = appearStart + 0.11;
+
+    const baseScale = randRange(0.68, 1.32);
+    const rot = new THREE.Euler(
+      rng() * Math.PI * 2,
+      rng() * Math.PI * 2,
+      rng() * Math.PI * 2
+    );
+
+    canopyLeafData.push({
+      pos: new THREE.Vector3(lx, ly, lz),
+      rot,
+      baseScale,
+      appearStart,
+      appearEnd,
+      phase: rng() * Math.PI * 2
+    });
+
+    const col = leafColors[i % leafColors.length].clone();
+    // Sunlit top leaves slightly warmer gold-green
+    const heightBoost = clamp((ly - 2.4) / 2.4, 0, 1) * 0.08;
+    col.offsetHSL(randRange(-0.02, 0.02), randRange(-0.03, 0.04), heightBoost + randRange(-0.03, 0.03));
+    canopyInstancedMesh.setColorAt(i, col);
+  }
+  canopyInstancedMesh.instanceColor.needsUpdate = true;
+}
+buildCanopyLeaves();
+
+// 4D. Instanced Canopy Blossoms (220 spring blossoms popping open across the canopy)
+const BLOSSOM_COUNT = 220;
+let blossomInstancedMesh;
+const blossomData = [];
+
+function buildCanopyBlossoms() {
+  // Sculpted 5-lobed blossom cluster geometry
+  const blossomGeo = new THREE.OctahedronGeometry(0.145, 1);
+  blossomGeo.scale(1.25, 0.52, 1.25);
+
+  const blossomMat = new THREE.MeshStandardMaterial({
+    color: 0xffffff,
+    roughness: 0.42,
+    metalness: 0.02,
+    emissive: 0xffd1df,
+    emissiveIntensity: 0.16
+  });
+
+  blossomInstancedMesh = new THREE.InstancedMesh(blossomGeo, blossomMat, BLOSSOM_COUNT);
+  blossomInstancedMesh.castShadow = true;
+  treeRootGroup.add(blossomInstancedMesh);
+
+  const blossomPalette = [
+    new THREE.Color(0xffb5cb),
+    new THREE.Color(0xfff2f6),
+    new THREE.Color(0xff8fb1),
+    new THREE.Color(0xffcad9),
+    new THREE.Color(0xfff9eb)
+  ];
+
+  for (let i = 0; i < BLOSSOM_COUNT; i++) {
+    const clusterCenter = canopyClusterCenters[i % canopyClusterCenters.length];
+    const theta = rng() * Math.PI * 2;
+    const phi = Math.acos(2 * rng() - 1);
+    // Position blossoms on the outer shell of the leaf clusters
+    const r = randRange(0.78, 1.26);
+
+    const bx = clusterCenter.x + r * Math.sin(phi) * Math.cos(theta) * 1.14;
+    const by = clusterCenter.y + Math.abs(r * Math.cos(phi)) * 0.72 - 0.1;
+    const bz = clusterCenter.z + r * Math.sin(phi) * Math.sin(theta) * 1.14;
+
+    const normal = new THREE.Vector3(bx, by - 3.1, bz).normalize();
+    const quat = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), normal);
+    const euler = new THREE.Euler().setFromQuaternion(quat);
+
+    // Pop open sequentially between 0.75 and 0.94 of growth cycle
+    const popStart = 0.74 + rng() * 0.15;
+    const popEnd = popStart + 0.06;
+
+    blossomData.push({
+      pos: new THREE.Vector3(bx, by, bz),
+      euler,
+      baseScale: randRange(0.75, 1.35),
+      popStart,
+      popEnd,
+      phase: rng() * Math.PI * 2
+    });
+
+    const col = blossomPalette[i % blossomPalette.length].clone();
+    blossomInstancedMesh.setColorAt(i, col);
+  }
+  blossomInstancedMesh.instanceColor.needsUpdate = true;
+}
+buildCanopyBlossoms();
+
+/* ==========================================================================
+   5. DRIFTING PETALS & REPLANT SWIRL BURST (INSTANCED)
+   ========================================================================== */
+const PETAL_COUNT = 240;
+let petalInstancedMesh;
+const petalData = [];
+
+function buildFallingPetals() {
+  const pGeo = new THREE.PlaneGeometry(0.13, 0.09, 2, 2);
+  const pos = pGeo.attributes.position;
+  for (let i = 0; i < pos.count; i++) {
+    pos.setZ(i, Math.sin(pos.getX(i) * 14) * 0.02);
+  }
+  pGeo.computeVertexNormals();
+
+  const pMat = new THREE.MeshStandardMaterial({
+    color: 0xffffff,
+    roughness: 0.48,
+    side: THREE.DoubleSide
+  });
+
+  petalInstancedMesh = new THREE.InstancedMesh(pGeo, pMat, PETAL_COUNT);
+  worldGroup.add(petalInstancedMesh);
+
+  const colors = [
+    new THREE.Color(0xffb8cd),
+    new THREE.Color(0xfff4f7),
+    new THREE.Color(0xff92b2),
+    new THREE.Color(0x80cf53), // Burst also includes swirling fresh leaves
+    new THREE.Color(0xffd4e2)
+  ];
+
+  for (let i = 0; i < PETAL_COUNT; i++) {
+    const isAmbient = i < 75; // First 75 drift gently during late growth & mature state; all 240 swirl in replant burst
+    petalData.push({
+      isAmbient,
+      angle0: rng() * Math.PI * 2,
+      radius0: randRange(0.25, 2.15),
+      height0: randRange(2.4, 4.6),
+      fallSpeed: randRange(0.32, 0.68),
+      swirlSpeed: randRange(0.9, 2.2),
+      flutterSpeed: randRange(2.5, 5.5),
+      phase: rng() * Math.PI * 2,
+      scale: randRange(0.75, 1.35)
+    });
+
+    const col = isAmbient
+      ? colors[i % 3]
+      : colors[i % colors.length];
+    petalInstancedMesh.setColorAt(i, col);
+  }
+  petalInstancedMesh.instanceColor.needsUpdate = true;
+}
+buildFallingPetals();
+
+/* ==========================================================================
+   6. LIGHT POLLEN MOTES IN THE AIR (INSTANCED)
+   ========================================================================== */
+const POLLEN_COUNT = 180;
+let pollenInstancedMesh;
+const pollenData = [];
+
+function buildPollenMotes() {
+  const moteGeo = new THREE.OctahedronGeometry(0.032, 0);
+  const moteMat = new THREE.MeshBasicMaterial({
+    color: 0xfff5ba,
+    transparent: true,
+    opacity: 0.82
+  });
+
+  pollenInstancedMesh = new THREE.InstancedMesh(moteGeo, moteMat, POLLEN_COUNT);
+  worldGroup.add(pollenInstancedMesh);
+
+  for (let i = 0; i < POLLEN_COUNT; i++) {
+    const r = randRange(0.4, 4.1);
+    const a = rng() * Math.PI * 2;
+    const y = randRange(0.35, 4.75);
+    pollenData.push({
+      baseX: Math.cos(a) * r,
+      baseY: y,
+      baseZ: Math.sin(a) * r,
+      ampX: randRange(0.12, 0.35),
+      ampY: randRange(0.10, 0.28),
+      ampZ: randRange(0.12, 0.35),
+      speed: randRange(0.45, 1.15),
+      phase: rng() * Math.PI * 2,
+      scale: randRange(0.65, 1.35)
+    });
+  }
+}
+buildPollenMotes();
+
+/* ==========================================================================
+   7. BUTTERFLIES CIRCLING IN LAZY FIGURE-EIGHTS & GATHERING AT CANOPY
+   ========================================================================== */
+const butterflies = [];
+
+function buildButterflies() {
+  const wingShape = new THREE.Shape();
+  wingShape.moveTo(0, 0);
+  wingShape.bezierCurveTo(0.12, 0.14, 0.24, 0.16, 0.22, 0.02);
+  wingShape.bezierCurveTo(0.20, -0.06, 0.14, -0.14, 0.0, -0.06);
+  const wingGeo = new THREE.ShapeGeometry(wingShape, 8);
+
+  const butterflyColors = [
+    0xffd15c,
+    0xff9ebb,
+    0x8ce0ff,
+    0xffb26b,
+    0xf7e88b,
+    0xffa8d8
+  ];
+
+  for (let i = 0; i < 6; i++) {
+    const bGroup = new THREE.Group();
+    const mat = new THREE.MeshStandardMaterial({
+      color: butterflyColors[i % butterflyColors.length],
+      roughness: 0.4,
+      emissive: butterflyColors[i % butterflyColors.length],
+      emissiveIntensity: 0.18,
+      side: THREE.DoubleSide
+    });
+
+    const leftWingPivot = new THREE.Group();
+    const leftWing = new THREE.Mesh(wingGeo, mat);
+    leftWing.rotation.x = Math.PI / 2;
+    leftWingPivot.add(leftWing);
+    bGroup.add(leftWingPivot);
+
+    const rightWingPivot = new THREE.Group();
+    const rightWing = new THREE.Mesh(wingGeo, mat);
+    rightWing.rotation.x = Math.PI / 2;
+    rightWing.scale.x = -1;
+    rightWingPivot.add(rightWing);
+    bGroup.add(rightWingPivot);
+
+    bGroup.scale.setScalar(0.95);
+    worldGroup.add(bGroup);
+
+    butterflies.push({
+      group: bGroup,
+      leftWingPivot,
+      rightWingPivot,
+      phase: (i / 6) * Math.PI * 2 + rng() * 0.5,
+      speed: randRange(0.55, 0.82),
+      idleRadius: randRange(2.2, 3.45),
+      idleHeight: randRange(1.05, 2.35),
+      canopyRadius: randRange(1.25, 1.95),
+      canopyHeight: randRange(2.85, 4.35),
+      prevPos: new THREE.Vector3()
+    });
+  }
+}
+buildButterflies();
+
+/* ==========================================================================
+   8. GENTLE SUN GLOW & SLOW DRIFTING CLOUDS
+   ========================================================================== */
+const skyGroup = new THREE.Group();
+worldGroup.add(skyGroup);
+
+let sunGlowGroup, sunHaloInnerMesh, sunHaloOuterMesh;
+const clouds = [];
+
+function buildSkyElements() {
+  // Warm pulsing sun glow in upper right of the diorama
+  sunGlowGroup = new THREE.Group();
+  sunGlowGroup.position.set(2.85, 4.95, -2.45);
+  skyGroup.add(sunGlowGroup);
+
+  const sunCore = new THREE.Mesh(new THREE.SphereGeometry(0.42, 20, 16), MAT.sunCore);
+  sunGlowGroup.add(sunCore);
+
+  sunHaloInnerMesh = new THREE.Mesh(new THREE.SphereGeometry(0.68, 20, 16), MAT.sunHaloInner);
+  sunGlowGroup.add(sunHaloInnerMesh);
+
+  sunHaloOuterMesh = new THREE.Mesh(new THREE.SphereGeometry(1.02, 20, 16), MAT.sunHaloOuter);
+  sunGlowGroup.add(sunHaloOuterMesh);
+
+  // Soft tactile sculptural clouds drifting slowly
+  const puffGeo = new THREE.SphereGeometry(0.36, 14, 12);
+  const cloudConfigs = [
+    { angle: 0.35, radius: 3.35, y: 4.55, scale: 0.85, speed: 0.065 },
+    { angle: 2.15, radius: 3.55, y: 4.82, scale: 0.95, speed: 0.052 },
+    { angle: 3.85, radius: 3.25, y: 4.38, scale: 0.78, speed: 0.072 },
+    { angle: 5.15, radius: 3.45, y: 4.68, scale: 0.88, speed: 0.058 }
+  ];
+
+  cloudConfigs.forEach((cfg, idx) => {
+    const cGroup = new THREE.Group();
+    const blobs = [
+      { x: 0.0, y: 0.0, z: 0.0, sx: 1.3, sy: 0.75, sz: 0.95 },
+      { x: -0.34, y: -0.05, z: 0.06, sx: 0.95, sy: 0.62, sz: 0.82 },
+      { x: 0.36, y: -0.04, z: -0.04, sx: 1.02, sy: 0.66, sz: 0.85 },
+      { x: 0.12, y: 0.14, z: 0.08, sx: 0.85, sy: 0.65, sz: 0.78 }
+    ];
+    blobs.forEach((b) => {
+      const m = new THREE.Mesh(puffGeo, MAT.cloud);
+      m.position.set(b.x, b.y, b.z);
+      m.scale.set(b.sx, b.sy, b.sz);
+      cGroup.add(m);
+    });
+    cGroup.scale.setScalar(cfg.scale);
+    skyGroup.add(cGroup);
+    clouds.push({
+      group: cGroup,
+      baseAngle: cfg.angle,
+      radius: cfg.radius,
+      baseY: cfg.y,
+      speed: cfg.speed,
+      phase: idx * 1.7
+    });
+  });
+}
+buildSkyElements();
+
+/* ==========================================================================
+   9. GENEROUS INVISIBLE RAYCAST TARGET PROXIES (SOIL SPOT & TREE CANOPY)
+   ========================================================================== */
+// Soil proxy: generous cylinder covering the center soil bed for easy 320px tap
+const soilHitProxy = new THREE.Mesh(
+  new THREE.CylinderGeometry(1.55, 1.65, 0.95, 24),
+  MAT.invisibleProxy
+);
+soilHitProxy.position.set(0, 0.35, 0);
+worldGroup.add(soilHitProxy);
+
+// Tree canopy + trunk proxy: generous sphere + trunk volume for easy 320px tap
+const treeHitProxy = new THREE.Mesh(
+  new THREE.SphereGeometry(2.55, 18, 14),
+  MAT.invisibleProxy
+);
+treeHitProxy.position.set(0, 3.25, 0);
+worldGroup.add(treeHitProxy);
+
+/* ==========================================================================
+   10. ASPECT-AWARE CAMERA FRAMING FROM PROJECTED BOUNDING BOX OF ALL GEOMETRY
+   ========================================================================== */
+// Bounding volume covering: full slab (radius 4.65, y: -1.12..0.2), mature tree canopy (y up to 5.25),
+// butterfly loops & sun/clouds (y up to 5.55), petal fall zone
+const SCENE_BOUNDS = {
+  minY: -1.18,
+  maxY: 5.62,
+  maxRadius: 4.72
+};
+
+const sampleBoundPoints = [];
+function initSampleBoundPoints() {
+  const rings = [SCENE_BOUNDS.minY, 0.0, 2.2, 4.1, SCENE_BOUNDS.maxY];
+  const steps = 16;
+  rings.forEach((y) => {
+    const r = y > 4.6 ? 3.9 : SCENE_BOUNDS.maxRadius;
+    for (let i = 0; i < steps; i++) {
+      const a = (i / steps) * Math.PI * 2;
+      sampleBoundPoints.push(new THREE.Vector3(Math.cos(a) * r, y, Math.sin(a) * r));
+    }
+  });
+}
+initSampleBoundPoints();
+
+function updateCameraFraming() {
+  const rect = stageWrap.getBoundingClientRect();
+  const width = Math.max(rect.width, 240);
+  const height = Math.max(rect.height, 200);
+  const aspect = width / height;
+
+  renderer.setSize(width, height, false);
+
+  // Aspect-aware FOV: wider FOV in portrait (e.g. 320x700, 390x844), balanced in landscape (616x562)
+  const fov = aspect < 0.85 ? 43 : aspect < 1.15 ? 38 : 34;
+  camera.fov = fov;
+  camera.aspect = aspect;
+
+  // Target center slightly elevated so slab, soil spot, and full mature canopy headroom sit harmoniously
+  const target = new THREE.Vector3(0, 2.08, 0);
+  controls.target.copy(target);
+
+  // Slightly elevated three-quarter view direction
+  const elevAngle = THREE.MathUtils.degToRad(22);
+  const azimAngle = THREE.MathUtils.degToRad(26);
+  const viewDir = new THREE.Vector3(
+    Math.sin(azimAngle) * Math.cos(elevAngle),
+    Math.sin(elevAngle),
+    Math.cos(azimAngle) * Math.cos(elevAngle)
+  ).normalize();
+
+  // Compute camera distance from projected bounding box of all important geometry
+  const rightVec = new THREE.Vector3().crossVectors(new THREE.Vector3(0, 1, 0), viewDir).normalize();
+  const upVec = new THREE.Vector3().crossVectors(viewDir, rightVec).normalize();
+
+  const halfFovV = THREE.MathUtils.degToRad(fov * 0.5);
+  const tanV = Math.tan(halfFovV);
+  const tanH = tanV * aspect;
+
+  let requiredDist = 8.0;
+  for (let i = 0; i < sampleBoundPoints.length; i++) {
+    const rel = sampleBoundPoints[i].clone().sub(target);
+    const zProj = rel.dot(viewDir);
+    const xProj = Math.abs(rel.dot(rightVec));
+    const yProj = Math.abs(rel.dot(upVec));
+
+    const distForX = xProj / tanH + zProj;
+    const distForY = yProj / tanV + zProj;
+    requiredDist = Math.max(requiredDist, distForX, distForY);
+  }
+
+  // Add small breathing margin (7%) so slab edges and top canopy/clouds never crop at 320px/390px/616px
+  const finalDist = requiredDist * 1.075;
+
+  camera.position.copy(target).addScaledVector(viewDir, finalDist);
+  camera.updateProjectionMatrix();
+
+  // Protect composition with restrained zoom bounds
+  controls.minDistance = finalDist * 0.86;
+  controls.maxDistance = finalDist * 1.18;
+  controls.update();
+}
+
+window.addEventListener('resize', updateCameraFraming);
+updateCameraFraming();
+
+/* ==========================================================================
+   11. RAYCASTER MOUSE / TOUCH INTERACTION (DISTINGUISH TAP FROM DRAG)
+   ========================================================================== */
+const raycaster = new THREE.Raycaster();
+const pointerNDC = new THREE.Vector2();
+let pointerDownPos = { x: 0, y: 0 };
+let pointerIsDown = false;
+
+function getNormalizedPointer(clientX, clientY) {
+  const rect = renderer.domElement.getBoundingClientRect();
+  pointerNDC.x = ((clientX - rect.left) / rect.width) * 2 - 1;
+  pointerNDC.y = -((clientY - rect.top) / rect.height) * 2 + 1;
+}
+
+renderer.domElement.addEventListener('pointerdown', (e) => {
+  pointerIsDown = true;
+  pointerDownPos.x = e.clientX;
+  pointerDownPos.y = e.clientY;
+});
+
+renderer.domElement.addEventListener('pointermove', (e) => {
+  getNormalizedPointer(e.clientX, e.clientY);
+  raycaster.setFromCamera(pointerNDC, camera);
+
+  let hoveringActiveTarget = false;
+  if (currentState === STATE.SEED_WAITING) {
+    hoveringActiveTarget = raycaster.intersectObject(soilHitProxy, false).length > 0;
+  } else if (currentState === STATE.MATURE) {
+    hoveringActiveTarget =
+      raycaster.intersectObject(treeHitProxy, false).length > 0 ||
+      raycaster.intersectObject(soilHitProxy, false).length > 0;
+  }
+  stageWrap.classList.toggle('pointer-target', hoveringActiveTarget);
+});
+
+renderer.domElement.addEventListener('pointerup', (e) => {
+  if (!pointerIsDown) return;
+  pointerIsDown = false;
+
+  const dx = e.clientX - pointerDownPos.x;
+  const dy = e.clientY - pointerDownPos.y;
+  const moveDist = Math.hypot(dx, dy);
+
+  // Distinguish tap from orbit drag via pointer distance (< 9px)
+  if (moveDist > 9) return;
+
+  getNormalizedPointer(e.clientX, e.clientY);
+  raycaster.setFromCamera(pointerNDC, camera);
+
+  const now = performance.now();
+
+  if (currentState === STATE.SEED_WAITING) {
+    const hitSoil = raycaster.intersectObject(soilHitProxy, false);
+    if (hitSoil.length > 0) {
+      setGardenState(STATE.GROWING, now);
+    }
+  } else if (currentState === STATE.MATURE) {
+    const hitTree = raycaster.intersectObject(treeHitProxy, false);
+    const hitSoil = raycaster.intersectObject(soilHitProxy, false);
+    if (hitTree.length > 0 || hitSoil.length > 0) {
+      setGardenState(STATE.REPLANTING, now);
+    }
+  } else if (currentState === STATE.GROWING) {
+    // Allow re-triggering if already >96% grown
+    const elapsed = now - stateStartTime;
+    if (elapsed > GROW_DURATION * 0.96) {
+      const hitTree = raycaster.intersectObject(treeHitProxy, false);
+      if (hitTree.length > 0) {
+        setGardenState(STATE.REPLANTING, now);
+      }
+    }
+  }
+});
+
+/* ==========================================================================
+   12. ANIMATION UPDATE LOOP (ALL MOTION FROM performance.now)
+   ========================================================================== */
+const tempMatrix = new THREE.Matrix4();
+const tempPos = new THREE.Vector3();
+const tempQuat = new THREE.Quaternion();
+const tempScale = new THREE.Vector3();
+const tempEuler = new THREE.Euler();
+
+function animateFrame(now) {
+  requestAnimationFrame(animateFrame);
+
+  const timeSec = now * 0.001;
+  const stateElapsed = now - stateStartTime;
+
+  // Transition state timers smoothly
+  let growProgress = 0;
+  let replantProgress = 0;
+
+  if (currentState === STATE.SEED_WAITING) {
+    growProgress = 0;
+  } else if (currentState === STATE.GROWING) {
+    growProgress = clamp(stateElapsed / GROW_DURATION, 0, 1);
+    if (growProgress >= 1) {
+      setGardenState(STATE.MATURE, now);
+      growProgress = 1;
+    }
+  } else if (currentState === STATE.MATURE) {
+    growProgress = 1;
+  } else if (currentState === STATE.REPLANTING) {
+    replantProgress = clamp(stateElapsed / REPLANT_DURATION, 0, 1);
+    growProgress = 1 - easeInOutCubic(replantProgress);
+    if (replantProgress >= 1) {
+      setGardenState(STATE.SEED_WAITING, now);
+      growProgress = 0;
+      replantProgress = 0;
+    }
+  }
+
+  /* ------------------------------------------------------------------------
+     A. IDLE SUN GLOW PULSE & DRIFTING CLOUDS
+     ------------------------------------------------------------------------ */
+  const sunPulse = 1 + Math.sin(timeSec * 1.9) * 0.07;
+  sunHaloInnerMesh.scale.setScalar(sunPulse);
+  sunHaloOuterMesh.scale.setScalar(1 + Math.sin(timeSec * 1.35 + 0.8) * 0.11);
+
+  for (let i = 0; i < clouds.length; i++) {
+    const c = clouds[i];
+    const angle = c.baseAngle + timeSec * c.speed;
+    c.group.position.x = Math.cos(angle) * c.radius;
+    c.group.position.z = Math.sin(angle) * c.radius - 0.55;
+    c.group.position.y = c.baseY + Math.sin(timeSec * 0.9 + c.phase) * 0.08;
+    c.group.rotation.y = -angle + Math.PI * 0.5;
+  }
+
+  /* ------------------------------------------------------------------------
+     B. MEADOW GRASS & WILDFLOWERS GENTLE BREEZE SWAY
+     ------------------------------------------------------------------------ */
+  for (let i = 0; i < GRASS_COUNT; i++) {
+    const g = grassData[i];
+    const wind = Math.sin(timeSec * 2.1 + g.x * 0.65 + g.z * 0.5 + g.phase) * 0.11;
+    tempPos.set(g.x, g.y, g.z);
+    tempEuler.set(g.baseTiltX + wind, g.rotY, wind * 0.5);
+    tempQuat.setFromEuler(tempEuler);
+    tempScale.set(g.scaleXZ, g.scaleY, g.scaleXZ);
+    tempMatrix.compose(tempPos, tempQuat, tempScale);
+    grassInstancedMesh.setMatrixAt(i, tempMatrix);
+  }
+  grassInstancedMesh.instanceMatrix.needsUpdate = true;
+
+  for (let i = 0; i < wildflowerGroups.length; i++) {
+    const wf = wildflowerGroups[i];
+    wf.group.rotation.x = wf.baseRotX + Math.sin(timeSec * 1.85 + wf.phase) * 0.065;
+    wf.group.rotation.z = wf.baseRotZ + Math.cos(timeSec * 1.65 + wf.phase) * 0.065;
+  }
+
+  /* ------------------------------------------------------------------------
+     C. FLOATING POLLEN MOTES
+     ------------------------------------------------------------------------ */
+  for (let i = 0; i < POLLEN_COUNT; i++) {
+    const m = pollenData[i];
+    const px = m.baseX + Math.sin(timeSec * m.speed + m.phase) * m.ampX;
+    const py = m.baseY + Math.cos(timeSec * m.speed * 0.85 + m.phase) * m.ampY;
+    const pz = m.baseZ + Math.sin(timeSec * m.speed * 0.92 + m.phase * 1.3) * m.ampZ;
+    const pulse = m.scale * (0.75 + 0.35 * Math.sin(timeSec * 2.8 + m.phase));
+    tempPos.set(px, py, pz);
+    tempEuler.set(timeSec * 0.6, timeSec * 0.8, 0);
+    tempQuat.setFromEuler(tempEuler);
+    tempScale.setScalar(pulse);
+    tempMatrix.compose(tempPos, tempQuat, tempScale);
+    pollenInstancedMesh.setMatrixAt(i, tempMatrix);
+  }
+  pollenInstancedMesh.instanceMatrix.needsUpdate = true;
+
+  /* ------------------------------------------------------------------------
+     D. SEED, SOIL SPOT RING, AND SOIL PUFF (STAGE 1: 0..2s of 12s)
+     ------------------------------------------------------------------------ */
+  if (currentState === STATE.SEED_WAITING) {
+    seedGroup.visible = true;
+    const breathe = 1 + Math.sin(timeSec * 3.4) * 0.07;
+    seedGroup.scale.setScalar(breathe);
+    seedGroup.position.set(0, 0.09 + Math.sin(timeSec * 3.4) * 0.012, 0);
+    seedGroup.rotation.z = 0.18 + Math.sin(timeSec * 2.5) * 0.05;
+
+    targetHaloRing.visible = true;
+    targetOuterRing.visible = true;
+    const ringScale = 1 + Math.sin(timeSec * 3.0) * 0.05;
+    targetHaloRing.scale.setScalar(ringScale);
+    targetHaloRing.material.opacity = 0.48 + Math.sin(timeSec * 3.0) * 0.22;
+    targetOuterRing.scale.setScalar(1 + Math.cos(timeSec * 2.4) * 0.06);
+  } else if (currentState === STATE.GROWING) {
+    // Seed swells & cracks open between p=0 and p=0.14
+    const crackT = clamp(growProgress / 0.14, 0, 1);
+    targetHaloRing.visible = crackT < 1;
+    targetOuterRing.visible = crackT < 1;
+    targetHaloRing.material.opacity = (1 - crackT) * 0.6;
+
+    if (crackT < 1) {
+      seedGroup.visible = true;
+      const shake = Math.sin(timeSec * 44) * 0.035 * Math.sin(crackT * Math.PI);
+      const swell = (1 + 0.35 * Math.sin(crackT * Math.PI)) * (1 - smoothstep(0.65, 1.0, crackT));
+      seedGroup.position.set(shake, 0.09 + crackT * 0.04, 0);
+      seedGroup.scale.setScalar(Math.max(0.001, swell));
+    } else {
+      seedGroup.visible = false;
+    }
+
+    // Soil puff clods arc outward when sprout pushes through (p = 0.03 .. 0.22)
+    const puffT = clamp((growProgress - 0.03) / 0.19, 0, 1);
+    for (let i = 0; i < puffClods.length; i++) {
+      const pc = puffClods[i];
+      if (puffT > 0 && puffT < 1) {
+        pc.mesh.visible = true;
+        const r = puffT * pc.speedR;
+        const y = Math.sin(puffT * Math.PI) * pc.peakH;
+        pc.mesh.position.set(Math.cos(pc.angle) * r, y + 0.05, Math.sin(pc.angle) * r);
+        pc.mesh.rotation.x = puffT * pc.rotSpeed;
+        pc.mesh.rotation.z = puffT * pc.rotSpeed;
+        const s = Math.sin(puffT * Math.PI) * 1.25;
+        pc.mesh.scale.setScalar(Math.max(0.001, s));
+      } else {
+        pc.mesh.visible = false;
+      }
+    }
+  } else if (currentState === STATE.MATURE) {
+    seedGroup.visible = false;
+    targetHaloRing.visible = false;
+    targetOuterRing.visible = false;
+    for (let i = 0; i < puffClods.length; i++) {
+      puffClods[i].mesh.visible = false;
+    }
+  } else if (currentState === STATE.REPLANTING) {
+    // During replant, a fresh golden seed descends and nestles back into the soil spot in the final half
+    const seedReturnT = smoothstep(0.42, 0.98, replantProgress);
+    seedGroup.visible = seedReturnT > 0.01;
+    const dropY = 0.09 + (1 - easeOutCubic(seedReturnT)) * 1.45;
+    const sScale = easeOutBack(seedReturnT);
+    seedGroup.position.set(0, dropY, 0);
+    seedGroup.scale.setScalar(Math.max(0.001, sScale));
+    seedGroup.rotation.y = (1 - seedReturnT) * Math.PI * 3;
+
+    targetHaloRing.visible = seedReturnT > 0.5;
+    targetOuterRing.visible = seedReturnT > 0.5;
+    targetHaloRing.material.opacity = (seedReturnT - 0.5) * 1.2;
+  }
+
+  // Soil clod ring subtle displacement as trunk base widens
+  const trunkBasePush = smoothstep(0.22, 0.62, growProgress) * 0.22;
+  for (let i = 0; i < soilClodMeshes.length; i++) {
+    const sc = soilClodMeshes[i];
+    sc.mesh.position.x = sc.baseX + Math.cos(sc.angle) * trunkBasePush;
+    sc.mesh.position.z = sc.baseZ + Math.sin(sc.angle) * trunkBasePush;
+  }
+
+  /* ------------------------------------------------------------------------
+     E. SPROUT & FIRST LEAVES UNFURLING (p = 0.07 .. 0.36)
+     ------------------------------------------------------------------------ */
+  const sproutAppear = smoothstep(0.06, 0.24, growProgress);
+  const sproutFade = 1 - smoothstep(0.30, 0.45, growProgress);
+  const sproutVis = sproutAppear * sproutFade;
+
+  if (sproutVis > 0.005) {
+    sproutGroup.visible = true;
+    sproutGroup.scale.set(sproutVis, easeOutBack(sproutAppear) * sproutFade, sproutVis);
+    const unfurl = smoothstep(0.12, 0.28, growProgress);
+    const leafAngle = (1 - unfurl) * 1.15 - 0.15;
+    leftSproutLeaf.rotation.z = leafAngle;
+    rightSproutLeaf.rotation.z = leafAngle;
+    leftSproutLeaf.scale.setScalar(0.2 + 0.8 * unfurl);
+    rightSproutLeaf.scale.setScalar(0.2 + 0.8 * unfurl);
+    sproutGroup.rotation.z = Math.sin(timeSec * 3.2) * 0.05;
+  } else {
+    sproutGroup.visible = false;
+  }
+
+  /* ------------------------------------------------------------------------
+     F. SAPLING TO MATURE TREE: BRANCHING TRUNK, WAVE CANOPY, BLOSSOMS
+     ------------------------------------------------------------------------ */
+  // Gentle continuous sway of the tree
+  const treeSwayX = Math.sin(timeSec * 1.35) * 0.024 * growProgress;
+  const treeSwayZ = Math.cos(timeSec * 1.15) * 0.028 * growProgress;
+  treeRootGroup.rotation.set(treeSwayX, 0, treeSwayZ);
+
+  // Branch segments grow sequentially
+  for (let i = 0; i < branchParts.length; i++) {
+    const bp = branchParts[i];
+    const segT = smoothstep(bp.startWindow, bp.endWindow, growProgress);
+    if (segT <= 0.002) {
+      bp.mesh.visible = false;
+    } else {
+      bp.mesh.visible = true;
+      const thickT = easeOutCubic(segT);
+      const lenT = easeOutBack(segT);
+      bp.mesh.scale.set(thickT, lenT, thickT);
+    }
+  }
+
+  // Instanced Canopy Leaves growing outward in unmistakable waves
+  for (let i = 0; i < CANOPY_LEAF_COUNT; i++) {
+    const ld = canopyLeafData[i];
+    let leafFactor = 0;
+    if (currentState === STATE.REPLANTING) {
+      // Shrink gracefully during replanting
+      const shrinkOrder = 1 - (ld.appearStart - 0.50) / 0.25;
+      const st = clamp((replantProgress - shrinkOrder * 0.25) / 0.55, 0, 1);
+      leafFactor = 1 - easeInOutCubic(st);
+    } else {
+      const rawT = clamp((growProgress - ld.appearStart) / (ld.appearEnd - ld.appearStart), 0, 1);
+      leafFactor = rawT > 0 ? easeOutBack(rawT) : 0;
+    }
+
+    if (leafFactor <= 0.002) {
+      tempScale.setScalar(0.0001);
+      tempPos.set(0, -10, 0);
+      tempMatrix.compose(tempPos, tempQuat, tempScale);
+    } else {
+      const rustle = Math.sin(timeSec * 2.2 + ld.phase) * 0.045;
+      tempPos.set(
+        ld.pos.x + rustle,
+        ld.pos.y + Math.cos(timeSec * 1.9 + ld.phase) * 0.03,
+        ld.pos.z + rustle
+      );
+      tempEuler.set(ld.rot.x + rustle, ld.rot.y, ld.rot.z - rustle);
+      tempQuat.setFromEuler(tempEuler);
+      tempScale.setScalar(ld.baseScale * leafFactor);
+      tempMatrix.compose(tempPos, tempQuat, tempScale);
+    }
+    canopyInstancedMesh.setMatrixAt(i, tempMatrix);
+  }
+  canopyInstancedMesh.instanceMatrix.needsUpdate = true;
+
+  // Instanced Blossoms popping open across the canopy
+  for (let i = 0; i < BLOSSOM_COUNT; i++) {
+    const bd = blossomData[i];
+    let bFactor = 0;
+    if (currentState === STATE.REPLANTING) {
+      const st = clamp(replantProgress / 0.45, 0, 1);
+      bFactor = 1 - easeInOutCubic(st);
+    } else {
+      const rawT = clamp((growProgress - bd.popStart) / (bd.popEnd - bd.popStart), 0, 1);
+      bFactor = rawT > 0 ? easeOutBack(rawT) : 0;
+    }
+
+    if (bFactor <= 0.002) {
+      tempScale.setScalar(0.0001);
+      tempPos.set(0, -10, 0);
+      tempMatrix.compose(tempPos, tempQuat, tempScale);
+    } else {
+      const bob = Math.sin(timeSec * 2.4 + bd.phase) * 0.035;
+      tempPos.set(bd.pos.x + bob, bd.pos.y + bob * 0.6, bd.pos.z - bob);
+      tempEuler.set(bd.euler.x + bob, bd.euler.y + timeSec * 0.25, bd.euler.z);
+      tempQuat.setFromEuler(tempEuler);
+      tempScale.setScalar(bd.baseScale * bFactor);
+      tempMatrix.compose(tempPos, tempQuat, tempScale);
+    }
+    blossomInstancedMesh.setMatrixAt(i, tempMatrix);
+  }
+  blossomInstancedMesh.instanceMatrix.needsUpdate = true;
+
+  /* ------------------------------------------------------------------------
+     G. DRIFTING PETALS (MATURE) & SWIRLING LEAF/PETAL BURST (REPLANT)
+     ------------------------------------------------------------------------ */
+  const ambientPetalStrength = smoothstep(0.78, 0.96, growProgress);
+
+  for (let i = 0; i < PETAL_COUNT; i++) {
+    const pd = petalData[i];
+
+    if (currentState === STATE.REPLANTING) {
+      // Full 240-particle swirling vortex down toward the soil bed
+      const pT = clamp((replantProgress - (i / PETAL_COUNT) * 0.18) / 0.82, 0, 1);
+      if (pT <= 0 || pT >= 1) {
+        tempScale.setScalar(0.0001);
+        tempPos.set(0, -10, 0);
+        tempMatrix.compose(tempPos, tempQuat, tempScale);
+      } else {
+        const swirlAngle = pd.angle0 + pT * pd.swirlSpeed * 5.2;
+        const burstExpand = Math.sin(pT * Math.PI);
+        const radius = THREE.MathUtils.lerp(pd.radius0, 0.25, pT * pT) + burstExpand * 0.85;
+        const y = THREE.MathUtils.lerp(pd.height0, 0.16, easeInOutCubic(pT));
+
+        tempPos.set(Math.cos(swirlAngle) * radius, y, Math.sin(swirlAngle) * radius);
+        tempEuler.set(
+          timeSec * pd.flutterSpeed,
+          swirlAngle,
+          Math.sin(timeSec * pd.flutterSpeed + pd.phase) * 1.2
+        );
+        tempQuat.setFromEuler(tempEuler);
+        const fade = Math.sin(pT * Math.PI);
+        tempScale.setScalar(pd.scale * fade * 1.25);
+        tempMatrix.compose(tempPos, tempQuat, tempScale);
+      }
+    } else if (pd.isAmbient && ambientPetalStrength > 0.01) {
+      // Gentle continuous petal drift from the mature blossom canopy to the slab
+      const cycle = ((timeSec * pd.fallSpeed * 0.28 + pd.phase) % 1 + 1) % 1;
+      const y = THREE.MathUtils.lerp(pd.height0, 0.18, cycle);
+      const swayAngle = pd.angle0 + timeSec * 0.35 + Math.sin(cycle * Math.PI * 2 + pd.phase) * 0.45;
+      const r = pd.radius0 + Math.sin(timeSec * 1.4 + pd.phase) * 0.28;
+
+      tempPos.set(Math.cos(swayAngle) * r, y, Math.sin(swayAngle) * r);
+      tempEuler.set(
+        Math.sin(timeSec * pd.flutterSpeed + pd.phase) * 0.8,
+        swayAngle,
+        Math.cos(timeSec * pd.flutterSpeed + pd.phase) * 0.8
+      );
+      tempQuat.setFromEuler(tempEuler);
+      const env = Math.sin(cycle * Math.PI) * ambientPetalStrength;
+      tempScale.setScalar(pd.scale * env);
+      tempMatrix.compose(tempPos, tempQuat, tempScale);
+    } else {
+      tempScale.setScalar(0.0001);
+      tempPos.set(0, -10, 0);
+      tempMatrix.compose(tempPos, tempQuat, tempScale);
+    }
+
+    petalInstancedMesh.setMatrixAt(i, tempMatrix);
+  }
+  petalInstancedMesh.instanceMatrix.needsUpdate = true;
+
+  /* ------------------------------------------------------------------------
+     H. BUTTERFLIES LOOPING LAZY FIGURE-EIGHTS & GATHERING AROUND CANOPY
+     ------------------------------------------------------------------------ */
+  const gatherFactor = smoothstep(0.65, 0.95, growProgress);
+
+  for (let i = 0; i < butterflies.length; i++) {
+    const bf = butterflies[i];
+    const t = timeSec * bf.speed + bf.phase;
+
+    // Lazy figure-eight (Lemniscate / Lissajous) blended between meadow orbit and tree canopy
+    const r = THREE.MathUtils.lerp(bf.idleRadius, bf.canopyRadius, gatherFactor);
+    const baseH = THREE.MathUtils.lerp(bf.idleHeight, bf.canopyHeight, gatherFactor);
+
+    const bx = Math.cos(t) * r + Math.sin(t * 2) * 0.42;
+    const bz = Math.sin(t) * r + Math.cos(t * 2) * 0.42;
+    const by = baseH + Math.sin(t * 2.3) * 0.36;
+
+    const dx = bx - bf.prevPos.x;
+    const dz = bz - bf.prevPos.z;
+    if (dx * dx + dz * dz > 0.000001) {
+      bf.group.rotation.y = Math.atan2(dx, dz);
+    }
+    bf.group.position.set(bx, by, bz);
+    bf.prevPos.set(bx, by, bz);
+
+    // Rapid lively wing flap
+    const flap = Math.sin(timeSec * 19 + bf.phase * 3) * 0.85;
+    bf.leftWingPivot.rotation.z = flap;
+    bf.rightWingPivot.rotation.z = -flap;
+  }
 
   controls.update();
   renderer.render(scene, camera);
 }
-animate();
 
-// pass 5: NDC-projected fade - clouds dim to 0.1 whenever inside the top-center title/hint band, any viewport
-// pass 4: wider cloud lanes + nearer z - p3 still let one cloud reach the title zone
-// pass 3: clouds confined to side lanes (never cross centered hint/header), pushed further back
-// pass 2: fuller canopy, taller hero tree, bigger blossoms/petals/butterflies, one-line replant hint
-// pass 1: initial build - wall-clock growth (9s), tap soil to plant, tap mature tree to replant,
-// petals + butterflies at maturity, fence/watering can/pot/trowel dressing, portrait bird's fit,
-// hint ownership pattern, seeded mulberry32(20261101)
+requestAnimationFrame(animateFrame);
 </script>
 </body>
 </html>
