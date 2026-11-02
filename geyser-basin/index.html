@@ -1,543 +1,1770 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Geyser Basin - a tiny world</title>
-<style>
-  html, body { margin:0; padding:0; height:100%; background:#9fbfcb; overflow:hidden;
-    font-family: Georgia, 'Times New Roman', serif; }
-  #app { position:fixed; inset:0; }
-  header { position:fixed; top:0; left:0; right:0; text-align:center; pointer-events:none;
-    padding: max(18px, env(safe-area-inset-top)) 16px 0; z-index:5; }
-  header h1 { margin:0; font-size:15px; letter-spacing:.42em; font-weight:400;
-    color:#f4f1e6; text-transform:uppercase; text-shadow:0 1px 8px rgba(30,45,55,.65); }
-  header .rule { width:44px; height:1px; background:rgba(244,241,230,.55); margin:9px auto; }
-  #hint { display:inline-block; font-size:11.5px; letter-spacing:.24em; text-transform:uppercase;
-    color:#fdfbf2; transition:opacity 1.2s ease; text-shadow:0 1px 2px rgba(30,45,55,.9), 0 0 12px rgba(30,45,55,.7); }
-  #hint.faded { opacity:.45; }
-  footer { position:fixed; bottom:0; left:0; right:0; text-align:center; pointer-events:none;
-    padding:0 16px max(14px, env(safe-area-inset-bottom)); z-index:5;
-    font-size:10px; letter-spacing:.34em; text-transform:uppercase; color:rgba(244,241,230,.5); }
-  canvas { display:block; touch-action:none; }
-</style>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Geyser basin — a tiny world</title>
+  <style>
+    :root {
+      --bg-top: #dce8ee;
+      --bg-bottom: #f3ede2;
+      --ink-dark: #25201c;
+      --ink-muted: #5d534a;
+      --accent-rust: #b8562b;
+      --pill-bg: rgba(250, 246, 240, 0.84);
+      --pill-border: rgba(180, 155, 130, 0.35);
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      user-select: none;
+      -webkit-user-select: none;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    html, body {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: linear-gradient(180deg, var(--bg-top) 0%, var(--bg-bottom) 100%);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      color: var(--ink-dark);
+    }
+
+    #canvas-container {
+      position: fixed;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      z-index: 1;
+      touch-action: none;
+    }
+
+    canvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+      cursor: grab;
+    }
+
+    canvas:active {
+      cursor: grabbing;
+    }
+
+    .ui-overlay {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      z-index: 2;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      align-items: center;
+      padding: max(12px, env(safe-area-inset-top)) 14px max(12px, env(safe-area-inset-bottom));
+    }
+
+    header {
+      text-align: center;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 3px;
+      max-width: 94%;
+      background: var(--pill-bg);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+      padding: 8px 18px 10px;
+      border-radius: 20px;
+      border: 1px solid var(--pill-border);
+      box-shadow: 0 4px 18px rgba(37, 32, 28, 0.06);
+    }
+
+    .subtitle {
+      font-size: clamp(10px, 2.2vw, 12px);
+      text-transform: uppercase;
+      letter-spacing: 0.16em;
+      color: var(--accent-rust);
+      font-weight: 700;
+    }
+
+    h1 {
+      font-family: Georgia, "Times New Roman", serif;
+      font-size: clamp(20px, 4.8vw, 27px);
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      color: var(--ink-dark);
+      line-height: 1.1;
+    }
+
+    .hint {
+      font-size: clamp(11px, 2.6vw, 13px);
+      color: var(--ink-muted);
+      font-weight: 500;
+      line-height: 1.25;
+      margin-top: 2px;
+    }
+
+    footer {
+      font-size: clamp(10px, 2.2vw, 11.5px);
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--ink-muted);
+      font-weight: 600;
+      background: var(--pill-bg);
+      backdrop-filter: blur(6px);
+      -webkit-backdrop-filter: blur(6px);
+      padding: 5px 14px;
+      border-radius: 999px;
+      border: 1px solid var(--pill-border);
+    }
+
+    #fallback-msg {
+      display: none;
+      position: fixed;
+      inset: 20px;
+      z-index: 10;
+      background: #fff9f2;
+      border: 2px solid #d4b89b;
+      border-radius: 16px;
+      padding: 24px;
+      text-align: center;
+      color: var(--ink-dark);
+      font-size: 15px;
+      margin: auto;
+      max-width: 380px;
+      height: fit-content;
+      box-shadow: 0 12px 32px rgba(0, 0, 0, 0.12);
+    }
+  </style>
+
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+        "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+      }
+    }
+  </script>
 </head>
 <body>
-<div id="app"></div>
-<header>
-  <h1>Geyser Basin</h1>
-  <div class="rule"></div>
-  <span id="hint"></span>
-</header>
-<footer>A tiny world</footer>
-<script type="importmap">
-{ "imports": {
-  "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
-  "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
-} }
-</script>
-<script type="module">
-import * as THREE from 'three';
-import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+  <div id="canvas-container"></div>
 
-const container = document.getElementById('app');
-const hintEl = document.getElementById('hint');
-const scene = new THREE.Scene();
-scene.background = new THREE.Color(0x9fbfcb);
-scene.fog = new THREE.Fog(0xaec9d4, 55, 120);
+  <div class="ui-overlay">
+    <header id="ui-header">
+      <div class="subtitle">a tiny world</div>
+      <h1>Geyser basin</h1>
+      <div class="hint">tap a geyser for an eruption - tap a pool to make it bubble</div>
+    </header>
+    <footer id="ui-footer">A tiny world</footer>
+  </div>
 
-const camera = new THREE.PerspectiveCamera(38, innerWidth/innerHeight, 0.1, 200);
-function pickFov() {
-  const a = innerWidth / innerHeight;
-  camera.fov = a >= 0.9 ? 38 : (a >= 0.62 ? 46 : 58);
-  camera.updateProjectionMatrix();
-}
-pickFov();
-const renderer = new THREE.WebGLRenderer({ antialias: true });
-renderer.setSize(innerWidth, innerHeight);
-renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
-renderer.shadowMap.enabled = true;
-renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-renderer.toneMapping = THREE.ACESFilmicToneMapping;
-renderer.toneMappingExposure = 1.12;
-container.appendChild(renderer.domElement);
-const controls = new OrbitControls(camera, renderer.domElement);
-controls.enableDamping = true; controls.dampingFactor = 0.08;
-controls.minDistance = 6; controls.maxDistance = 200;
-controls.maxPolarAngle = Math.PI * 0.52; controls.enablePan = false;
+  <div id="fallback-msg">
+    <strong>WebGL Unavailable</strong>
+    <p style="margin-top: 8px;">Your browser or device could not initialize a 3D WebGL context required for this miniature diorama.</p>
+  </div>
 
-// ---------- lights (bright basin daylight) ----------
-const sun = new THREE.DirectionalLight(0xfff2dd, 2.6);
-sun.position.set(14, 18, 8); sun.castShadow = true;
-sun.shadow.mapSize.set(2048, 2048);
-sun.shadow.camera.left = -14; sun.shadow.camera.right = 14;
-sun.shadow.camera.top = 14; sun.shadow.camera.bottom = -14;
-sun.shadow.camera.near = 2; sun.shadow.camera.far = 60;
-sun.shadow.bias = -0.0012;
-scene.add(sun);
-scene.add(new THREE.HemisphereLight(0xbfd9e8, 0x8a7a5e, 1.25));
-const bounce = new THREE.DirectionalLight(0xd8e8f0, 0.45);
-bounce.position.set(-10, 6, -8); scene.add(bounce);
+  <script type="module">
+    import * as THREE from 'three';
+    import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 
-// deterministic position-keyed noise (crack-free displacement)
-function n2(x, z, s) {
-  return Math.sin(x * 1.9 + s) * Math.sin(z * 2.2 + s * 0.4)
-       + 0.5 * Math.sin(x * 4.3 + z * 2.8 + s + 2.2)
-       + 0.25 * Math.sin(x * 7.1 - z * 5.9 + s + 4.1);
-}
-const rand = (a, b) => a + Math.random() * (b - a);
-
-// ---------- palette ----------
-const PAL = {
-  sinterLight: 0xe9e0cc, sinterMid: 0xcdbd9c, sinterDark: 0xa08e6c,
-  strataA: 0xcdbb96, strataB: 0xa8906c, strataC: 0x77644c,
-  poolDeep: 0x1b6f80, poolMid: 0x2f98a4, matOrange: 0xc07a38, matGold: 0xd2a04c,
-  wood: 0x8a6a48, woodDark: 0x6e5236, pine: 0x3d5c42, pineDark: 0x2e4a34,
-  steam: 0xf4f8f8, foam: 0xf6fbfa
-};
-
-// ---------- slab ----------
-const SLAB = 16, SLAB_H = 3.0;
-const slabGroup = new THREE.Group(); scene.add(slabGroup);
-function strataLayer(h, y, color) {
-  const m = new THREE.Mesh(new THREE.BoxGeometry(SLAB, h, SLAB),
-    new THREE.MeshStandardMaterial({ color, roughness: 0.95 }));
-  m.position.y = y; m.receiveShadow = true; slabGroup.add(m); return m;
-}
-strataLayer(0.9, -SLAB_H + 0.45, PAL.strataC);
-strataLayer(1.0, -SLAB_H + 0.9 + 0.5, PAL.strataB);
-strataLayer(1.1, -SLAB_H + 1.9 + 0.55, PAL.strataA);
-
-// ---------- sinter ground with terraced pools painted in ----------
-// pools: [x, z, r]
-const POOLS = [
-  { x: 4.4, z: -3.4, r: 2.1 },
-  { x: -4.9, z: 2.2, r: 1.7 },
-  { x: 0.6, z: 4.6, r: 1.35 },
-];
-const groundGeo = new THREE.PlaneGeometry(SLAB, SLAB, 72, 72);
-groundGeo.rotateX(-Math.PI / 2);
-{
-  const p = groundGeo.attributes.position, cols = [];
-  const sinter = new THREE.Color(PAL.sinterLight), sinterD = new THREE.Color(PAL.sinterMid);
-  const matO = new THREE.Color(PAL.matOrange), matG = new THREE.Color(PAL.matGold);
-  for (let i = 0; i < p.count; i++) {
-    const x = p.getX(i), z = p.getZ(i);
-    const e = Math.max(Math.abs(x), Math.abs(z)) / 8;
-    let y = n2(x, z, 1.7) * 0.055 * (e > 0.94 ? 0.2 : 1);
-    const c = sinter.clone().lerp(sinterD, 0.28 + 0.22 * Math.sin(x * 0.7 + z * 0.9));
-    // terraced micro-steps
-    const terr = Math.sin(y * 40 + n2(x, z, 7.7) * 2.0);
-    c.offsetHSL(0, 0, terr * 0.012);
-    for (const pool of POOLS) {
-      const d = Math.hypot(x - pool.x, z - pool.z);
-      const sm = (a, b, v) => { const t = Math.min(1, Math.max(0, (v - a) / (b - a))); return t * t * (3 - 2 * t); };
-      // orange bacterial mat ring just outside the waterline
-      const ring = sm(pool.r + 1.25, pool.r + 0.45, d) * (1 - sm(pool.r - 0.05, pool.r + 0.35, d));
-      c.lerp(matO, ring * 0.95);
-      c.lerp(matG, ring * sm(pool.r + 0.55, pool.r + 0.4, d) * 0.45);
-      if (d < pool.r + 0.15) y -= 0.06 * (1 - sm(pool.r - 0.3, pool.r + 0.15, d)); // shallow depression
+    // -------------------------------------------------------------------------
+    // Deterministic PRNG: mulberry32(20261102)
+    // -------------------------------------------------------------------------
+    function mulberry32(seed) {
+      let a = seed >>> 0;
+      return function () {
+        a |= 0;
+        a = (a + 0x6D2B79F5) | 0;
+        let t = Math.imul(a ^ (a >>> 15), 1 | a);
+        t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+        return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+      };
     }
-    p.setY(i, y);
-    cols.push(c.r, c.g, c.b);
-  }
-  groundGeo.setAttribute('color', new THREE.Float32BufferAttribute(cols, 3));
-  groundGeo.computeVertexNormals();
-}
-const ground = new THREE.Mesh(groundGeo,
-  new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.9 }));
-ground.position.y = 0.03; ground.receiveShadow = true; slabGroup.add(ground);
 
-// pool water: slightly domed discs, deep teal center
-const poolWaters = [];
-for (const pool of POOLS) {
-  const g = new THREE.CircleGeometry(pool.r, 36);
-  const cols = [];
-  const deep = new THREE.Color(PAL.poolDeep), mid = new THREE.Color(PAL.poolMid);
-  const pp = g.attributes.position;
-  for (let i = 0; i < pp.count; i++) {
-    const d = Math.hypot(pp.getX(i), pp.getY(i)) / pool.r;
-    const c = deep.clone().lerp(mid, Math.min(1, d * 1.15));
-    cols.push(c.r, c.g, c.b);
-  }
-  g.setAttribute('color', new THREE.Float32BufferAttribute(cols, 3));
-  const m = new THREE.Mesh(g, new THREE.MeshStandardMaterial({
-    vertexColors: true, roughness: 0.12, metalness: 0.05, transparent: true, opacity: 0.94 }));
-  m.rotation.x = -Math.PI / 2; m.position.set(pool.x, 0.045, pool.z);
-  slabGroup.add(m); poolWaters.push({ mesh: m, pool });
-}
+    const rand = mulberry32(20261102);
+    const randRange = (min, max) => min + rand() * (max - min);
 
-// ---------- geysers ----------
-// [x, z, coneR, coneH, jetPower, periodSec]
-const GEYSERS = [
-  { x: -1.6, z: -1.4, cr: 1.35, ch: 1.15, power: 9.0, period: 26, name: 'grand' },
-  { x: 5.6,  z: 2.8,  cr: 0.85, ch: 0.6,  power: 6.5,  period: 15, name: 'minor' },
-  { x: -5.8, z: -4.2, cr: 1.0,  ch: 0.8,  power: 7.2,  period: 34, name: 'back' },
-];
-const geysers = [];
-const tapTargets = [];
-function sinterCone(cr, ch, seed) {
-  // lathe cone with a crater dip
-  const pts = [];
-  for (let i = 0; i <= 10; i++) {
-    const f = i / 10;                    // 0 base -> 1 top
-    const r = cr * (1 - f * 0.82) * (1 + 0.06 * Math.sin(f * 9 + seed));
-    pts.push(new THREE.Vector2(Math.max(0.001, r), f * ch));
-  }
-  // crater lip + bowl
-  pts.push(new THREE.Vector2(cr * 0.2, ch + 0.05));
-  pts.push(new THREE.Vector2(cr * 0.13, ch - 0.12));
-  pts.push(new THREE.Vector2(0.001, ch - 0.16));
-  const g = new THREE.LatheGeometry(pts, 20);
-  const p = g.attributes.position;
-  for (let i = 0; i < p.count; i++) {
-    const vx = p.getX(i), vy = p.getY(i), vz = p.getZ(i);
-    const j = 1 + 0.09 * Math.sin(3.1 * vx + seed) * Math.sin(2.7 * vz + seed * 1.7) + 0.05 * Math.sin(6 * vy + seed);
-    p.setXYZ(i, vx * j, vy, vz * j);
-  }
-  g.computeVertexNormals();
-  return g;
-}
-for (const gz of GEYSERS) {
-  const grp = new THREE.Group();
-  const coneMat = new THREE.MeshStandardMaterial({ color: 0xb3a17e, roughness: 0.92, flatShading: true });
-  const cone = new THREE.Mesh(sinterCone(gz.cr, gz.ch, gz.x * 3.1), coneMat);
-  cone.castShadow = true; cone.receiveShadow = true; grp.add(cone);
-  // wet dark vent
-  const vent = new THREE.Mesh(new THREE.CircleGeometry(gz.cr * 0.17, 14),
-    new THREE.MeshStandardMaterial({ color: 0x2a3a3c, roughness: 0.25 }));
-  vent.rotation.x = -Math.PI / 2; vent.position.y = gz.ch - 0.155; grp.add(vent);
-  // mineral splash halo around base
-  const halo = new THREE.Mesh(new THREE.RingGeometry(gz.cr * 0.9, gz.cr * 1.55, 28),
-    new THREE.MeshStandardMaterial({ color: PAL.sinterLight, roughness: 1,
-      polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -2 }));
-  halo.rotation.x = -Math.PI / 2; halo.position.y = 0.06; grp.add(halo);
-  grp.position.set(gz.x, 0, gz.z);
-  scene.add(grp);
-  // forgiving tap proxy over the cone
-  const proxy = new THREE.Mesh(new THREE.SphereGeometry(gz.cr * 1.15, 8, 6),
-    new THREE.MeshBasicMaterial({ visible: false }));
-  proxy.position.set(gz.x, gz.ch * 0.6, gz.z); proxy.userData.geyser = gz;
-  scene.add(proxy); tapTargets.push(proxy);
-  geysers.push({ ...gz, grp, eruptT: -1, nextAuto: rand(4, gz.period) });
-}
-
-// ---------- eruption particles (one shared pool) ----------
-const MAXP = 900;
-const pGeo = new THREE.BufferGeometry();
-const pPos = new Float32Array(MAXP * 3), pCol = new Float32Array(MAXP * 3);
-pGeo.setAttribute('position', new THREE.BufferAttribute(pPos, 3));
-pGeo.setAttribute('color', new THREE.BufferAttribute(pCol, 3));
-function dropTexture() {
-  const c = document.createElement('canvas'); c.width = c.height = 32;
-  const g = c.getContext('2d');
-  const grad = g.createRadialGradient(16,16,2, 16,16,15);
-  grad.addColorStop(0, 'rgba(255,255,255,1)');
-  grad.addColorStop(0.7, 'rgba(255,255,255,0.85)');
-  grad.addColorStop(1, 'rgba(255,255,255,0)');
-  g.fillStyle = grad; g.fillRect(0,0,32,32);
-  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t;
-}
-const pMat = new THREE.PointsMaterial({ size: 0.36, vertexColors: true, map: dropTexture(),
-  transparent: true, opacity: 0.96, depthWrite: false });
-const points = new THREE.Points(pGeo, pMat); points.frustumCulled = false; scene.add(points);
-const P = { vel: new Float32Array(MAXP * 3), life: new Float32Array(MAXP).fill(-1) };
-let pCursor = 0;
-const WATER_COL = new THREE.Color(0xdff2f6), STEAM_COL = new THREE.Color(0xf4f8f8);
-function spawnDrop(x, y, z, vx, vy, vz, life, col) {
-  const i = pCursor; pCursor = (pCursor + 1) % MAXP;
-  pPos[i*3] = x; pPos[i*3+1] = y; pPos[i*3+2] = z;
-  P.vel[i*3] = vx; P.vel[i*3+1] = vy; P.vel[i*3+2] = vz;
-  P.life[i] = life;
-  pCol[i*3] = col.r; pCol[i*3+1] = col.g; pCol[i*3+2] = col.b;
-}
-
-// steam wisps (idle cones + eruption billow)
-const steamTex = dropTexture();
-const wisps = [];
-for (const gz of geysers) {
-  for (let k = 0; k < 2; k++) {
-    const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: steamTex, color: PAL.steam,
-      transparent: true, opacity: 0.16, depthWrite: false }));
-    sp.position.set(gz.x, gz.ch + 0.4 + k * 0.5, gz.z);
-    sp.scale.setScalar(0.9 + k * 0.5);
-    scene.add(sp); wisps.push({ sp, gz, ph: rand(0, 6.28), k });
-  }
-}
-
-let camShake = 0;
-function erupt(g) {
-  g.eruptT = 0;
-  camShake = Math.max(camShake, g.power * 0.045);
-  for (let i = 0; i < 220; i++) {
-    const a = rand(0, Math.PI * 2), rr = rand(0, 0.1);
-    spawnDrop(g.x + Math.cos(a) * rr, g.ch, g.z + Math.sin(a) * rr,
-      Math.cos(a) * rand(0.05, 0.45), g.power * rand(0.8, 1.02), Math.sin(a) * rand(0.05, 0.45),
-      rand(1.6, 2.4), Math.random() < 0.65 ? WATER_COL : STEAM_COL);
-  }
-  setHint('erupt');
-}
-
-// ---------- boardwalk (hand-laid planks on posts) ----------
-{
-  const path = new THREE.CatmullRomCurve3([
-    new THREE.Vector3(-7.4, 0, -6.2), new THREE.Vector3(-3.6, 0, -4.4),
-    new THREE.Vector3(0.4, 0, -5.2), new THREE.Vector3(2.4, 0, -2.0),
-    new THREE.Vector3(1.4, 0, 1.2), new THREE.Vector3(-1.8, 0, 3.4),
-    new THREE.Vector3(-1.2, 0, 6.4), new THREE.Vector3(2.6, 0, 7.2)
-  ]);
-  const plankGeo = new THREE.BoxGeometry(0.62, 0.05, 0.24);
-  const woodMat = new THREE.MeshStandardMaterial({ color: PAL.wood, roughness: 0.9 });
-  const woodDark = new THREE.MeshStandardMaterial({ color: PAL.woodDark, roughness: 0.9 });
-  const postGeo = new THREE.CylinderGeometry(0.035, 0.045, 0.3, 6);
-  const N = 46;
-  for (let i = 0; i < N; i++) {
-    const t = i / (N - 1);
-    const pt = path.getPoint(t), tan = path.getTangent(t);
-    const plank = new THREE.Mesh(plankGeo, i % 5 === 0 ? woodDark : woodMat);
-    plank.position.set(pt.x, 0.24, pt.z);
-    plank.rotation.y = Math.atan2(tan.x, tan.z) + Math.PI / 2 + rand(-0.05, 0.05);
-    plank.castShadow = true; plank.receiveShadow = true;
-    slabGroup.add(plank);
-    if (i % 4 === 0) {
-      const post = new THREE.Mesh(postGeo, woodDark);
-      post.position.set(pt.x, 0.1, pt.z); slabGroup.add(post);
+    // -------------------------------------------------------------------------
+    // Procedural Noise & Helpers
+    // -------------------------------------------------------------------------
+    function hash2D(ix, iz) {
+      const n = Math.sin(ix * 127.1 + iz * 311.7) * 43758.5453123;
+      return n - Math.floor(n);
     }
-  }
-}
 
-// ---------- pines (faceted cone stacks) ----------
-function pine(h, seed) {
-  const g = new THREE.Group();
-  const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.09, h * 0.3, 6),
-    new THREE.MeshStandardMaterial({ color: 0x5c4632, roughness: 1 }));
-  trunk.position.y = h * 0.15; g.add(trunk);
-  const cols = [PAL.pineDark, PAL.pine, PAL.pine];
-  for (let i = 0; i < 3; i++) {
-    const r = h * (0.34 - i * 0.09), ch = h * 0.34;
-    const cone = new THREE.Mesh(new THREE.ConeGeometry(r, ch, 7),
-      new THREE.MeshStandardMaterial({ color: cols[i], roughness: 0.95, flatShading: true }));
-    cone.position.y = h * (0.3 + i * 0.24); cone.rotation.y = seed + i;
-    cone.castShadow = true; g.add(cone);
-  }
-  return g;
-}
-for (const [x, z, h] of [[-7.1, -6.8, 2.6], [-6.4, 6.2, 2.2], [7.0, -5.9, 2.9],
-                          [7.2, 6.6, 2.4], [3.2, -7.1, 2.0], [-3.3, 7.0, 1.8],
-                          [-6.8, 0.5, 2.1], [6.6, 1.2, 1.7], [0.4, -6.9, 1.5],
-                          [-6.9, -2.9, 1.4], [5.9, 6.9, 1.9]]) {
-  const t = pine(h, x * 1.3);
-  t.position.set(x, 0.03, z); t.rotation.y = rand(0, 6.28);
-  slabGroup.add(t);
-}
-
-// fallen sinter chunks + pebbles
-{
-  const rockMat = new THREE.MeshStandardMaterial({ color: PAL.sinterDark, roughness: 1, flatShading: true });
-  for (let i = 0; i < 34; i++) {
-    const r = new THREE.Mesh(new THREE.DodecahedronGeometry(rand(0.07, 0.26), 0), rockMat);
-    r.position.set(rand(-7.2, 7.2), 0.06, rand(-7.2, 7.2));
-    r.rotation.set(rand(0, 3), rand(0, 3), rand(0, 3)); r.castShadow = true;
-    slabGroup.add(r);
-  }
-}
-
-// sinter boulders + grass tufts + runoff rivulets (density pass 6)
-{
-  const bouldMat = new THREE.MeshStandardMaterial({ color: PAL.sinterMid, roughness: 1, flatShading: true });
-  for (const [bx, bz, br] of [[-5.2, 5.1, 0.5], [6.1, -2.2, 0.62], [-1.9, 6.3, 0.44], [2.8, 0.8, 0.38], [-6.0, -5.4, 0.4]]) {
-    const b = new THREE.Mesh(new THREE.DodecahedronGeometry(br, 0), bouldMat);
-    b.position.set(bx, br * 0.45, bz); b.scale.y = 0.7;
-    b.rotation.set(rand(0,3), rand(0,3), rand(0,3)); b.castShadow = true; slabGroup.add(b);
-  }
-  const grassMats = [0x7a8a52, 0x8a9458, 0x6a7a48].map(c => new THREE.MeshStandardMaterial({ color: c, roughness: 1 }));
-  for (let i = 0; i < 34; i++) {
-    const tuft = new THREE.Group();
-    for (let k = 0; k < 4; k++) {
-      const b = new THREE.Mesh(new THREE.ConeGeometry(0.035, rand(0.16, 0.3), 4), grassMats[(i + k) % 3]);
-      b.position.set(rand(-0.07, 0.07), 0.1, rand(-0.07, 0.07));
-      b.rotation.set(rand(-0.25, 0.25), rand(0, 6.28), rand(-0.25, 0.25));
-      tuft.add(b);
+    function valueNoise2D(x, z) {
+      const ix = Math.floor(x);
+      const iz = Math.floor(z);
+      const fx = x - ix;
+      const fz = z - iz;
+      const ux = fx * fx * (3.0 - 2.0 * fx);
+      const uz = fz * fz * (3.0 - 2.0 * fz);
+      const a = hash2D(ix, iz);
+      const b = hash2D(ix + 1, iz);
+      const c = hash2D(ix, iz + 1);
+      const d = hash2D(ix + 1, iz + 1);
+      return a + (b - a) * ux + (c - a) * uz + (a - b - c + d) * ux * uz;
     }
-    tuft.position.set(rand(-7.3, 7.3), 0.04, rand(-7.3, 7.3));
-    slabGroup.add(tuft);
-  }
-  // pale mineral runoff rivulets from geyser cones toward the nearest pools
-  const rivMat = new THREE.MeshStandardMaterial({ color: 0xefe8d8, roughness: 0.9 });
-  const RIVULETS = [
-    [[-1.6, -1.4], [0.6, 4.6]],
-    [[5.6, 2.8], [4.4, -3.4]],
-    [[-5.8, -4.2], [-4.9, 2.2]],
-  ];
-  for (const [[x0, z0], [x1, z1]] of RIVULETS) {
-    const pts = [];
-    for (let k = 0; k <= 8; k++) {
-      const u = k / 8;
-      pts.push(new THREE.Vector3(
-        x0 + (x1 - x0) * u + Math.sin(u * 9 + x0) * 0.4 * (1 - Math.abs(u - 0.5) * 2),
-        0.045, z0 + (z1 - z0) * u + Math.cos(u * 7 + z0) * 0.35 * (1 - Math.abs(u - 0.5) * 2)));
+
+    function fbm2D(x, z, octaves = 3) {
+      let val = 0;
+      let amp = 0.5;
+      let freq = 1.0;
+      for (let i = 0; i < octaves; i++) {
+        val += amp * valueNoise2D(x * freq, z * freq);
+        freq *= 2.07;
+        amp *= 0.5;
+      }
+      return val;
     }
-    const tube = new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 24, 0.09, 5), rivMat);
-    tube.scale.y = 0.35; tube.receiveShadow = true; slabGroup.add(tube);
-  }
-}
 
-// ---------- hints ----------
-const HINTS = {
-  idle: 'Tap a geyser to make it blow',
-  erupt: 'She blows - watch the spray drift',
-  auto: 'The basin stirs on its own'
-};
-function setHint(s) {
-  hintEl.textContent = HINTS[s]; hintEl.classList.remove('faded');
-  clearTimeout(setHint._t);
-  setHint._t = setTimeout(() => hintEl.classList.add('faded'), 6000);
-}
-setHint('idle');
+    function smoothstep(edge0, edge1, x) {
+      const t = Math.max(0, Math.min(1, (x - edge0) / (edge1 - edge0)));
+      return t * t * (3 - 2 * t);
+    }
 
-// ---------- camera framing (point-set fit, portrait-aware) ----------
-const FIT_CENTER = new THREE.Vector3(0, 1.2, 0);
-const FIT_PTS = [];
-for (const x of [-8.4, 8.4]) for (const y of [-SLAB_H, 0.9]) for (const z of [-8.4, 8.4])
-  FIT_PTS.push(new THREE.Vector3(x, y, z));
-for (const g of GEYSERS)
-  FIT_PTS.push(new THREE.Vector3(g.x, g.ch + g.power * g.power / (2 * 6.2) + 0.6, g.z));  // true ballistic apex + margin
-function fitDir() {
-  const a = innerWidth / innerHeight;
-  if (a < 0.62) return new THREE.Vector3(0.1, 0.42, 1).normalize();
-  if (a < 0.9) return new THREE.Vector3(0.42, 0.4, 1).normalize();
-  return new THREE.Vector3(0.62, 0.42, 1).normalize();
-}
-const _rel = new THREE.Vector3();
-function requiredDistance(right, up, fwd, target) {
-  const fovV = THREE.MathUtils.degToRad(camera.fov);
-  const tanH = Math.tan(Math.atan(Math.tan(fovV/2) * camera.aspect));
-  const tanV = Math.tan(fovV/2);
-  let d = 4;
-  for (const c of FIT_PTS) {
-    _rel.copy(c).sub(target);
-    const cf = _rel.dot(fwd);
-    d = Math.max(d,
-      Math.abs(_rel.dot(right)) / tanH - cf,
-      Math.abs(_rel.dot(up)) / tanV - cf);
-  }
-  return d;
-}
-function frameInitialCamera() {
-  pickFov();
-  const fd = fitDir();
-  const fwd = fd.clone().negate();
-  const right = new THREE.Vector3().crossVectors(fwd, new THREE.Vector3(0,1,0)).normalize();
-  const up = new THREE.Vector3().crossVectors(right, fwd).normalize();
-  const dist = requiredDistance(right, up, fwd, FIT_CENTER) * 1.06;
-  camera.position.copy(FIT_CENTER).addScaledVector(fd, dist);
-  controls.target.copy(FIT_CENTER);
-  camera.updateProjectionMatrix(); controls.update();
-}
-frameInitialCamera();
+    // -------------------------------------------------------------------------
+    // Scene, Camera & Renderer Setup
+    // -------------------------------------------------------------------------
+    const container = document.getElementById('canvas-container');
+    const headerEl = document.getElementById('ui-header');
+    const footerEl = document.getElementById('ui-footer');
+    const fallbackEl = document.getElementById('fallback-msg');
 
-// ---------- tap handling ----------
-const ray = new THREE.Raycaster(); const ndc = new THREE.Vector2();
-let downX = 0, downY = 0, downT = 0;
-renderer.domElement.addEventListener('pointerdown', e => { downX = e.clientX; downY = e.clientY; downT = performance.now(); });
-renderer.domElement.addEventListener('pointerup', e => {
-  if (Math.hypot(e.clientX - downX, e.clientY - downY) > 7 || performance.now() - downT > 450) return;
-  ndc.set((e.clientX / innerWidth) * 2 - 1, -(e.clientY / innerHeight) * 2 + 1);
-  ray.setFromCamera(ndc, camera);
-  const hits = ray.intersectObjects(tapTargets, false);
-  if (!hits.length) return;
-  const g = geysers.find(q => q.x === hits[0].object.userData.geyser.x);
-  if (g && g.eruptT < 0) erupt(g);
-});
+    let renderer;
+    try {
+      renderer = new THREE.WebGLRenderer({
+        antialias: true,
+        powerPreference: 'high-performance',
+        alpha: true
+      });
+    } catch (err) {
+      fallbackEl.style.display = 'block';
+      throw err;
+    }
 
-addEventListener('resize', () => {
-  camera.aspect = innerWidth/innerHeight;
-  renderer.setSize(innerWidth, innerHeight);
-  renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
-  frameInitialCamera();
-});
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.75));
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 1.06;
+    renderer.outputColorSpace = THREE.SRGBColorSpace;
+    container.appendChild(renderer.domElement);
 
-// ---------- animate ----------
-const clock = new THREE.Clock();
-function animate() {
-  requestAnimationFrame(animate);
-  const dt = Math.min(clock.getDelta(), 0.05);
-  const t = clock.elapsedTime;
+    const scene = new THREE.Scene();
+    scene.fog = new THREE.FogExp2(0xeae5dc, 0.014);
 
-  // geysers: auto timers + eruption lifecycle
-  for (const g of geysers) {
-    if (g.eruptT < 0) {
-      g.nextAuto -= dt;
-      if (g.nextAuto <= 0) { g.nextAuto = g.period * rand(0.85, 1.2); erupt(g); setHint('auto'); }
-    } else {
-      g.eruptT += dt;
-      if (g.eruptT < 1.9) {
-        // sustained jet
-        for (let i = 0; i < 16; i++) {
-          const a = rand(0, Math.PI * 2), rr = rand(0, 0.09);
-          spawnDrop(g.x + Math.cos(a) * rr, g.ch, g.z + Math.sin(a) * rr,
-            Math.cos(a) * rand(0.05, 0.35), g.power * rand(0.75, 1.0), Math.sin(a) * rand(0.05, 0.35),
-            rand(1.3, 2.0), Math.random() < 0.6 ? WATER_COL : STEAM_COL);
+    const camera = new THREE.PerspectiveCamera(36, window.innerWidth / window.innerHeight, 0.5, 120);
+
+    const controls = new OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.06;
+    controls.enablePan = false;
+    controls.minPolarAngle = THREE.MathUtils.degToRad(26);
+    controls.maxPolarAngle = THREE.MathUtils.degToRad(62);
+    controls.minAzimuthAngle = THREE.MathUtils.degToRad(-55);
+    controls.maxAzimuthAngle = THREE.MathUtils.degToRad(55);
+
+    // -------------------------------------------------------------------------
+    // Lighting (High-altitude soft daylight)
+    // -------------------------------------------------------------------------
+    const hemiLight = new THREE.HemisphereLight(0xf6fbff, 0xc7a37e, 1.05);
+    hemiLight.position.set(0, 20, 0);
+    scene.add(hemiLight);
+
+    const sunLight = new THREE.DirectionalLight(0xfff5e4, 1.95);
+    sunLight.position.set(11, 18, 10);
+    sunLight.castShadow = true;
+    sunLight.shadow.mapSize.set(1024, 1024);
+    sunLight.shadow.camera.near = 4;
+    sunLight.shadow.camera.far = 36;
+    const d = 8.2;
+    sunLight.shadow.camera.left = -d;
+    sunLight.shadow.camera.right = d;
+    sunLight.shadow.camera.top = d;
+    sunLight.shadow.camera.bottom = -d;
+    sunLight.shadow.bias = -0.0006;
+    sunLight.shadow.normalBias = 0.025;
+    scene.add(sunLight);
+
+    const rimLight = new THREE.DirectionalLight(0x9be2e8, 0.55);
+    rimLight.position.set(-12, 7, -10);
+    scene.add(rimLight);
+
+    const dioramaGroup = new THREE.Group();
+    scene.add(dioramaGroup);
+
+    // -------------------------------------------------------------------------
+    // Feature Layout Specifications (Geysers & Hot Pools)
+    // -------------------------------------------------------------------------
+    const geyserSpecs = [
+      {
+        id: 0,
+        name: 'Old Sentinel',
+        x: -1.95,
+        z: -1.15,
+        baseRadius: 1.28,
+        ventRadius: 0.25,
+        height: 1.24,
+        jetHeight: 3.7,
+        tint: 0xede3d2,
+        sulfurTint: 0xd8b55b
+      },
+      {
+        id: 1,
+        name: 'Rust Cone',
+        x: 2.15,
+        z: -1.25,
+        baseRadius: 1.05,
+        ventRadius: 0.21,
+        height: 0.98,
+        jetHeight: 3.3,
+        tint: 0xe6d6c3,
+        sulfurTint: 0xc9763d
+      },
+      {
+        id: 2,
+        name: 'Sulphur Spire',
+        x: -0.25,
+        z: -2.25,
+        baseRadius: 0.88,
+        ventRadius: 0.17,
+        height: 0.78,
+        jetHeight: 2.9,
+        tint: 0xf2eadb,
+        sulfurTint: 0xdec454
+      },
+      {
+        id: 3,
+        name: 'Pocket Vent',
+        x: -2.45,
+        z: 1.35,
+        baseRadius: 0.78,
+        ventRadius: 0.16,
+        height: 0.66,
+        jetHeight: 2.6,
+        tint: 0xe8dccb,
+        sulfurTint: 0xd19449
+      }
+    ];
+
+    const poolSpecs = [
+      {
+        id: 0,
+        name: 'Grand Prismatic Eye',
+        x: 0.55,
+        z: 0.65,
+        radius: 1.72,
+        scaleX: 1.12,
+        scaleZ: 0.94,
+        rotation: 0.25,
+        deepColor: '#06465c',
+        midColor: '#13979c',
+        shallowsColor: '#78c976',
+        yellowRim: '#e9c440',
+        rustRim: '#bf4b21'
+      },
+      {
+        id: 1,
+        name: 'Emerald Kettle',
+        x: -1.05,
+        z: 2.15,
+        radius: 1.18,
+        scaleX: 1.06,
+        scaleZ: 0.95,
+        rotation: -0.35,
+        deepColor: '#0a5356',
+        midColor: '#1ca88f',
+        shallowsColor: '#9ad66c',
+        yellowRim: '#ebb93b',
+        rustRim: '#c85a27'
+      },
+      {
+        id: 2,
+        name: 'Sapphire Bowl',
+        x: 2.55,
+        z: 1.45,
+        radius: 1.02,
+        scaleX: 0.95,
+        scaleZ: 1.08,
+        rotation: 0.5,
+        deepColor: '#093961',
+        midColor: '#1982a8',
+        shallowsColor: '#5ec49f',
+        yellowRim: '#e5bc4c',
+        rustRim: '#b34b28'
+      }
+    ];
+
+    // -------------------------------------------------------------------------
+    // Procedural Canvas Textures
+    // -------------------------------------------------------------------------
+    function createSinterCrackTexture() {
+      const size = 512;
+      const canvas = document.createElement('canvas');
+      canvas.width = size;
+      canvas.height = size;
+      const ctx = canvas.getContext('2d');
+
+      ctx.fillStyle = '#f2ebe0';
+      ctx.fillRect(0, 0, size, size);
+
+      // Subtle mineral blotches
+      for (let i = 0; i < 280; i++) {
+        const x = rand() * size;
+        const y = rand() * size;
+        const r = randRange(8, 42);
+        const grad = ctx.createRadialGradient(x, y, 1, x, y, r);
+        const pick = rand();
+        if (pick < 0.45) {
+          grad.addColorStop(0, 'rgba(218, 198, 174, 0.22)');
+        } else if (pick < 0.8) {
+          grad.addColorStop(0, 'rgba(248, 244, 236, 0.28)');
+        } else {
+          grad.addColorStop(0, 'rgba(198, 134, 83, 0.14)');
+        }
+        grad.addColorStop(1, 'rgba(242, 235, 224, 0)');
+        ctx.fillStyle = grad;
+        ctx.beginPath();
+        ctx.arc(x, y, r, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
+      // Fine sinter cracks network
+      ctx.strokeStyle = 'rgba(120, 102, 85, 0.28)';
+      ctx.lineWidth = 1.1;
+      for (let i = 0; i < 95; i++) {
+        let cx = rand() * size;
+        let cy = rand() * size;
+        let angle = rand() * Math.PI * 2;
+        ctx.beginPath();
+        ctx.moveTo(cx, cy);
+        const steps = Math.floor(randRange(5, 14));
+        for (let s = 0; s < steps; s++) {
+          angle += randRange(-0.65, 0.65);
+          cx += Math.cos(angle) * randRange(4, 12);
+          cy += Math.sin(angle) * randRange(4, 12);
+          ctx.lineTo(cx, cy);
+        }
+        ctx.stroke();
+      }
+
+      // Tiny mineral pores
+      ctx.fillStyle = 'rgba(110, 95, 80, 0.22)';
+      for (let i = 0; i < 600; i++) {
+        ctx.fillRect(rand() * size, rand() * size, 1.5, 1.5);
+      }
+
+      const tex = new THREE.CanvasTexture(canvas);
+      tex.wrapS = THREE.RepeatWrapping;
+      tex.wrapT = THREE.RepeatWrapping;
+      tex.repeat.set(2.5, 2.5);
+      tex.colorSpace = THREE.SRGBColorSpace;
+      return tex;
+    }
+
+    function createPoolWaterTexture(spec) {
+      const size = 256;
+      const canvas = document.createElement('canvas');
+      canvas.width = size;
+      canvas.height = size;
+      const ctx = canvas.getContext('2d');
+      const half = size / 2;
+
+      const grad = ctx.createRadialGradient(half, half, 4, half, half, half * 0.98);
+      grad.addColorStop(0.0, spec.deepColor);
+      grad.addColorStop(0.42, spec.midColor);
+      grad.addColorStop(0.70, spec.shallowsColor);
+      grad.addColorStop(0.86, spec.yellowRim);
+      grad.addColorStop(0.98, spec.rustRim);
+      grad.addColorStop(1.0, spec.rustRim);
+
+      ctx.fillStyle = grad;
+      ctx.fillRect(0, 0, size, size);
+
+      // Subtle concentric mineral striations
+      for (let r = 18; r < half * 0.95; r += 7) {
+        ctx.beginPath();
+        ctx.strokeStyle = (r % 14 === 0)
+          ? 'rgba(255, 255, 240, 0.11)'
+          : 'rgba(20, 60, 65, 0.08)';
+        ctx.lineWidth = 1.5;
+        for (let a = 0; a <= Math.PI * 2 + 0.1; a += 0.15) {
+          const jitter = Math.sin(a * 7 + r) * 2.2 + Math.cos(a * 13 - r) * 1.4;
+          const px = half + Math.cos(a) * (r + jitter);
+          const py = half + Math.sin(a) * (r + jitter);
+          if (a === 0) ctx.moveTo(px, py);
+          else ctx.lineTo(px, py);
+        }
+        ctx.stroke();
+      }
+
+      const tex = new THREE.CanvasTexture(canvas);
+      tex.colorSpace = THREE.SRGBColorSpace;
+      return tex;
+    }
+
+    const sinterTexture = createSinterCrackTexture();
+
+    // -------------------------------------------------------------------------
+    // Build Sculptural Sinter-Crust Ground Slab
+    // -------------------------------------------------------------------------
+    function getSlabRadiusAtAngle(theta) {
+      return 5.15
+        + 0.28 * Math.sin(theta * 3 + 0.6)
+        + 0.18 * Math.cos(theta * 5 - 0.4)
+        + 0.11 * Math.sin(theta * 7 + 1.3);
+    }
+
+    function getSurfaceElevation(x, z) {
+      const r = Math.hypot(x, z);
+      const theta = Math.atan2(z, x);
+      const maxR = getSlabRadiusAtAngle(theta);
+      const normR = r / maxR;
+
+      let h = 0.22 * (1.0 - smoothstep(0.65, 1.0, normR));
+      const n = fbm2D(x * 0.65 + 4.1, z * 0.65 - 2.3, 3);
+      h += (n - 0.5) * 0.14;
+
+      // Terraced steps in the sinter crust
+      const steps = 5.5;
+      const terraced = (Math.floor(h * steps) + smoothstep(0.65, 0.95, (h * steps) % 1)) / steps;
+      h = h * 0.45 + terraced * 0.55;
+
+      // Raise slightly around geyser mounds and depress slightly under hot pools
+      for (const g of geyserSpecs) {
+        const dg = Math.hypot(x - g.x, z - g.z);
+        if (dg < g.baseRadius * 1.55) {
+          const w = 1.0 - smoothstep(g.baseRadius * 0.4, g.baseRadius * 1.55, dg);
+          h += w * 0.22;
         }
       }
-      if (g.eruptT > 3.2) { g.eruptT = -1; setHint('idle'); }
+
+      for (const p of poolSpecs) {
+        const dx = (x - p.x) / p.scaleX;
+        const dz = (z - p.z) / p.scaleZ;
+        const dp = Math.hypot(dx, dz);
+        if (dp < p.radius * 1.35) {
+          const rimFactor = Math.exp(-Math.pow((dp - p.radius * 1.03) / 0.22, 2));
+          const basinFactor = 1.0 - smoothstep(p.radius * 0.72, p.radius * 1.02, dp);
+          h += rimFactor * 0.11 - basinFactor * 0.18;
+        }
+      }
+
+      return h;
     }
-  }
 
-  // particles
-  for (let i = 0; i < MAXP; i++) {
-    if (P.life[i] < 0) { pPos[i*3+1] = -50; continue; }
-    P.life[i] -= dt;
-    P.vel[i*3+1] -= 6.2 * dt;
-    pPos[i*3] += P.vel[i*3] * dt;
-    pPos[i*3+1] += P.vel[i*3+1] * dt;
-    pPos[i*3+2] += P.vel[i*3+2] * dt;
-    if (pPos[i*3+1] < 0.04) P.life[i] = -1;
-  }
-  pGeo.attributes.position.needsUpdate = true;
-  pGeo.attributes.color.needsUpdate = true;
+    function buildDioramaSlab() {
+      const slabGeo = new THREE.CylinderGeometry(1, 0.94, 1, 112, 18, false);
+      const pos = slabGeo.attributes.position;
+      const colors = new Float32Array(pos.count * 3);
 
-  // steam wisps breathe + drift
-  for (const w of wisps) {
-    const boost = w.gz.eruptT >= 0 && w.gz.eruptT < 2.6 ? 1.9 : 1;
-    w.sp.position.y = w.gz.ch + 0.45 + w.k * 0.55 + Math.sin(t * 0.8 + w.ph) * 0.12;
-    w.sp.position.x = w.gz.x + Math.sin(t * 0.5 + w.ph) * 0.18;
-    w.sp.material.opacity = (0.13 + Math.sin(t * 1.1 + w.ph) * 0.05) * boost;
-    const s = (0.9 + w.k * 0.5) * boost;
-    w.sp.scale.setScalar(s);
-  }
+      const cTopPale = new THREE.Color(0xefe6d8);
+      const cTopCream = new THREE.Color(0xe2d2be);
+      const cRunoffRust = new THREE.Color(0xc46b39);
+      const cRunoffOchre = new THREE.Color(0xdba24b);
+      const cWallUpper = new THREE.Color(0x9b8672);
+      const cWallLower = new THREE.Color(0x52453b);
+      const tempColor = new THREE.Color();
 
-  // pool ripple shimmer
-  for (const pw of poolWaters) {
-    pw.mesh.material.opacity = 0.9 + Math.sin(t * 1.7 + pw.pool.x) * 0.05;
-  }
+      for (let i = 0; i < pos.count; i++) {
+        const vx = pos.getX(i);
+        const vy = pos.getY(i); // -0.5 to +0.5
+        const vz = pos.getZ(i);
 
-  if (camShake > 0) {
-    camShake -= dt * 1.2;
-    camera.position.x += (Math.random()-0.5) * camShake * 0.1;
-    camera.position.y += (Math.random()-0.5) * camShake * 0.08;
-  }
+        const radialDist = Math.hypot(vx, vz);
+        const theta = Math.atan2(vz, vx);
+        const outerR = getSlabRadiusAtAngle(theta);
 
-  // containment floor (static scene, but keep orbit from clipping inside)
-  {
-    const fwd = new THREE.Vector3(); camera.getWorldDirection(fwd);
-    const rgt = new THREE.Vector3().crossVectors(fwd, camera.up).normalize();
-    const up2 = new THREE.Vector3().crossVectors(rgt, fwd).normalize();
-    controls.minDistance = Math.min(requiredDistance(rgt, up2, fwd, controls.target) * 1.04, 26);
-  }
-  controls.update();
-  renderer.render(scene, camera);
-}
-animate();
-// pass 6: density per main (sparse/simple note) - 11 pines, 34 rocks + 5 boulders,
-//         34 grass tufts, 3 winding mineral runoff rivulets to the pools
-// pass 5: spawn vy capped at modeled power (rand max 1.15 overshot the fit apex), calmer jet heights
-// pass 4: fit covers true ballistic apex (power^2/2g + margin) - grand's peak no longer exits frame
-// pass 3: eruption density - bigger droplets, tighter spread, 220-particle burst + 16/frame sustained jet
-// pass 2: readability - cones darker than ground (were invisible cream-on-cream), wider/deeper orange
-//         mat rings, quieter sinter patchwork, wider dark vents
-// pass 1: first geyser-basin build - sinter terraces, three geysers (tap/auto eruption), painted
-//         bacterial mat pool rings, boardwalk, faceted pines, point-set fit + square-on portrait
-</script>
+        const wx = vx * outerR;
+        const wz = vz * outerR;
+
+        // Top vs Side vs Bottom shaping
+        const yNorm = vy + 0.5; // 0 at bottom, 1 at top
+        const bevelFactor = smoothstep(0.84, 1.0, radialDist);
+
+        // Chiseled rock strata profile on the outer cliff wall
+        const strataWave = Math.sin(yNorm * 18.0 + theta * 2.0) * 0.04 * (1.0 - yNorm);
+        const radialScale = 1.0 - bevelFactor * (1.0 - smoothstep(0.72, 0.98, yNorm)) * 0.08 + strataWave;
+
+        const finalX = wx * radialScale;
+        const finalZ = wz * radialScale;
+
+        let finalY;
+        if (yNorm > 0.96 && radialDist < 0.985) {
+          // Top sinter surface
+          const surfH = getSurfaceElevation(finalX, finalZ);
+          finalY = surfH * (1.0 - bevelFactor * 0.65);
+        } else if (yNorm < 0.04) {
+          // Flat bottom base
+          finalY = -1.25;
+        } else {
+          // Sculpted side cliff between bottom (-1.25) and top edge (~0.05)
+          const topEdgeH = getSurfaceElevation(finalX, finalZ) * 0.35;
+          finalY = THREE.MathUtils.lerp(-1.25, topEdgeH, yNorm);
+        }
+
+        pos.setXYZ(i, finalX, finalY, finalZ);
+
+        // Vertex coloring for mineral crust, runoff channels, and cliff strata
+        if (yNorm > 0.88 && radialDist < 0.97) {
+          const n = fbm2D(finalX * 0.9 + 1.7, finalZ * 0.9 - 3.2, 3);
+          tempColor.copy(cTopPale).lerp(cTopCream, smoothstep(0.3, 0.75, n));
+
+          // Warm rust & ochre mineral runoff aprons around pools and cones
+          for (const p of poolSpecs) {
+            const dx = (finalX - p.x) / p.scaleX;
+            const dz = (finalZ - p.z) / p.scaleZ;
+            const dp = Math.hypot(dx, dz);
+            const ringDist = Math.abs(dp - p.radius * 1.12);
+            if (ringDist < 0.65) {
+              const w = (1.0 - ringDist / 0.65) * 0.72;
+              tempColor.lerp(cRunoffRust, w * 0.65);
+              tempColor.lerp(cRunoffOchre, w * 0.35);
+            }
+          }
+
+          for (const g of geyserSpecs) {
+            const dg = Math.hypot(finalX - g.x, finalZ - g.z);
+            if (dg < g.baseRadius * 1.45) {
+              const w = (1.0 - dg / (g.baseRadius * 1.45)) * 0.55;
+              tempColor.lerp(cRunoffOchre, w);
+            }
+          }
+        } else {
+          // Side cliff wall coloring with layered strata bands
+          const band = 0.5 + 0.5 * Math.sin(finalY * 14.0 + fbm2D(finalX, finalZ, 2) * 3.0);
+          tempColor.copy(cWallLower).lerp(cWallUpper, yNorm * 0.85 + band * 0.15);
+        }
+
+        colors[i * 3] = tempColor.r;
+        colors[i * 3 + 1] = tempColor.g;
+        colors[i * 3 + 2] = tempColor.b;
+      }
+
+      slabGeo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+      slabGeo.computeVertexNormals();
+
+      const slabMat = new THREE.MeshStandardMaterial({
+        vertexColors: true,
+        map: sinterTexture,
+        bumpMap: sinterTexture,
+        bumpScale: 0.035,
+        roughness: 0.86,
+        metalness: 0.04
+      });
+
+      const slabMesh = new THREE.Mesh(slabGeo, slabMat);
+      slabMesh.receiveShadow = true;
+      slabMesh.castShadow = true;
+      dioramaGroup.add(slabMesh);
+
+      // Subtle dark shadow plinth underneath the slab
+      const plinthGeo = new THREE.CylinderGeometry(4.65, 4.45, 0.22, 64);
+      const plinthMat = new THREE.MeshStandardMaterial({
+        color: 0x342b24,
+        roughness: 0.95
+      });
+      const plinth = new THREE.Mesh(plinthGeo, plinthMat);
+      plinth.position.y = -1.32;
+      plinth.receiveShadow = true;
+      dioramaGroup.add(plinth);
+    }
+
+    buildDioramaSlab();
+
+    // -------------------------------------------------------------------------
+    // Build Terraced Mineral Runoff Aprons Around Cones & Pools
+    // -------------------------------------------------------------------------
+    function buildTerracedAprons() {
+      const terraceMat = new THREE.MeshStandardMaterial({
+        vertexColors: true,
+        roughness: 0.78,
+        metalness: 0.05
+      });
+
+      // Stepped sinter ledges under each geyser cone
+      geyserSpecs.forEach((g) => {
+        const layers = 3;
+        for (let l = 0; l < layers; l++) {
+          const frac = l / layers;
+          const rad = g.baseRadius * (1.36 - l * 0.16);
+          const h = 0.08 + l * 0.03;
+          const geo = new THREE.CylinderGeometry(rad * 0.92, rad, h, 36, 1);
+          const pos = geo.attributes.position;
+          const cols = new Float32Array(pos.count * 3);
+
+          const cBase = new THREE.Color(g.tint);
+          const cAccent = new THREE.Color(g.sulfurTint);
+          const col = new THREE.Color();
+
+          for (let i = 0; i < pos.count; i++) {
+            const vx = pos.getX(i);
+            const vy = pos.getY(i);
+            const vz = pos.getZ(i);
+            const ang = Math.atan2(vz, vx);
+            const wobble = 1.0
+              + 0.09 * Math.sin(ang * 5 + l * 1.7 + g.id)
+              + 0.06 * Math.cos(ang * 8 - l * 2.3);
+            pos.setX(i, vx * wobble);
+            pos.setZ(i, vz * wobble);
+
+            col.copy(cBase).lerp(cAccent, (1.0 - frac) * 0.45 + (vy > 0 ? 0.15 : 0.35));
+            cols[i * 3] = col.r;
+            cols[i * 3 + 1] = col.g;
+            cols[i * 3 + 2] = col.b;
+          }
+
+          geo.setAttribute('color', new THREE.BufferAttribute(cols, 3));
+          geo.computeVertexNormals();
+
+          const mesh = new THREE.Mesh(geo, terraceMat);
+          const groundY = getSurfaceElevation(g.x, g.z);
+          mesh.position.set(g.x, groundY - 0.04 + l * 0.055, g.z);
+          mesh.castShadow = true;
+          mesh.receiveShadow = true;
+          dioramaGroup.add(mesh);
+        }
+      });
+    }
+
+    buildTerracedAprons();
+
+    // -------------------------------------------------------------------------
+    // Build 4 Geyser Cones (Layered Sinter Mounds + Dark Open Vents + Proxies)
+    // -------------------------------------------------------------------------
+    const geyserControllers = [];
+    const interactiveTargets = [];
+
+    function createGeyserConeMesh(spec) {
+      const group = new THREE.Group();
+      const baseGroundY = getSurfaceElevation(spec.x, spec.z);
+      group.position.set(spec.x, baseGroundY + 0.05, spec.z);
+
+      // Custom lathe-like radial geometry with inner throat & layered sinter ribs
+      const radialSegs = 48;
+      const profilePts = [];
+
+      // Outer slope from base to rim (14 steps)
+      const outerSteps = 14;
+      for (let i = 0; i <= outerSteps; i++) {
+        const t = i / outerSteps; // 0 at base, 1 at rim
+        // Concave volcanic/geyser cone profile with stepped sinter ridges
+        const slopeCurve = Math.pow(1.0 - t, 0.78);
+        const sinterRib = Math.sin(t * Math.PI * 10.0) * 0.032 * (1.0 - t * 0.4);
+        const r = spec.ventRadius + (spec.baseRadius - spec.ventRadius) * slopeCurve + sinterRib;
+        const y = t * spec.height;
+        profilePts.push(new THREE.Vector2(r, y));
+      }
+
+      // Rounded lip over the top rim into the dark throat
+      profilePts.push(new THREE.Vector2(spec.ventRadius * 0.92, spec.height + 0.02));
+      profilePts.push(new THREE.Vector2(spec.ventRadius * 0.78, spec.height - 0.03));
+      profilePts.push(new THREE.Vector2(spec.ventRadius * 0.55, spec.height * 0.45));
+      profilePts.push(new THREE.Vector2(0.01, spec.height * 0.35));
+
+      const latheGeo = new THREE.LatheGeometry(profilePts, radialSegs);
+      const pos = latheGeo.attributes.position;
+      const colors = new Float32Array(pos.count * 3);
+
+      const cCrust = new THREE.Color(spec.tint);
+      const cSulfur = new THREE.Color(spec.sulfurTint);
+      const cRimLight = new THREE.Color(0xfaf5ec);
+      const cVentDark = new THREE.Color(0x161210);
+      const tmpC = new THREE.Color();
+
+      for (let i = 0; i < pos.count; i++) {
+        let vx = pos.getX(i);
+        let vy = pos.getY(i);
+        let vz = pos.getZ(i);
+
+        const r = Math.hypot(vx, vz);
+        const theta = Math.atan2(vz, vx);
+        const hNorm = Math.max(0, Math.min(1, vy / spec.height));
+
+        // Organic hand-sculpted asymmetry and mineral nodules
+        const asym = 1.0
+          + 0.08 * Math.sin(theta * 3 + spec.id * 1.9)
+          + 0.05 * Math.cos(theta * 6 - hNorm * 5.0)
+          + 0.03 * Math.sin(theta * 11 + hNorm * 9.0);
+
+        // Keep inner throat circular while sculpting outer cone
+        const isInnerThroat = r < spec.ventRadius * 0.88 && vy < spec.height * 0.96;
+        if (!isInnerThroat) {
+          vx *= asym;
+          vz *= asym;
+          vy += Math.sin(theta * 4 + spec.id) * 0.025 * hNorm;
+        }
+
+        pos.setXYZ(i, vx, vy, vz);
+
+        if (isInnerThroat) {
+          const depthFactor = smoothstep(spec.height * 0.4, spec.height * 0.98, vy);
+          tmpC.copy(cVentDark).lerp(cSulfur, depthFactor * 0.25);
+        } else {
+          const ribFactor = 0.5 + 0.5 * Math.sin(hNorm * Math.PI * 10.0);
+          tmpC.copy(cCrust).lerp(cSulfur, (1.0 - hNorm) * 0.45 + ribFactor * 0.22);
+          if (hNorm > 0.82) {
+            tmpC.lerp(cRimLight, (hNorm - 0.82) / 0.18 * 0.65);
+          }
+        }
+
+        colors[i * 3] = tmpC.r;
+        colors[i * 3 + 1] = tmpC.g;
+        colors[i * 3 + 2] = tmpC.b;
+      }
+
+      latheGeo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+      latheGeo.computeVertexNormals();
+
+      const coneMat = new THREE.MeshStandardMaterial({
+        vertexColors: true,
+        map: sinterTexture,
+        bumpMap: sinterTexture,
+        bumpScale: 0.025,
+        roughness: 0.82,
+        metalness: 0.05
+      });
+
+      const coneMesh = new THREE.Mesh(latheGeo, coneMat);
+      coneMesh.castShadow = true;
+      coneMesh.receiveShadow = true;
+      group.add(coneMesh);
+
+      // Simmering water meniscus deep inside the vent throat
+      const throatWaterGeo = new THREE.CircleGeometry(spec.ventRadius * 0.72, 24);
+      throatWaterGeo.rotateX(-Math.PI / 2);
+      const throatWaterMat = new THREE.MeshStandardMaterial({
+        color: 0x17626e,
+        emissive: 0x092930,
+        roughness: 0.18,
+        metalness: 0.1
+      });
+      const throatWater = new THREE.Mesh(throatWaterGeo, throatWaterMat);
+      throatWater.position.y = spec.height * 0.68;
+      group.add(throatWater);
+
+      // Expandable runoff ripple rings around the geyser cone base
+      const runoffRings = [];
+      const ringGeo = new THREE.RingGeometry(spec.baseRadius * 0.72, spec.baseRadius * 0.86, 36);
+      ringGeo.rotateX(-Math.PI / 2);
+      for (let rIdx = 0; rIdx < 3; rIdx++) {
+        const ringMat = new THREE.MeshBasicMaterial({
+          color: 0xf4fbff,
+          transparent: true,
+          opacity: 0.0,
+          depthWrite: false,
+          side: THREE.DoubleSide
+        });
+        const ringMesh = new THREE.Mesh(ringGeo, ringMat);
+        ringMesh.position.y = 0.06;
+        group.add(ringMesh);
+        runoffRings.push(ringMesh);
+      }
+
+      // Generous invisible hit proxy for comfortable tapping at 320px
+      const proxyGeo = new THREE.CylinderGeometry(
+        spec.baseRadius * 0.95,
+        spec.baseRadius * 1.25,
+        spec.height + 0.9,
+        18
+      );
+      const proxyMat = new THREE.MeshBasicMaterial({ visible: false });
+      const proxyMesh = new THREE.Mesh(proxyGeo, proxyMat);
+      proxyMesh.position.y = (spec.height + 0.6) * 0.5;
+      proxyMesh.userData = {
+        type: 'geyser',
+        id: spec.id
+      };
+      group.add(proxyMesh);
+      interactiveTargets.push(proxyMesh);
+
+      dioramaGroup.add(group);
+
+      geyserControllers.push({
+        spec,
+        group,
+        coneMesh,
+        throatWater,
+        runoffRings,
+        baseX: spec.x,
+        baseY: baseGroundY + 0.05,
+        baseZ: spec.z,
+        ventWorldY: baseGroundY + 0.05 + spec.height * 0.92,
+        eruptStartMs: -99999,
+        durationMs: 5000,
+        isErupting: false
+      });
+    }
+
+    geyserSpecs.forEach(createGeyserConeMesh);
+
+    // -------------------------------------------------------------------------
+    // Build 3 Colorful Hot Pools (Concentric Mineral Rings + Glassy Water + Ripples)
+    // -------------------------------------------------------------------------
+    const poolControllers = [];
+
+    function createHotPool(spec) {
+      const group = new THREE.Group();
+      const groundY = getSurfaceElevation(spec.x, spec.z);
+      group.position.set(spec.x, groundY + 0.03, spec.z);
+      group.rotation.y = spec.rotation;
+
+      // Terraced mineral bacterial mat & scalloped travertine rim around the pool
+      const rimOuter = spec.radius * 1.24;
+      const rimInner = spec.radius * 0.88;
+      const rimGeo = new THREE.RingGeometry(rimInner, rimOuter, 64, 4);
+      rimGeo.rotateX(-Math.PI / 2);
+
+      const rPos = rimGeo.attributes.position;
+      const rCols = new Float32Array(rPos.count * 3);
+      const cYellow = new THREE.Color(spec.yellowRim);
+      const cRust = new THREE.Color(spec.rustRim);
+      const cSinterEdge = new THREE.Color(0xe8dac7);
+      const tmpC = new THREE.Color();
+
+      for (let i = 0; i < rPos.count; i++) {
+        let vx = rPos.getX(i);
+        let vz = rPos.getZ(i);
+        const dist = Math.hypot(vx, vz);
+        const ang = Math.atan2(vz, vx);
+        const t = (dist - rimInner) / (rimOuter - rimInner); // 0 inner, 1 outer
+
+        const scallop = 1.0
+          + 0.05 * Math.sin(ang * 7 + spec.id * 2.1)
+          + 0.035 * Math.cos(ang * 13 - spec.id);
+
+        vx *= scallop * spec.scaleX;
+        vz *= scallop * spec.scaleZ;
+
+        // Slightly raised lip right around the water edge, sloping into terraced crust
+        const lipArch = Math.sin(t * Math.PI) * 0.095 + (1.0 - t) * 0.03;
+        rPos.setXYZ(i, vx, lipArch, vz);
+
+        if (t < 0.38) {
+          tmpC.copy(cYellow).lerp(cRust, t / 0.38);
+        } else {
+          tmpC.copy(cRust).lerp(cSinterEdge, (t - 0.38) / 0.62);
+        }
+        rCols[i * 3] = tmpC.r;
+        rCols[i * 3 + 1] = tmpC.g;
+        rCols[i * 3 + 2] = tmpC.b;
+      }
+
+      rimGeo.setAttribute('color', new THREE.BufferAttribute(rCols, 3));
+      rimGeo.computeVertexNormals();
+
+      const rimMat = new THREE.MeshStandardMaterial({
+        vertexColors: true,
+        roughness: 0.72,
+        metalness: 0.06
+      });
+      const rimMesh = new THREE.Mesh(rimGeo, rimMat);
+      rimMesh.receiveShadow = true;
+      rimMesh.castShadow = true;
+      group.add(rimMesh);
+
+      // Glassy concentric mineral water disc
+      const waterTex = createPoolWaterTexture(spec);
+      const waterGeo = new THREE.CircleGeometry(spec.radius * 0.96, 56);
+      waterGeo.rotateX(-Math.PI / 2);
+      const wPos = waterGeo.attributes.position;
+      for (let i = 0; i < wPos.count; i++) {
+        const vx = wPos.getX(i);
+        const vz = wPos.getZ(i);
+        const ang = Math.atan2(vz, vx);
+        const dist = Math.hypot(vx, vz) / (spec.radius * 0.96);
+        const scallop = 1.0 + (0.05 * Math.sin(ang * 7 + spec.id * 2.1) + 0.035 * Math.cos(ang * 13 - spec.id)) * dist;
+        wPos.setX(i, vx * scallop * spec.scaleX);
+        wPos.setZ(i, vz * scallop * spec.scaleZ);
+      }
+      waterGeo.computeVertexNormals();
+
+      const waterMat = new THREE.MeshStandardMaterial({
+        map: waterTex,
+        roughness: 0.12,
+        metalness: 0.15,
+        emissive: new THREE.Color(spec.midColor),
+        emissiveIntensity: 0.18
+      });
+
+      const waterMesh = new THREE.Mesh(waterGeo, waterMat);
+      waterMesh.position.y = 0.045;
+      waterMesh.receiveShadow = true;
+      group.add(waterMesh);
+
+      // Concentric colored ripple rings that pulse outward during boil-over
+      const rippleRings = [];
+      const rippleBaseGeo = new THREE.RingGeometry(0.18, 0.25, 48);
+      rippleBaseGeo.rotateX(-Math.PI / 2);
+
+      const rippleColors = [0xa8fff4, 0x7ef5b5, 0xffe478, 0xff9b54];
+      for (let rIdx = 0; rIdx < 4; rIdx++) {
+        const rMat = new THREE.MeshBasicMaterial({
+          color: rippleColors[rIdx % rippleColors.length],
+          transparent: true,
+          opacity: 0.0,
+          depthWrite: false,
+          side: THREE.DoubleSide
+        });
+        const rMesh = new THREE.Mesh(rippleBaseGeo, rMat);
+        rMesh.position.y = 0.058 + rIdx * 0.002;
+        group.add(rMesh);
+        rippleRings.push(rMesh);
+      }
+
+      // Generous invisible tap proxy for each hot pool
+      const proxyGeo = new THREE.CylinderGeometry(
+        spec.radius * 1.25 * Math.max(spec.scaleX, spec.scaleZ),
+        spec.radius * 1.25 * Math.max(spec.scaleX, spec.scaleZ),
+        0.75,
+        24
+      );
+      const proxyMat = new THREE.MeshBasicMaterial({ visible: false });
+      const proxyMesh = new THREE.Mesh(proxyGeo, proxyMat);
+      proxyMesh.position.y = 0.22;
+      proxyMesh.userData = {
+        type: 'pool',
+        id: spec.id
+      };
+      group.add(proxyMesh);
+      interactiveTargets.push(proxyMesh);
+
+      dioramaGroup.add(group);
+
+      poolControllers.push({
+        spec,
+        group,
+        waterMesh,
+        waterMat,
+        rippleRings,
+        surfaceWorldY: groundY + 0.085,
+        boilStartMs: -99999,
+        durationMs: 4000,
+        isBoiling: false
+      });
+    }
+
+    poolSpecs.forEach(createHotPool);
+
+    // -------------------------------------------------------------------------
+    // Instanced Mineral Crust Pebbles & Hardy Grass Tufts at Slab Edges
+    // -------------------------------------------------------------------------
+    function buildGrassAndCrustDetails() {
+      // 1. Hardy subalpine grass blades clustered along outer slab edges
+      const grassBladeCount = 260;
+      const bladeGeo = new THREE.ConeGeometry(0.032, 0.28, 4);
+      bladeGeo.translate(0, 0.14, 0);
+
+      const grassMat = new THREE.MeshStandardMaterial({
+        roughness: 0.85,
+        metalness: 0.02
+      });
+
+      const grassInst = new THREE.InstancedMesh(bladeGeo, grassMat, grassBladeCount);
+      grassInst.castShadow = true;
+      grassInst.receiveShadow = true;
+
+      const dummy = new THREE.Object3D();
+      const cOlive = new THREE.Color(0x6e7d44);
+      const cDryGold = new THREE.Color(0xb59b4c);
+      const cSage = new THREE.Color(0x566b49);
+      const col = new THREE.Color();
+
+      let bladeIdx = 0;
+      const tuftCount = 36;
+      for (let t = 0; t < tuftCount; t++) {
+        const angle = (t / tuftCount) * Math.PI * 2 + randRange(-0.08, 0.08);
+        const edgeR = getSlabRadiusAtAngle(angle) * randRange(0.76, 0.91);
+        const tx = Math.cos(angle) * edgeR;
+        const tz = Math.sin(angle) * edgeR;
+
+        // Avoid placing grass inside pools or cones
+        let tooClose = false;
+        for (const p of poolSpecs) {
+          if (Math.hypot(tx - p.x, tz - p.z) < p.radius * 1.35) tooClose = true;
+        }
+        for (const g of geyserSpecs) {
+          if (Math.hypot(tx - g.x, tz - g.z) < g.baseRadius * 1.35) tooClose = true;
+        }
+        if (tooClose) continue;
+
+        const ty = getSurfaceElevation(tx, tz);
+        const bladesInTuft = Math.floor(randRange(6, 10));
+
+        for (let b = 0; b < bladesInTuft && bladeIdx < grassBladeCount; b++) {
+          const bx = tx + randRange(-0.11, 0.11);
+          const bz = tz + randRange(-0.11, 0.11);
+          dummy.position.set(bx, ty - 0.02, bz);
+          dummy.rotation.set(
+            randRange(-0.38, 0.38),
+            randRange(0, Math.PI * 2),
+            randRange(-0.38, 0.38)
+          );
+          const s = randRange(0.65, 1.35);
+          dummy.scale.set(s, s * randRange(0.8, 1.3), s);
+          dummy.updateMatrix();
+          grassInst.setMatrixAt(bladeIdx, dummy.matrix);
+
+          const pick = rand();
+          if (pick < 0.45) col.copy(cOlive);
+          else if (pick < 0.8) col.copy(cDryGold);
+          else col.copy(cSage);
+          grassInst.setColorAt(bladeIdx, col);
+          bladeIdx++;
+        }
+      }
+      grassInst.count = bladeIdx;
+      grassInst.instanceMatrix.needsUpdate = true;
+      if (grassInst.instanceColor) grassInst.instanceColor.needsUpdate = true;
+      dioramaGroup.add(grassInst);
+
+      // 2. Instanced sinter nodules & mineral boulders scattered across the basin
+      const pebbleCount = 130;
+      const pebbleGeo = new THREE.DodecahedronGeometry(0.085, 1);
+      const pebbleMat = new THREE.MeshStandardMaterial({
+        roughness: 0.88,
+        metalness: 0.04
+      });
+      const pebbleInst = new THREE.InstancedMesh(pebbleGeo, pebbleMat, pebbleCount);
+      pebbleInst.castShadow = true;
+      pebbleInst.receiveShadow = true;
+
+      const cPebbleCream = new THREE.Color(0xe6dac8);
+      const cPebbleRust = new THREE.Color(0xb86236);
+      const cPebbleSulfur = new THREE.Color(0xd9b957);
+
+      let pIdx = 0;
+      for (let i = 0; i < 200 && pIdx < pebbleCount; i++) {
+        const ang = rand() * Math.PI * 2;
+        const rad = Math.sqrt(rand()) * getSlabRadiusAtAngle(ang) * 0.88;
+        const px = Math.cos(ang) * rad;
+        const pz = Math.sin(ang) * rad;
+
+        // Keep out of pool centers and cone vents
+        let insideFeature = false;
+        for (const p of poolSpecs) {
+          const dx = (px - p.x) / p.scaleX;
+          const dz = (pz - p.z) / p.scaleZ;
+          if (Math.hypot(dx, dz) < p.radius * 1.06) insideFeature = true;
+        }
+        for (const g of geyserSpecs) {
+          if (Math.hypot(px - g.x, pz - g.z) < g.baseRadius * 0.85) insideFeature = true;
+        }
+        if (insideFeature) continue;
+
+        const py = getSurfaceElevation(px, pz);
+        dummy.position.set(px, py + 0.01, pz);
+        dummy.rotation.set(rand() * 3, rand() * 3, rand() * 3);
+        const sx = randRange(0.55, 1.55);
+        const sy = randRange(0.35, 0.85);
+        const sz = randRange(0.55, 1.55);
+        dummy.scale.set(sx, sy, sz);
+        dummy.updateMatrix();
+        pebbleInst.setMatrixAt(pIdx, dummy.matrix);
+
+        const rPick = rand();
+        if (rPick < 0.6) col.copy(cPebbleCream);
+        else if (rPick < 0.85) col.copy(cPebbleRust);
+        else col.copy(cPebbleSulfur);
+        pebbleInst.setColorAt(pIdx, col);
+        pIdx++;
+      }
+      pebbleInst.count = pIdx;
+      pebbleInst.instanceMatrix.needsUpdate = true;
+      if (pebbleInst.instanceColor) pebbleInst.instanceColor.needsUpdate = true;
+      dioramaGroup.add(pebbleInst);
+    }
+
+    buildGrassAndCrustDetails();
+
+    // -------------------------------------------------------------------------
+    // Instanced Particle Systems:
+    // 1. Eruption Water Droplets (720 instances: 180 per geyser cone)
+    // 2. Steam Wisps & Billowing Eruption Clouds (320 instances)
+    // 3. Hot Pool Rising Bubbles (150 instances: 50 per hot pool)
+    // -------------------------------------------------------------------------
+    const DROPLETS_PER_GEYSER = 180;
+    const TOTAL_DROPLETS = geyserSpecs.length * DROPLETS_PER_GEYSER;
+
+    const dropletGeo = new THREE.IcosahedronGeometry(0.055, 1);
+    const dropletMat = new THREE.MeshStandardMaterial({
+      color: 0xf7fcff,
+      emissive: 0xd9f2ff,
+      emissiveIntensity: 0.35,
+      roughness: 0.15,
+      metalness: 0.05
+    });
+
+    const dropletInst = new THREE.InstancedMesh(dropletGeo, dropletMat, TOTAL_DROPLETS);
+    dropletInst.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+    dropletInst.castShadow = false;
+    dioramaGroup.add(dropletInst);
+
+    const dropletSeeds = [];
+    for (let i = 0; i < TOTAL_DROPLETS; i++) {
+      const geyserIndex = Math.floor(i / DROPLETS_PER_GEYSER);
+      const angle = rand() * Math.PI * 2;
+      const spread = randRange(0.06, 0.52);
+      dropletSeeds.push({
+        geyserIndex,
+        phaseOffset: rand(),
+        cycleRate: randRange(1.35, 2.15),
+        vx: Math.cos(angle) * spread,
+        vz: Math.sin(angle) * spread,
+        vyFactor: randRange(0.72, 1.16),
+        size: randRange(0.65, 1.45),
+        isCoreColumn: (i % DROPLETS_PER_GEYSER) < 45
+      });
+    }
+
+    // 2. Steam Puffs (Idle wisps + Eruption billowing steam + Pool boil steam)
+    const TOTAL_STEAM = 320;
+    const steamGeo = new THREE.DodecahedronGeometry(0.18, 1);
+    const steamMat = new THREE.MeshLambertMaterial({
+      color: 0xfcfaf5,
+      emissive: 0xded8ce,
+      emissiveIntensity: 0.22,
+      transparent: true,
+      opacity: 0.44,
+      depthWrite: false
+    });
+
+    const steamInst = new THREE.InstancedMesh(steamGeo, steamMat, TOTAL_STEAM);
+    steamInst.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+    dioramaGroup.add(steamInst);
+
+    const steamSeeds = [];
+    for (let i = 0; i < TOTAL_STEAM; i++) {
+      // Partition steam particles across idle vents/pools, geyser eruptions, and pool boils
+      let mode = 'idle';
+      let targetIdx = 0;
+      if (i < 84) {
+        mode = 'idle_geyser';
+        targetIdx = i % geyserSpecs.length;
+      } else if (i < 156) {
+        mode = 'idle_pool';
+        targetIdx = i % poolSpecs.length;
+      } else if (i < 268) {
+        mode = 'erupt_geyser';
+        targetIdx = i % geyserSpecs.length;
+      } else {
+        mode = 'boil_pool';
+        targetIdx = i % poolSpecs.length;
+      }
+
+      const ang = rand() * Math.PI * 2;
+      const radFrac = Math.sqrt(rand()) * 0.72;
+      steamSeeds.push({
+        mode,
+        targetIdx,
+        phase: rand(),
+        speed: randRange(0.28, 0.56),
+        offsetX: Math.cos(ang) * radFrac,
+        offsetZ: Math.sin(ang) * radFrac,
+        driftX: randRange(0.12, 0.38),
+        driftZ: randRange(-0.25, 0.25),
+        wobbleFreq: randRange(1.5, 3.5),
+        scaleBase: randRange(0.55, 1.35),
+        rotSpeed: randRange(-1.2, 1.2)
+      });
+    }
+
+    // 3. Hot Pool Bubbles (150 instances: 50 per pool)
+    const BUBBLES_PER_POOL = 50;
+    const TOTAL_BUBBLES = poolSpecs.length * BUBBLES_PER_POOL;
+    const bubbleGeo = new THREE.SphereGeometry(0.048, 10, 8);
+    const bubbleMat = new THREE.MeshStandardMaterial({
+      color: 0xdffcff,
+      emissive: 0x6ce8e0,
+      emissiveIntensity: 0.45,
+      roughness: 0.08,
+      metalness: 0.1,
+      transparent: true,
+      opacity: 0.82
+    });
+
+    const bubbleInst = new THREE.InstancedMesh(bubbleGeo, bubbleMat, TOTAL_BUBBLES);
+    bubbleInst.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+    dioramaGroup.add(bubbleInst);
+
+    const bubbleSeeds = [];
+    for (let i = 0; i < TOTAL_BUBBLES; i++) {
+      const poolIndex = Math.floor(i / BUBBLES_PER_POOL);
+      const localIdx = i % BUBBLES_PER_POOL;
+      const pSpec = poolSpecs[poolIndex];
+      const ang = rand() * Math.PI * 2;
+      const r = Math.sqrt(rand()) * pSpec.radius * 0.78;
+      bubbleSeeds.push({
+        poolIndex,
+        isIdleBubble: localIdx < 8, // 8 occasional idle bubbles per pool, 42 boil-over cluster bubbles
+        phase: rand(),
+        speed: randRange(0.95, 1.85),
+        localX: Math.cos(ang) * r * pSpec.scaleX,
+        localZ: Math.sin(ang) * r * pSpec.scaleZ,
+        maxScale: randRange(0.65, 1.55)
+      });
+    }
+
+    // -------------------------------------------------------------------------
+    // Camera Framing: Exact Projected Bounding Box + Safe Header/Footer Margins
+    // -------------------------------------------------------------------------
+    // Bounding volume encompasses the full slab, cones, pools, and maximum eruption headroom
+    const sceneBoundsPoints = [
+      new THREE.Vector3(-5.55, -1.35, -5.55),
+      new THREE.Vector3(5.55, -1.35, -5.55),
+      new THREE.Vector3(-5.55, -1.35, 5.55),
+      new THREE.Vector3(5.55, -1.35, 5.55),
+      new THREE.Vector3(-5.55, 0.85, -5.55),
+      new THREE.Vector3(5.55, 0.85, -5.55),
+      new THREE.Vector3(-5.55, 0.85, 5.55),
+      new THREE.Vector3(5.55, 0.85, 5.55),
+      // Eruption peak headroom above the geyser cones
+      new THREE.Vector3(-2.3, 4.35, -1.2),
+      new THREE.Vector3(2.3, 4.35, -1.2),
+      new THREE.Vector3(0.0, 4.35, -2.3),
+      new THREE.Vector3(-2.5, 3.85, 1.4)
+    ];
+
+    const PORTRAIT_ZOOM = 0.55;
+    const PORTRAIT_ELEV = 0.28;
+    const PORTRAIT_SHIFT_PX = -70; // raise content into the upper whitespace band
+    const viewDirBase = new THREE.Vector3(0.28, 0.56, 0.78);
+
+    function updateCameraFraming() {
+      const vw = window.innerWidth;
+      const vh = window.innerHeight;
+      renderer.setSize(vw, vh);
+
+      const aspect = vw / Math.max(1, vh);
+      const viewDir = viewDirBase.clone();
+      if (aspect < 1.0) viewDir.y = PORTRAIT_ELEV; // Flatter portrait angle gives the shallow basin more height on screen
+      viewDir.normalize();
+      // Aspect-aware vertical FOV (wider on narrow portrait viewports)
+      camera.fov = aspect < 0.75 ? 44 : (aspect < 1.0 ? 40 : 35);
+      camera.aspect = aspect;
+      camera.updateProjectionMatrix();
+
+      // Measure header and footer safe areas
+      const headerRect = headerEl.getBoundingClientRect();
+      const footerRect = footerEl.getBoundingClientRect();
+      const topSafePx = Math.min(vh * 0.26, headerRect.bottom + 12);
+      const bottomSafePx = Math.min(vh * 0.16, (vh - footerRect.top) + 12);
+
+      const usableHeightFrac = Math.max(0.52, (vh - topSafePx - bottomSafePx) / Math.max(1, vh));
+      const usableWidthFrac = aspect < 1.0 ? 1.30 : 0.90;
+
+      const vFovRad = THREE.MathUtils.degToRad(camera.fov);
+      const tanHalfVFov = Math.tan(vFovRad * 0.5) * usableHeightFrac;
+      const tanHalfHFov = Math.tan(vFovRad * 0.5) * aspect * usableWidthFrac;
+
+      // Build camera basis vectors along the initial elevated three-quarter view direction
+      const forward = viewDir.clone().negate(); // From camera toward target
+      const worldUp = new THREE.Vector3(0, 1, 0);
+      const right = new THREE.Vector3().crossVectors(forward, worldUp).normalize();
+      const camUp = new THREE.Vector3().crossVectors(right, forward).normalize();
+
+      // Find vertical and horizontal extents in camera view plane
+      const lookCenter = new THREE.Vector3(0.0, 0.75, 0.1);
+      let reqDist = 8.0;
+
+      for (const pt of sceneBoundsPoints) {
+        const rel = pt.clone().sub(lookCenter);
+        const projX = Math.abs(rel.dot(right));
+        const projY = Math.abs(rel.dot(camUp));
+        const projZ = rel.dot(forward); // Depth along view ray
+
+        const distForX = projX / Math.max(0.05, tanHalfHFov) - projZ;
+        const distForY = projY / Math.max(0.05, tanHalfVFov) - projZ;
+        reqDist = Math.max(reqDist, distForX, distForY);
+      }
+
+      reqDist *= 1.06; // Small breathing margin
+      if (aspect < 1.0) reqDist *= PORTRAIT_ZOOM; // Portrait: let slab edges bleed so the model fills the tall frame
+
+      // Shift target vertically so the diorama sits centered between header and footer
+      const pixelOffsetY = (topSafePx - bottomSafePx) * 0.5;
+      const worldShiftY = (pixelOffsetY / Math.max(1, vh)) * (2.0 * reqDist * Math.tan(vFovRad * 0.5));
+
+      let extraUp = 0;
+      if (aspect < 1.0) extraUp = (PORTRAIT_SHIFT_PX / Math.max(1, vh)) * (2.0 * reqDist * Math.tan(vFovRad * 0.5));
+      const finalTarget = lookCenter.clone().addScaledVector(camUp, worldShiftY * 0.85 + extraUp);
+      controls.target.copy(finalTarget);
+      camera.position.copy(finalTarget).addScaledVector(viewDir, reqDist);
+
+      controls.minDistance = reqDist * 0.78;
+      controls.maxDistance = reqDist * 1.25;
+      controls.update();
+    }
+
+    updateCameraFraming();
+    window.addEventListener('resize', updateCameraFraming);
+
+    // -------------------------------------------------------------------------
+    // Raycaster Tap vs Drag Interaction Handling
+    // -------------------------------------------------------------------------
+    const raycaster = new THREE.Raycaster();
+    const pointerNDC = new THREE.Vector2();
+    let pointerDownPos = { x: 0, y: 0 };
+    let pointerDownTime = 0;
+    let isPointerActive = false;
+
+    function triggerGeyserEruption(id, nowMs) {
+      const g = geyserControllers[id];
+      if (!g) return;
+      g.eruptStartMs = nowMs;
+      g.isErupting = true;
+    }
+
+    function triggerPoolBoil(id, nowMs) {
+      const p = poolControllers[id];
+      if (!p) return;
+      p.boilStartMs = nowMs;
+      p.isBoiling = true;
+    }
+
+    renderer.domElement.addEventListener('pointerdown', (e) => {
+      isPointerActive = true;
+      pointerDownPos.x = e.clientX;
+      pointerDownPos.y = e.clientY;
+      pointerDownTime = performance.now();
+    });
+
+    renderer.domElement.addEventListener('pointerup', (e) => {
+      if (!isPointerActive) return;
+      isPointerActive = false;
+
+      const moveDist = Math.hypot(e.clientX - pointerDownPos.x, e.clientY - pointerDownPos.y);
+      const elapsed = performance.now() - pointerDownTime;
+
+      // Distinguish deliberate tap from orbit drag
+      if (moveDist > 9 || elapsed > 600) return;
+
+      const rect = renderer.domElement.getBoundingClientRect();
+      pointerNDC.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+      pointerNDC.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+
+      raycaster.setFromCamera(pointerNDC, camera);
+      const hits = raycaster.intersectObjects(interactiveTargets, false);
+
+      if (hits.length > 0) {
+        const hitData = hits[0].object.userData;
+        const nowMs = performance.now();
+        if (hitData.type === 'geyser') {
+          triggerGeyserEruption(hitData.id, nowMs);
+        } else if (hitData.type === 'pool') {
+          triggerPoolBoil(hitData.id, nowMs);
+        }
+      }
+    });
+
+    // -------------------------------------------------------------------------
+    // Animation Loop (All motion driven strictly by performance.now)
+    // -------------------------------------------------------------------------
+    const tempDummy = new THREE.Object3D();
+    const zeroScaleMatrix = new THREE.Matrix4().makeScale(0, 0, 0);
+
+    function animate(nowMs) {
+      requestAnimationFrame(animate);
+
+      const timeSec = nowMs * 0.001;
+      controls.update();
+
+      // -----------------------------------------------------------------------
+      // 1. Update Geyser Cone Tremble, Vent Simmer & Runoff Ripples
+      // -----------------------------------------------------------------------
+      const geyserEnvelopes = new Float32Array(geyserControllers.length);
+
+      for (let i = 0; i < geyserControllers.length; i++) {
+        const g = geyserControllers[i];
+        const elapsed = nowMs - g.eruptStartMs;
+
+        let jetIntensity = 0.0;
+        let shakeAmp = 0.0;
+
+        if (elapsed >= 0 && elapsed <= g.durationMs) {
+          g.isErupting = true;
+          const p = elapsed / g.durationMs; // 0..1 over 5 seconds
+
+          // Phase 1 (0.00 - 0.12): Rumble buildup shake
+          // Phase 2 (0.12 - 0.72): Full tall fountain jet + peak cone tremble
+          // Phase 3 (0.72 - 1.00): Jet subsides back to simmering vent
+          if (p < 0.12) {
+            const build = p / 0.12;
+            jetIntensity = smoothstep(0.3, 1.0, build) * 0.35;
+            shakeAmp = build * 0.042;
+          } else if (p < 0.72) {
+            const ramp = smoothstep(0.12, 0.22, p);
+            const pulse = 0.90 + 0.10 * Math.sin(timeSec * 22.0 + i * 2.1);
+            jetIntensity = THREE.MathUtils.lerp(0.35, 1.0, ramp) * pulse;
+            shakeAmp = 0.036;
+          } else {
+            const decay = 1.0 - smoothstep(0.72, 1.0, p);
+            jetIntensity = decay;
+            shakeAmp = decay * 0.018;
+          }
+
+          // Deterministic high-frequency rumble vibration on the tapped cone
+          const sx = Math.sin(nowMs * 0.068 + i * 1.7) * shakeAmp;
+          const sz = Math.cos(nowMs * 0.074 + i * 2.9) * shakeAmp;
+          const sy = Math.sin(nowMs * 0.095 + i) * shakeAmp * 0.4;
+          g.group.position.set(g.baseX + sx, g.baseY + sy, g.baseZ + sz);
+
+          // Expand runoff ripples across nearby mineral crust
+          for (let rIdx = 0; rIdx < g.runoffRings.length; rIdx++) {
+            const ring = g.runoffRings[rIdx];
+            const ringCycle = ((p * 2.4 - rIdx * 0.28) % 1.0 + 1.0) % 1.0;
+            if (p > 0.14) {
+              const s = 1.0 + ringCycle * 0.85;
+              ring.scale.set(s, 1.0, s);
+              ring.material.opacity = Math.sin(ringCycle * Math.PI) * 0.48 * Math.min(1.0, (1.0 - p) * 2.5);
+            } else {
+              ring.material.opacity = 0.0;
+            }
+          }
+        } else {
+          g.isErupting = false;
+          g.group.position.set(g.baseX, g.baseY, g.baseZ);
+          for (let rIdx = 0; rIdx < g.runoffRings.length; rIdx++) {
+            g.runoffRings[rIdx].material.opacity = 0.0;
+          }
+        }
+
+        geyserEnvelopes[i] = jetIntensity;
+
+        // Ongoing idle throat simmer
+        const simmerWave = Math.sin(timeSec * 3.4 + i * 1.9) * 0.015;
+        g.throatWater.position.y = g.spec.height * (0.68 + jetIntensity * 0.22) + simmerWave;
+      }
+
+      // -----------------------------------------------------------------------
+      // 2. Update Eruption Water Droplets (720 Instanced Ballistic Particles)
+      // -----------------------------------------------------------------------
+      for (let i = 0; i < TOTAL_DROPLETS; i++) {
+        const seed = dropletSeeds[i];
+        const env = geyserEnvelopes[seed.geyserIndex];
+
+        if (env <= 0.005) {
+          dropletInst.setMatrixAt(i, zeroScaleMatrix);
+          continue;
+        }
+
+        const g = geyserControllers[seed.geyserIndex];
+        const localT = (timeSec * seed.cycleRate + seed.phaseOffset) % 1.0;
+
+        // Parabolic fountain trajectory: rises briskly from vent, arcs outward, and rains onto the cone
+        const parabolaY = 4.0 * localT * (1.0 - localT);
+        const maxH = g.spec.jetHeight * env * seed.vyFactor;
+
+        let radialSpread = seed.isCoreColumn ? 0.35 : 1.0;
+        const dx = seed.vx * localT * radialSpread * (0.65 + 0.55 * env);
+        const dz = seed.vz * localT * radialSpread * (0.65 + 0.55 * env);
+        const dy = parabolaY * maxH + (1.0 - localT) * 0.08;
+
+        const wx = g.group.position.x + dx;
+        const wy = g.ventWorldY + dy;
+        const wz = g.group.position.z + dz;
+
+        tempDummy.position.set(wx, wy, wz);
+
+        // Stretch droplets vertically during fast ascent/descent, round at apex
+        const vertVel = Math.abs(1.0 - 2.0 * localT);
+        const fadeOut = Math.sin(localT * Math.PI);
+        const baseScale = seed.size * fadeOut * (0.55 + 0.65 * env);
+
+        tempDummy.scale.set(
+          baseScale * (seed.isCoreColumn ? 1.15 : 0.82),
+          baseScale * (1.1 + vertVel * 1.85),
+          baseScale * (seed.isCoreColumn ? 1.15 : 0.82)
+        );
+        tempDummy.rotation.set(0, seed.phaseOffset * 6.28, 0);
+        tempDummy.updateMatrix();
+        dropletInst.setMatrixAt(i, tempDummy.matrix);
+      }
+      dropletInst.instanceMatrix.needsUpdate = true;
+
+      // -----------------------------------------------------------------------
+      // 3. Update Hot Pools (Idle Shimmer + 4-Second Boil-Over & Colored Ripples)
+      // -----------------------------------------------------------------------
+      const poolEnvelopes = new Float32Array(poolControllers.length);
+
+      for (let i = 0; i < poolControllers.length; i++) {
+        const p = poolControllers[i];
+        const elapsed = nowMs - p.boilStartMs;
+        let boilEnv = 0.0;
+
+        if (elapsed >= 0 && elapsed <= p.durationMs) {
+          p.isBoiling = true;
+          const prog = elapsed / p.durationMs; // 0..1 over 4 seconds
+          if (prog < 0.18) {
+            boilEnv = smoothstep(0.0, 0.18, prog);
+          } else if (prog < 0.72) {
+            boilEnv = 1.0;
+          } else {
+            boilEnv = 1.0 - smoothstep(0.72, 1.0, prog);
+          }
+
+          // Pulse concentric colored mineral ripples outward across the pool rings
+          for (let rIdx = 0; rIdx < p.rippleRings.length; rIdx++) {
+            const rMesh = p.rippleRings[rIdx];
+            const wavePhase = ((prog * 2.2 - rIdx * 0.24) % 1.0 + 1.0) % 1.0;
+            const maxR = p.spec.radius * 3.9;
+            const curScale = 0.4 + wavePhase * maxR;
+            rMesh.scale.set(curScale * p.spec.scaleX, 1.0, curScale * p.spec.scaleZ);
+            rMesh.material.opacity = Math.sin(wavePhase * Math.PI) * 0.62 * boilEnv;
+          }
+        } else {
+          p.isBoiling = false;
+          // Gentle faint idle ripple on the glassy surface
+          for (let rIdx = 0; rIdx < p.rippleRings.length; rIdx++) {
+            const rMesh = p.rippleRings[rIdx];
+            if (rIdx === 0) {
+              const idleWave = (timeSec * 0.32 + i * 0.41) % 1.0;
+              const s = 0.5 + idleWave * p.spec.radius * 3.2;
+              rMesh.scale.set(s * p.spec.scaleX, 1.0, s * p.spec.scaleZ);
+              rMesh.material.opacity = Math.sin(idleWave * Math.PI) * 0.14;
+            } else {
+              rMesh.material.opacity = 0.0;
+            }
+          }
+        }
+
+        poolEnvelopes[i] = boilEnv;
+
+        // Subtle surface shimmer and boil swell
+        const shimmer = 0.16 + 0.05 * Math.sin(timeSec * 2.6 + i * 1.7) + boilEnv * 0.28;
+        p.waterMat.emissiveIntensity = shimmer;
+        p.waterMesh.position.y = 0.045 + Math.sin(timeSec * 3.2 + i) * 0.004 + boilEnv * 0.016 * Math.sin(timeSec * 18.0 + i);
+      }
+
+      // -----------------------------------------------------------------------
+      // 4. Update Hot Pool Rising & Popping Bubbles (150 Instances)
+      // -----------------------------------------------------------------------
+      for (let i = 0; i < TOTAL_BUBBLES; i++) {
+        const b = bubbleSeeds[i];
+        const p = poolControllers[b.poolIndex];
+        const boilEnv = poolEnvelopes[b.poolIndex];
+
+        if (!b.isIdleBubble && boilEnv <= 0.01) {
+          bubbleInst.setMatrixAt(i, zeroScaleMatrix);
+          continue;
+        }
+
+        const speedMult = b.isIdleBubble ? (0.45 + boilEnv * 1.1) : (1.15 + boilEnv * 0.65);
+        const cycle = (timeSec * b.speed * speedMult + b.phase) % 1.0;
+
+        // Idle bubbles only pop occasionally during part of their cycle
+        if (b.isIdleBubble && boilEnv <= 0.01 && cycle > 0.45) {
+          bubbleInst.setMatrixAt(i, zeroScaleMatrix);
+          continue;
+        }
+
+        const normCycle = (b.isIdleBubble && boilEnv <= 0.01) ? (cycle / 0.45) : cycle;
+
+        // Rotate local coordinates by pool rotation
+        const cosR = Math.cos(p.spec.rotation);
+        const sinR = Math.sin(p.spec.rotation);
+        const wx = p.spec.x + (b.localX * cosR - b.localZ * sinR);
+        const wz = p.spec.z + (b.localX * sinR + b.localZ * cosR);
+        const wy = p.surfaceWorldY + normCycle * (0.08 + boilEnv * 0.18);
+
+        // Swell and pop dome shape
+        const popCurve = Math.sin(normCycle * Math.PI);
+        const s = b.maxScale * popCurve * (b.isIdleBubble ? 0.75 : (0.5 + 0.75 * boilEnv));
+
+        tempDummy.position.set(wx, wy, wz);
+        tempDummy.scale.set(s, s * 0.75, s);
+        tempDummy.rotation.set(0, 0, 0);
+        tempDummy.updateMatrix();
+        bubbleInst.setMatrixAt(i, tempDummy.matrix);
+      }
+      bubbleInst.instanceMatrix.needsUpdate = true;
+
+      // -----------------------------------------------------------------------
+      // 5. Update Steam Wisps & Billowing Clouds (320 Instances)
+      // -----------------------------------------------------------------------
+      for (let i = 0; i < TOTAL_STEAM; i++) {
+        const s = steamSeeds[i];
+        let originX = 0;
+        let originY = 0;
+        let originZ = 0;
+        let maxRise = 1.1;
+        let sizeMult = 1.0;
+        let activeAlpha = 1.0;
+
+        if (s.mode === 'idle_geyser') {
+          const g = geyserControllers[s.targetIdx];
+          originX = g.baseX + s.offsetX * g.spec.ventRadius * 0.7;
+          originY = g.ventWorldY + 0.04;
+          originZ = g.baseZ + s.offsetZ * g.spec.ventRadius * 0.7;
+          maxRise = 1.25;
+          sizeMult = 0.72;
+        } else if (s.mode === 'idle_pool') {
+          const p = poolControllers[s.targetIdx];
+          originX = p.spec.x + s.offsetX * p.spec.radius * 0.75;
+          originY = p.surfaceWorldY + 0.04;
+          originZ = p.spec.z + s.offsetZ * p.spec.radius * 0.75;
+          maxRise = 1.15;
+          sizeMult = 0.85;
+        } else if (s.mode === 'erupt_geyser') {
+          const env = geyserEnvelopes[s.targetIdx];
+          if (env <= 0.01) {
+            steamInst.setMatrixAt(i, zeroScaleMatrix);
+            continue;
+          }
+          const g = geyserControllers[s.targetIdx];
+          originX = g.group.position.x + s.offsetX * 0.42;
+          originY = g.ventWorldY + 0.25;
+          originZ = g.group.position.z + s.offsetZ * 0.42;
+          maxRise = g.spec.jetHeight * 0.92;
+          sizeMult = 1.55 * env;
+          activeAlpha = env;
+        } else if (s.mode === 'boil_pool') {
+          const env = poolEnvelopes[s.targetIdx];
+          if (env <= 0.01) {
+            steamInst.setMatrixAt(i, zeroScaleMatrix);
+            continue;
+          }
+          const p = poolControllers[s.targetIdx];
+          originX = p.spec.x + s.offsetX * p.spec.radius * 0.85;
+          originY = p.surfaceWorldY + 0.05;
+          originZ = p.spec.z + s.offsetZ * p.spec.radius * 0.85;
+          maxRise = 1.65;
+          sizeMult = 1.35 * env;
+          activeAlpha = env;
+        }
+
+        const speedBoost = (s.mode === 'erupt_geyser') ? 2.1 : (s.mode === 'boil_pool' ? 1.5 : 1.0);
+        const life = (timeSec * s.speed * speedBoost + s.phase) % 1.0;
+
+        // Gentle high-altitude breeze drift & curl
+        const windX = life * s.driftX * 1.45 + Math.sin(timeSec * s.wobbleFreq + s.phase * 6.28) * 0.08 * life;
+        const windZ = life * s.driftZ * 1.15 + Math.cos(timeSec * s.wobbleFreq + s.phase * 6.28) * 0.08 * life;
+        const wy = originY + life * maxRise;
+
+        // Envelope: puff expands as it rises, then shrinks softly to 0 well before header
+        const puffEnvelope = Math.sin(life * Math.PI);
+        const finalScale = s.scaleBase * sizeMult * puffEnvelope * activeAlpha;
+
+        tempDummy.position.set(originX + windX, wy, originZ + windZ);
+        tempDummy.scale.set(finalScale * 1.15, finalScale * 0.88, finalScale * 1.15);
+        tempDummy.rotation.set(
+          timeSec * s.rotSpeed + s.phase,
+          timeSec * s.rotSpeed * 0.7,
+          s.phase * 3.14
+        );
+        tempDummy.updateMatrix();
+        steamInst.setMatrixAt(i, tempDummy.matrix);
+      }
+      steamInst.instanceMatrix.needsUpdate = true;
+
+      renderer.render(scene, camera);
+    }
+
+    requestAnimationFrame(animate);
+  </script>
 </body>
 </html>
