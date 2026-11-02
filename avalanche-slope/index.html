@@ -1,368 +1,1476 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Avalanche Slope - a tiny world</title>
-<style>
-  html, body { margin:0; padding:0; height:100%; background:#bcd4e8; overflow:hidden;
-    font-family: Georgia, 'Times New Roman', serif; }
-  #app { position:fixed; inset:0; }
-  header { position:fixed; top:0; left:0; right:0; text-align:center; pointer-events:none;
-    padding: max(18px, env(safe-area-inset-top)) 16px 18px; z-index:5;
-    background: linear-gradient(rgba(14,34,52,.62), rgba(14,34,52,.30) 55%, rgba(14,34,52,0)); }
-  header h1 { margin:0; font-size:15px; letter-spacing:.42em; font-weight:400;
-    color:#f4f9fd; text-transform:uppercase; text-shadow:0 1px 8px rgba(8,24,40,.75); }
-  header .rule { width:44px; height:1px; background:rgba(244,249,253,.55); margin:9px auto; }
-  #hint { display:inline-block; font-size:11.5px; letter-spacing:.24em; text-transform:uppercase;
-    color:#fafdff; transition:opacity 1.2s ease; padding:5px 12px; border-radius:3px;
-    background:rgba(10,28,44,.45);
-    text-shadow:0 1px 3px rgba(5,18,30,.98), 0 0 8px rgba(5,18,30,.95), 0 0 18px rgba(5,18,30,.85); }
-  #hint.faded { opacity:.45; }
-  footer { position:fixed; bottom:0; left:0; right:0; text-align:center; pointer-events:none;
-    padding:0 16px max(14px, env(safe-area-inset-bottom)); z-index:5;
-    font-size:10px; letter-spacing:.34em; text-transform:uppercase; color:rgba(244,249,253,.6); }
-  canvas { display:block; touch-action:none; }
-  @media (max-width: 380px) {
-    header h1 { font-size:12px; letter-spacing:.3em; }
-    #hint { font-size:10px; letter-spacing:.2em; }
-  }
-</style>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Avalanche slope — a tiny world</title>
+  <style>
+    *, *::before, *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+    html, body {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: linear-gradient(165deg, #d7e9f7 0%, #bfd9f0 48%, #a7c7e4 100%);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      color: #173047;
+    }
+    #app {
+      position: relative;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+    }
+    #canvas-wrap {
+      position: absolute;
+      left: 0;
+      right: 0;
+      top: 0;
+      bottom: 0;
+      overflow: hidden;
+    }
+    canvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+      touch-action: none;
+      cursor: grab;
+    }
+    canvas:active {
+      cursor: grabbing;
+    }
+    header {
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      z-index: 20;
+      padding: 12px 16px 8px;
+      text-align: center;
+      pointer-events: none;
+      background: linear-gradient(180deg, rgba(215, 233, 247, 0.92) 0%, rgba(215, 233, 247, 0.65) 75%, rgba(215, 233, 247, 0) 100%);
+    }
+    .title-row {
+      display: flex;
+      align-items: baseline;
+      justify-content: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    h1 {
+      font-size: clamp(1.08rem, 3.2vw, 1.38rem);
+      font-weight: 750;
+      letter-spacing: -0.02em;
+      color: #12293d;
+      text-shadow: 0 1px 0 rgba(255, 255, 255, 0.7);
+    }
+    .subtitle {
+      font-size: clamp(0.78rem, 2.3vw, 0.92rem);
+      font-weight: 500;
+      color: #3f6382;
+      font-style: italic;
+    }
+    .hint {
+      margin-top: 3px;
+      font-size: clamp(0.7rem, 2vw, 0.8rem);
+      font-weight: 600;
+      color: #284b6a;
+      background: rgba(255, 255, 255, 0.62);
+      backdrop-filter: blur(4px);
+      -webkit-backdrop-filter: blur(4px);
+      display: inline-block;
+      padding: 3px 11px;
+      border-radius: 999px;
+      border: 1px solid rgba(255, 255, 255, 0.8);
+      box-shadow: 0 2px 6px rgba(18, 41, 61, 0.06);
+    }
+    footer {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      z-index: 20;
+      padding: 6px 16px 10px;
+      text-align: center;
+      pointer-events: none;
+      font-size: clamp(0.68rem, 1.8vw, 0.76rem);
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: #3d607e;
+      background: linear-gradient(0deg, rgba(167, 199, 228, 0.9) 0%, rgba(167, 199, 228, 0.5) 70%, rgba(167, 199, 228, 0) 100%);
+    }
+    #fallback {
+      display: none;
+      position: absolute;
+      inset: 0;
+      z-index: 50;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+      text-align: center;
+      background: #d7e9f7;
+      color: #173047;
+      font-size: 0.95rem;
+    }
+  </style>
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+        "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+      }
+    }
+  </script>
 </head>
 <body>
-<div id="app"></div>
-<header>
-  <h1>Avalanche Slope</h1>
-  <div class="rule"></div>
-  <span id="hint"></span>
-</header>
-<footer>A tiny world</footer>
-<script type="importmap">
-{ "imports": {
-  "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
-  "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
-} }
-</script>
-<script type="module">
-import * as THREE from 'three';
-import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+  <div id="app">
+    <header id="ui-header">
+      <div class="title-row">
+        <h1>Avalanche slope</h1>
+        <span class="subtitle">a tiny world</span>
+      </div>
+      <div class="hint">tap the slope for an avalanche - tap the pines</div>
+    </header>
+    <div id="canvas-wrap"></div>
+    <footer id="ui-footer">A tiny world</footer>
+    <div id="fallback">WebGL could not be initialized on this device or browser. Please ensure hardware acceleration is enabled.</div>
+  </div>
 
-// pass 7
-const container = document.getElementById('app');
-const hintEl = document.getElementById('hint');
-const scene = new THREE.Scene();
-scene.background = new THREE.Color(0xbcd4e8);
-scene.fog = new THREE.Fog(0xbcd4e8, 60, 140);
+  <script type="module">
+    import * as THREE from 'three';
+    import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 
-const camera = new THREE.PerspectiveCamera(38, innerWidth/innerHeight, 0.1, 240);
-function pickFov() {
-  const a = innerWidth / innerHeight;
-  camera.fov = a >= 0.9 ? 38 : (a >= 0.62 ? 46 : 58);
-  camera.updateProjectionMatrix();
-}
-pickFov();
-const renderer = new THREE.WebGLRenderer({ antialias: true });
-renderer.setSize(innerWidth, innerHeight);
-renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
-renderer.shadowMap.enabled = true;
-renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-container.appendChild(renderer.domElement);
-const controls = new OrbitControls(camera, renderer.domElement);
-controls.enableDamping = true; controls.dampingFactor = 0.06;
-controls.enablePan = false; controls.maxPolarAngle = Math.PI * 0.52;
-
-const sun = new THREE.DirectionalLight(0xfff2dd, 2.2);
-sun.position.set(8, 12, 6); sun.castShadow = true;
-sun.shadow.mapSize.set(1024, 1024);
-sun.shadow.camera.left = -14; sun.shadow.camera.right = 14;
-sun.shadow.camera.top = 14; sun.shadow.camera.bottom = -14;
-sun.shadow.camera.far = 60; sun.shadow.bias = -0.0006;
-scene.add(sun);
-scene.add(new THREE.HemisphereLight(0xe4eef8, 0x4a5e70, 1.15));
-
-function mulberry32(a) {
-  return function() {
-    a |= 0; a = a + 0x6D2B79F5 | 0;
-    let t = Math.imul(a ^ a >>> 15, 1 | a);
-    t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
-    return ((t ^ t >>> 14) >>> 0) / 4294967296;
-  };
-}
-const rng = mulberry32(20261101);
-function rand(a, b) { return a + rng() * (b - a); }
-
-// ---------- slab + mountain wedge ----------
-const SLAB_H = 1.4;
-const slabGroup = new THREE.Group(); scene.add(slabGroup);
-const SNOW = new THREE.MeshStandardMaterial({ color: 0xf6fafd, roughness: 0.85 });
-const SNOW_BLUE = new THREE.MeshStandardMaterial({ color: 0xd8e8f4, roughness: 0.9 });
-{
-  const top = new THREE.Mesh(new THREE.BoxGeometry(12, 0.22, 12), new THREE.MeshStandardMaterial({ color: 0xc2d8ea, roughness: 0.95 }));
-  top.position.y = -0.11; top.receiveShadow = true; slabGroup.add(top);
-  const mid = new THREE.Mesh(new THREE.BoxGeometry(12, SLAB_H, 12),
-    new THREE.MeshStandardMaterial({ color: 0x7e94a6, roughness: 1 }));
-  mid.position.y = -SLAB_H/2 - 0.2; slabGroup.add(mid);
-  const base = new THREE.Mesh(new THREE.BoxGeometry(12.4, 0.5, 12.4),
-    new THREE.MeshStandardMaterial({ color: 0x54687a, roughness: 1 }));
-  base.position.y = -SLAB_H - 0.45; slabGroup.add(base);
-}
-const slopeGroup = new THREE.Group(); slopeGroup.rotation.y = -0.32; slabGroup.add(slopeGroup);
-// mountain wedge: triangular prism, ridge along x, slope facing +z (front)
-const SLOPE = { ridgeY: 5.2, backZ: -4.2, frontZ: 2.8, halfW: 4.2 };
-let wedgeMesh;
-{
-  const shape = new THREE.Shape();
-  shape.moveTo(-SLOPE.halfW, 0);
-  shape.lineTo(SLOPE.halfW, 0);
-  // ridge in the middle-back; we build cross-section in (z,y) then extrude along x
-  // simpler: build with BufferGeometry
-  const g = new THREE.BufferGeometry();
-  const W = SLOPE.halfW, zB = SLOPE.backZ, zF = SLOPE.frontZ, yR = SLOPE.ridgeY;
-  // ridge line slightly off-center back
-  const zR = zB + 1.2;
-  const v = [];
-  // front slope quad (zF,0)-(zR,yR) for both x ends
-  const quad = (a, b, c, d) => { v.push(...a, ...b, ...c, ...a, ...c, ...d); };
-  quad([-W, 0, zF], [W, 0, zF], [W, yR, zR], [-W, yR, zR]);           // front slope
-  quad([W, 0, zB], [-W, 0, zB], [-W, yR, zR], [W, yR, zR]);           // back slope
-  quad([-W, 0, zB], [-W, 0, zF], [-W, yR, zR], [-W, yR, zR]);         // left cap (degenerate ok)
-  quad([W, 0, zF], [W, 0, zB], [W, yR, zR], [W, yR, zR]);             // right cap
-  g.setAttribute('position', new THREE.Float32BufferAttribute(v, 3));
-  const cols = [];
-  const low = new THREE.Color(0xa9c4dc), high = new THREE.Color(0xffffff), tmp = new THREE.Color();
-  for (let i = 0; i < v.length; i += 3) {
-    const k = Math.max(0, Math.min(1, v[i+1] / SLOPE.ridgeY));
-    tmp.copy(low).lerp(high, Math.pow(k, 0.65));
-    cols.push(tmp.r, tmp.g, tmp.b);
-  }
-  g.setAttribute('color', new THREE.Float32BufferAttribute(cols, 3));
-  g.computeVertexNormals();
-  wedgeMesh = new THREE.Mesh(g, new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.85, vertexColors: true }));
-  wedgeMesh.castShadow = true; wedgeMesh.receiveShadow = true;
-  slopeGroup.add(wedgeMesh);
-}
-function slopeY(z) {
-  const zR = SLOPE.backZ + 1.2;
-  if (z >= zR) return SLOPE.ridgeY * (SLOPE.frontZ - z) / (SLOPE.frontZ - zR);
-  return SLOPE.ridgeY * (z - SLOPE.backZ) / (zR - SLOPE.backZ);
-}
-
-// ridge cornice + outcrops near the ridge
-{
-  const zR = SLOPE.backZ + 1.2;
-  for (let i = 0; i < 6; i++) {
-    const c = new THREE.Mesh(new THREE.SphereGeometry(rand(0.45, 0.7), 9, 7), SNOW);
-    c.scale.set(1, 0.55, 0.8);
-    c.position.set(-SLOPE.halfW + 0.8 + i * (SLOPE.halfW * 2 - 1.6) / 5, SLOPE.ridgeY + 0.12, zR + rand(-0.1, 0.15));
-    c.castShadow = true; slopeGroup.add(c);
-  }
-  const outMat = new THREE.MeshStandardMaterial({ color: 0x6a7a86, roughness: 1 });
-  for (const [x, z, sc] of [[-2.6, zR + 1.0, 0.7], [1.8, zR + 1.6, 0.55], [3.9, zR + 0.7, 0.5]]) {
-    const o = new THREE.Mesh(new THREE.DodecahedronGeometry(sc, 0), outMat);
-    o.position.set(x, slopeY(z) + sc * 0.3, z); o.castShadow = true; slopeGroup.add(o);
-  }
-}
-// contour stripes across the front slope so the relief reads
-{
-  const zR = SLOPE.backZ + 1.2;
-  const ang = Math.atan2(SLOPE.ridgeY, SLOPE.frontZ - zR);
-  for (let i = 1; i <= 4; i++) {
-    const z = zR + (SLOPE.frontZ - zR) * (i / 4.6);
-    const stripe = new THREE.Mesh(new THREE.BoxGeometry(8.2, 0.05, 0.4), new THREE.MeshStandardMaterial({ color: 0xe4eef7, roughness: 0.9 }));
-    stripe.position.set(0, slopeY(z) + 0.06, z);
-    stripe.rotation.x = -ang;
-    slopeGroup.add(stripe);
-  }
-}
-
-// ---------- pines on the lower slope + flats ----------
-const PINE = new THREE.MeshStandardMaterial({ color: 0x2e5d46, roughness: 0.9 });
-const PINE_SNOW = new THREE.MeshStandardMaterial({ color: 0xe8f2f8, roughness: 0.9 });
-const TRUNK = new THREE.MeshStandardMaterial({ color: 0x5a4230, roughness: 1 });
-function pine(x, z, s) {
-  const g = new THREE.Group(); g.position.set(x, slopeY(z) > 0.05 ? slopeY(z) : 0, z);
-  const t = new THREE.Mesh(new THREE.CylinderGeometry(0.06*s, 0.09*s, 0.5*s, 6), TRUNK);
-  t.position.y = 0.25*s; g.add(t);
-  for (let i = 0; i < 3; i++) {
-    const c = new THREE.Mesh(new THREE.ConeGeometry((0.55 - i*0.13)*s, 0.55*s, 8), PINE);
-    c.position.y = (0.55 + i*0.34)*s; c.castShadow = true; g.add(c);
-    const cap = new THREE.Mesh(new THREE.ConeGeometry((0.56 - i*0.13)*s, 0.2*s, 8), PINE_SNOW);
-    cap.position.y = (0.72 + i*0.34)*s; g.add(cap);
-  }
-  slopeGroup.add(g);
-}
-pine(-3.4, 1.2, 1.3); pine(2.8, 1.8, 1.1); pine(-1.8, 2.6, 0.9); pine(4.2, 0.4, 1.0);
-pine(-4.4, 4.2, 1.2); pine(0.8, 4.6, 1.05); pine(3.6, 4.4, 0.85); pine(-2.6, 4.8, 0.8);
-// rocks poking through the snow
-{
-  const rockMat = new THREE.MeshStandardMaterial({ color: 0x76868f, roughness: 1 });
-  for (const [x, z, s] of [[-4.6,-1.2,0.5],[4.6,-2.4,0.65],[-1.2,-2.2,0.4],[2.0,-0.8,0.35],[5.0,2.8,0.45],[-5.0,2.2,0.5]]) {
-    const r = new THREE.Mesh(new THREE.DodecahedronGeometry(s, 0), rockMat);
-    r.position.set(x, slopeY(z) * 0.9 + s * 0.4, z); r.castShadow = true; slopeGroup.add(r);
-  }
-}
-// snow drifts on the flats
-for (let i = 0; i < 10; i++) {
-  const d = new THREE.Mesh(new THREE.SphereGeometry(rand(0.3, 0.7), 8, 6), SNOW);
-  d.scale.y = 0.3; d.position.set(rand(-5.4, 5.4), 0.02, rand(3.8, 5.4));
-  d.receiveShadow = true; slabGroup.add(d);
-}
-
-// ---------- falling snow (upper band; NDC faded) ----------
-const flakes = [];
-function makeSoftTexture(inner, outer) {
-  const c = document.createElement('canvas'); c.width = c.height = 64;
-  const ctx = c.getContext('2d');
-  const g = ctx.createRadialGradient(32, 32, 4, 32, 32, 30);
-  g.addColorStop(0, inner); g.addColorStop(1, outer);
-  ctx.fillStyle = g; ctx.fillRect(0, 0, 64, 64);
-  return new THREE.CanvasTexture(c);
-}
-{
-  const tex = makeSoftTexture('rgba(255,255,255,1)', 'rgba(255,255,255,0)');
-  for (let i = 0; i < 40; i++) {
-    const mat = new THREE.SpriteMaterial({ map: tex, transparent: true, opacity: rand(0.5, 0.95), depthWrite: false });
-    const s = new THREE.Sprite(mat);
-    const sc = rand(0.1, 0.24); s.scale.set(sc, sc, 1);
-    s.position.set(rand(-7, 7), rand(0.5, 9), rand(-6, 5));
-    scene.add(s);
-    flakes.push({ s, spd: rand(0.4, 1.0), sway: rand(0.5, 1.4), phase: rand(0, Math.PI * 2), baseOp: mat.opacity });
-  }
-}
-
-// ---------- avalanche event ----------
-const hintIdle = 'Tap the slope';
-const hintSlide = 'Watch it slide';
-let hintOwner = 'idle';
-function setHint(text, owner) { hintEl.textContent = text; hintEl.classList.remove('faded'); hintOwner = owner; }
-function resetHintIf(owner) { if (hintOwner === owner) setHint(hintIdle, 'idle'); }
-setHint(hintIdle, 'idle');
-
-const slides = []; // rolling snowballs
-const puffs = [];  // powder cloud sprites
-let lastTap = 0;
-const puffTex = makeSoftTexture('rgba(208,226,242,0.98)', 'rgba(208,226,242,0)');
-function avalanche(now) {
-  lastTap = now;
-  setHint(hintSlide, 'user');
-  const zR = SLOPE.backZ + 1.2;
-  for (let i = 0; i < 18; i++) {
-    const b = new THREE.Mesh(new THREE.SphereGeometry(rand(0.22, 0.46), 8, 6), new THREE.MeshStandardMaterial({ color: 0xd6e6f4, roughness: 0.7 }));
-    const x = rand(-SLOPE.halfW * 0.85, SLOPE.halfW * 0.85);
-    b.position.set(x, slopeY(zR) + 0.2, zR + rand(-0.2, 0.2));
-    b.castShadow = true; slopeGroup.add(b);
-    slides.push({ m: b, x, z: zR, t0: now + rand(0, 0.5), speed: rand(3.2, 5.2), spin: rand(-6, 6), done: false });
-  }
-  for (let i = 0; i < 11; i++) {
-    const mat = new THREE.SpriteMaterial({ map: puffTex, transparent: true, opacity: 0, depthWrite: false });
-    const s = new THREE.Sprite(mat);
-    s.position.set(rand(-4, 4), 1.5, SLOPE.backZ + 2);
-    slopeGroup.add(s);
-    puffs.push({ s, t0: now + rand(0, 0.4), dur: rand(2.2, 3.2), x0: s.position.x });
-  }
-  setTimeout(() => resetHintIf('user'), 5600);
-}
-
-// ---------- interaction ----------
-const ray = new THREE.Raycaster();
-const ptr = new THREE.Vector2();
-const slopeProxy = new THREE.Mesh(new THREE.BoxGeometry(9, 6.5, 8),
-  new THREE.MeshBasicMaterial({ visible: false }));
-slopeProxy.position.set(0, 2.6, -0.7); slopeProxy.rotation.y = -0.32;
-scene.add(slopeProxy);
-let downX = 0, downY = 0;
-renderer.domElement.addEventListener('pointerdown', e => { downX = e.clientX; downY = e.clientY; });
-renderer.domElement.addEventListener('pointerup', e => {
-  if (Math.hypot(e.clientX - downX, e.clientY - downY) > 8) return;
-  ptr.x = (e.clientX / innerWidth) * 2 - 1;
-  ptr.y = -(e.clientY / innerHeight) * 2 + 1;
-  ray.setFromCamera(ptr, camera);
-  if (ray.intersectObject(slopeProxy, false).length) {
-    const now = performance.now() / 1000;
-    if (now - lastTap > 0.8) avalanche(now);
-  }
-});
-
-// ---------- camera containment ----------
-const fitBox = new THREE.Box3().setFromObject(slabGroup);
-fitBox.expandByPoint(new THREE.Vector3(0, SLOPE.ridgeY + 0.8, 0));
-function fitCamera() {
-  const center = fitBox.getCenter(new THREE.Vector3());
-  controls.target.copy(center);
-  const dir = new THREE.Vector3(0.12, 0.5, 1).normalize();
-  const corners = [];
-  for (const x of [fitBox.min.x, fitBox.max.x])
-    for (const y of [fitBox.min.y, fitBox.max.y])
-      for (const z of [fitBox.min.z, fitBox.max.z])
-        corners.push(new THREE.Vector3(x, y, z));
-  const probe = new THREE.PerspectiveCamera(camera.fov, camera.aspect, 0.1, 240);
-  probe.position.copy(center).addScaledVector(dir, 0.001); probe.lookAt(center); probe.updateMatrixWorld();
-  const inv = probe.matrixWorldInverse;
-  let need = 0;
-  const vFov = THREE.MathUtils.degToRad(camera.fov) / 2;
-  const hFov = Math.atan(Math.tan(vFov) * camera.aspect);
-  for (const c of corners) {
-    const p = c.clone().applyMatrix4(inv);
-    const d = -p.z;
-    need = Math.max(need, d + Math.abs(p.y) / Math.tan(vFov), d + Math.abs(p.x) / Math.tan(hFov));
-  }
-  const dist = need * 1.1 + 0.2;
-  camera.position.copy(center).addScaledVector(dir, dist);
-  controls.target.y += -0.35;
-  camera.position.y += -0.35;
-  camera.lookAt(controls.target); controls.update();
-}
-fitCamera();
-addEventListener('resize', () => {
-  camera.aspect = innerWidth / innerHeight; pickFov();
-  renderer.setSize(innerWidth, innerHeight); fitCamera();
-});
-
-// ---------- animate ----------
-const clock = new THREE.Clock();
-const ndcV = new THREE.Vector3();
-function animate() {
-  requestAnimationFrame(animate);
-  const dt = Math.min(clock.getDelta(), 0.3);
-  const now = performance.now() / 1000;
-  // snowfall
-  for (const f of flakes) {
-    f.s.position.y -= f.spd * dt;
-    f.s.position.x += Math.sin(now * f.sway + f.phase) * dt * 0.4;
-    if (f.s.position.y < 0.2) { f.s.position.y = 9; f.s.position.x = rand(-7, 7); }
-    ndcV.copy(f.s.position).project(camera);
-    const inBand = ndcV.y > 0.45 && Math.abs(ndcV.x) < 0.62;
-    const target = inBand ? 0.12 : f.baseOp;
-    f.s.material.opacity += (target - f.s.material.opacity) * Math.min(1, dt * 3);
-  }
-  // rolling snowballs follow the slope surface
-  for (const b of slides) {
-    if (b.done) continue;
-    const t = now - b.t0;
-    if (t < 0) continue;
-    b.z = (SLOPE.backZ + 1.2) + b.speed * t;
-    if (b.z >= SLOPE.frontZ + 1.6) {
-      b.done = true; slopeGroup.remove(b.m); continue;
+    // Deterministic PRNG: mulberry32(20261103)
+    function mulberry32(a) {
+      return function() {
+        let t = (a += 0x6D2B79F5);
+        t = Math.imul(t ^ (t >>> 15), t | 1);
+        t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+        return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+      };
     }
-    b.m.position.z = b.z;
-    b.m.position.y = Math.max(0.15, slopeY(Math.min(b.z, SLOPE.frontZ)) + 0.15);
-    b.m.rotation.x += b.spin * dt;
-  }
-  // powder cloud swells and drifts downhill, then fades
-  for (const p of puffs) {
-    const t = (now - p.t0) / p.dur;
-    if (t < 0) continue;
-    if (t >= 1) { p.s.material.opacity = 0; continue; }
-    const grow = 1 + t * 5;
-    p.s.scale.set(3.1 * grow, 2.0 * grow, 1);
-    p.s.position.z = SLOPE.backZ + 1.5 + t * 6.5;
-    p.s.position.y = 1.2 + Math.sin(t * Math.PI) * 1.2;
-    p.s.material.opacity = Math.sin(Math.min(t * 1.15, 1) * Math.PI) * 0.9;
-  }
-  controls.update();
-  renderer.render(scene, camera);
-}
-animate();
-</script>
+    const rand = mulberry32(20261103);
+    const randRange = (min, max) => min + (max - min) * rand();
+
+    const wrap = document.getElementById('canvas-wrap');
+    const headerEl = document.getElementById('ui-header');
+    const footerEl = document.getElementById('ui-footer');
+    const fallbackEl = document.getElementById('fallback');
+
+    let renderer;
+    try {
+      renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: 'high-performance' });
+    } catch (err) {
+      fallbackEl.style.display = 'flex';
+      throw err;
+    }
+    if (!renderer || !renderer.getContext()) {
+      fallbackEl.style.display = 'flex';
+      throw new Error('WebGL context unavailable');
+    }
+
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.75));
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 1.08;
+    wrap.appendChild(renderer.domElement);
+
+    const scene = new THREE.Scene();
+
+    const camera = new THREE.PerspectiveCamera(36, 1, 0.5, 120);
+    const controls = new OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.07;
+    controls.enablePan = false;
+    controls.enableZoom = true;
+    controls.minPolarAngle = THREE.MathUtils.degToRad(34);
+    controls.maxPolarAngle = THREE.MathUtils.degToRad(66);
+    controls.minAzimuthAngle = THREE.MathUtils.degToRad(-40);
+    controls.maxAzimuthAngle = THREE.MathUtils.degToRad(40);
+
+    // Alpine daylight lighting
+    const hemiLight = new THREE.HemisphereLight(0xeef7ff, 0x8bb0d4, 1.35);
+    hemiLight.position.set(0, 18, 0);
+    scene.add(hemiLight);
+
+    const sunLight = new THREE.DirectionalLight(0xfff9ee, 2.05);
+    sunLight.position.set(9.5, 16.5, 8.5);
+    sunLight.castShadow = true;
+    sunLight.shadow.mapSize.set(1024, 1024);
+    sunLight.shadow.camera.near = 4;
+    sunLight.shadow.camera.far = 34;
+    const dShadow = 8.4;
+    sunLight.shadow.camera.left = -dShadow;
+    sunLight.shadow.camera.right = dShadow;
+    sunLight.shadow.camera.top = dShadow;
+    sunLight.shadow.camera.bottom = -dShadow;
+    sunLight.shadow.bias = -0.0006;
+    scene.add(sunLight);
+
+    const rimLight = new THREE.DirectionalLight(0xa3cbf0, 0.72);
+    rimLight.position.set(-10, 8, -9);
+    scene.add(rimLight);
+
+    const worldGroup = new THREE.Group();
+    scene.add(worldGroup);
+
+    // Shared materials (cold alpine palette)
+    const matSnowPure = new THREE.MeshStandardMaterial({
+      color: 0xf7fbff,
+      roughness: 0.72,
+      metalness: 0.03,
+      flatShading: true
+    });
+    const matSnowShade = new THREE.MeshStandardMaterial({
+      color: 0xdcebf8,
+      roughness: 0.76,
+      metalness: 0.03,
+      flatShading: true
+    });
+    const matCrownScarp = new THREE.MeshStandardMaterial({
+      color: 0xb5d3ec,
+      roughness: 0.58,
+      metalness: 0.06,
+      flatShading: true
+    });
+    const matRockDark = new THREE.MeshStandardMaterial({
+      color: 0x566575,
+      roughness: 0.88,
+      metalness: 0.05,
+      flatShading: true
+    });
+    const matRockMid = new THREE.MeshStandardMaterial({
+      color: 0x6f8092,
+      roughness: 0.85,
+      metalness: 0.05,
+      flatShading: true
+    });
+    const matSlabBase = new THREE.MeshStandardMaterial({
+      color: 0x3b4856,
+      roughness: 0.9,
+      metalness: 0.05,
+      flatShading: true
+    });
+    const matPineDark = new THREE.MeshStandardMaterial({
+      color: 0x1d4a3d,
+      roughness: 0.82,
+      flatShading: true
+    });
+    const matPineMid = new THREE.MeshStandardMaterial({
+      color: 0x265c4b,
+      roughness: 0.8,
+      flatShading: true
+    });
+    const matTrunk = new THREE.MeshStandardMaterial({
+      color: 0x4f3829,
+      roughness: 0.9,
+      flatShading: true
+    });
+    const matCloud = new THREE.MeshStandardMaterial({
+      color: 0xffffff,
+      roughness: 0.92,
+      metalness: 0.0,
+      flatShading: true,
+      transparent: true,
+      opacity: 0.9
+    });
+    const matCrackGlow = new THREE.MeshBasicMaterial({
+      color: 0x7fc4fd,
+      transparent: true,
+      opacity: 0.0
+    });
+
+    // Mathematical terrain function for the slope surface
+    // Z goes from -4.4 (peak back) to +4.4 (runout front)
+    // X goes from -4.4 (left) to +4.4 (right)
+    function getSlopeHeight(x, z) {
+      // Normalized front-to-back coordinate u in [0, 1] where 0 is back (-4.4) and 1 is front (+4.4)
+      const u = THREE.MathUtils.clamp((z + 4.4) / 8.8, 0, 1);
+      // Steep upper slope curving smoothly into flat runout valley floor
+      const baseCurve = Math.pow(1 - u, 1.68) * 5.25;
+
+      // Central chute shallow concavity vs lateral shoulders
+      const chuteFactor = Math.exp(-(x * x) / 6.2);
+      const ridgeShoulders = (1 - chuteFactor) * (1 - u * 0.72) * 0.52;
+
+      // Wind-carved diagonal sastrugi & relief ridges
+      const wind1 = Math.sin(x * 2.1 + z * 1.65) * 0.09 * (1 - u * 0.45);
+      const wind2 = Math.cos(x * 3.8 - z * 2.4) * 0.045 * (1 - u * 0.6);
+
+      // Steep peak crest near the back
+      const peakBoost = Math.max(0, 1 - Math.hypot(x * 0.65, z + 3.85) / 2.9) * 0.72;
+
+      return 0.55 + baseCurve + ridgeShoulders + wind1 + wind2 + peakBoost;
+    }
+
+    function getSlopeNormal(x, z) {
+      const eps = 0.08;
+      const hL = getSlopeHeight(x - eps, z);
+      const hR = getSlopeHeight(x + eps, z);
+      const hD = getSlopeHeight(x, z - eps);
+      const hU = getSlopeHeight(x, z + eps);
+      const v = new THREE.Vector3(hL - hR, 2 * eps, hD - hU).normalize();
+      return v;
+    }
+
+    // Build Sculptural Diorama Slab Base + Snow Surface Mesh
+    const SLAB_HALF = 4.4;
+    const SEGMENTS = 56;
+
+    function buildDioramaSlab() {
+      const group = new THREE.Group();
+
+      // 1. Top snow surface with bevelled skirt edges
+      const topGeo = new THREE.PlaneGeometry(SLAB_HALF * 2, SLAB_HALF * 2, SEGMENTS, SEGMENTS);
+      topGeo.rotateX(-Math.PI / 2);
+      const pos = topGeo.attributes.position;
+      const colors = new Float32Array(pos.count * 3);
+      const cPure = new THREE.Color(0xf8fcff);
+      const cBlue = new THREE.Color(0xd2e6f7);
+      const cRidge = new THREE.Color(0xffffff);
+      const tmpColor = new THREE.Color();
+
+      for (let i = 0; i < pos.count; i++) {
+        const vx = pos.getX(i);
+        const vz = pos.getZ(i);
+        const edgeDist = Math.max(Math.abs(vx), Math.abs(vz));
+        const bevel = edgeDist > 4.18 ? (edgeDist - 4.18) * 0.55 : 0;
+        const h = getSlopeHeight(vx, vz) - bevel;
+        pos.setY(i, h);
+
+        const u = (vz + 4.4) / 8.8;
+        const windShade = Math.sin(vx * 2.1 + vz * 1.65) * 0.5 + 0.5;
+        tmpColor.copy(cBlue).lerp(cPure, 0.45 + 0.45 * windShade);
+        if (h > 4.2) tmpColor.lerp(cRidge, 0.35);
+        if (u > 0.7) tmpColor.lerp(cPure, 0.25);
+        colors[i * 3] = tmpColor.r;
+        colors[i * 3 + 1] = tmpColor.g;
+        colors[i * 3 + 2] = tmpColor.b;
+      }
+      topGeo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+      topGeo.computeVertexNormals();
+
+      const snowTopMat = new THREE.MeshStandardMaterial({
+        vertexColors: true,
+        roughness: 0.7,
+        metalness: 0.04,
+        flatShading: true
+      });
+      const snowTopMesh = new THREE.Mesh(topGeo, snowTopMat);
+      snowTopMesh.receiveShadow = true;
+      snowTopMesh.castShadow = true;
+      group.add(snowTopMesh);
+
+      // 2. Rock Cutaway Cliff Walls around the 4 sides down to y = -0.55
+      const baseBottom = -0.55;
+      const wallPositions = [];
+      const wallColors = [];
+      const cRock1 = new THREE.Color(0x526171);
+      const cRock2 = new THREE.Color(0x6b7c8e);
+      const cSnowLip = new THREE.Color(0xdcebf7);
+
+      function pushQuad(p1, p2, p3, p4, colTop, colBot) {
+        wallPositions.push(
+          p1.x, p1.y, p1.z, p2.x, p2.y, p2.z, p3.x, p3.y, p3.z,
+          p1.x, p1.y, p1.z, p3.x, p3.y, p3.z, p4.x, p4.y, p4.z
+        );
+        wallColors.push(
+          colTop.r, colTop.g, colTop.b,
+          colTop.r, colTop.g, colTop.b,
+          colBot.r, colBot.g, colBot.b,
+          colTop.r, colTop.g, colTop.b,
+          colBot.r, colBot.g, colBot.b,
+          colBot.r, colBot.g, colBot.b
+        );
+      }
+
+      const step = (SLAB_HALF * 2) / SEGMENTS;
+      const sides = [
+        { start: [-SLAB_HALF, SLAB_HALF], dir: [1, 0] },   // front (+Z)
+        { start: [SLAB_HALF, SLAB_HALF], dir: [0, -1] },   // right (+X)
+        { start: [SLAB_HALF, -SLAB_HALF], dir: [-1, 0] },  // back (-Z)
+        { start: [-SLAB_HALF, -SLAB_HALF], dir: [0, 1] }   // left (-X)
+      ];
+
+      sides.forEach((side) => {
+        for (let s = 0; s < SEGMENTS; s++) {
+          const x0 = side.start[0] + side.dir[0] * s * step;
+          const z0 = side.start[1] + side.dir[1] * s * step;
+          const x1 = side.start[0] + side.dir[0] * (s + 1) * step;
+          const z1 = side.start[1] + side.dir[1] * (s + 1) * step;
+
+          const y0 = getSlopeHeight(x0, z0) - 0.12;
+          const y1 = getSlopeHeight(x1, z1) - 0.12;
+          const yMid0 = baseBottom + (y0 - baseBottom) * 0.78;
+          const yMid1 = baseBottom + (y1 - baseBottom) * 0.78;
+
+          // Upper snow lip band
+          pushQuad(
+            new THREE.Vector3(x0, y0, z0),
+            new THREE.Vector3(x1, y1, z1),
+            new THREE.Vector3(x1 * 1.004, yMid1, z1 * 1.004),
+            new THREE.Vector3(x0 * 1.004, yMid0, z0 * 1.004),
+            cSnowLip,
+            cRock2
+          );
+          // Lower faceted rock slab wall
+          pushQuad(
+            new THREE.Vector3(x0 * 1.004, yMid0, z0 * 1.004),
+            new THREE.Vector3(x1 * 1.004, yMid1, z1 * 1.004),
+            new THREE.Vector3(x1 * 0.99, baseBottom, z1 * 0.99),
+            new THREE.Vector3(x0 * 0.99, baseBottom, z0 * 0.99),
+            cRock2,
+            cRock1
+          );
+        }
+      });
+
+      const wallGeo = new THREE.BufferGeometry();
+      wallGeo.setAttribute('position', new THREE.Float32BufferAttribute(wallPositions, 3));
+      wallGeo.setAttribute('color', new THREE.Float32BufferAttribute(wallColors, 3));
+      wallGeo.computeVertexNormals();
+      const wallMat = new THREE.MeshStandardMaterial({
+        vertexColors: true,
+        roughness: 0.86,
+        metalness: 0.05,
+        flatShading: true
+      });
+      const wallMesh = new THREE.Mesh(wallGeo, wallMat);
+      wallMesh.castShadow = true;
+      wallMesh.receiveShadow = true;
+      group.add(wallMesh);
+
+      // 3. Tactile Bevelled Pedestal Plinth Base
+      const plinthGeo = new THREE.BoxGeometry(SLAB_HALF * 2.02, 0.34, SLAB_HALF * 2.02);
+      plinthGeo.translate(0, baseBottom - 0.17, 0);
+      const plinthMesh = new THREE.Mesh(plinthGeo, matSlabBase);
+      plinthMesh.receiveShadow = true;
+      plinthMesh.castShadow = true;
+      group.add(plinthMesh);
+
+      // 4. Exposed craggy rock outcrops near the peak and ridges
+      const rockGeo = new THREE.DodecahedronGeometry(0.65, 1);
+      const rockConfigs = [
+        { x: -2.45, z: -3.2, sx: 1.35, sy: 0.85, sz: 1.0, ry: 0.5 },
+        { x: 2.35, z: -3.0, sx: 1.4, sy: 0.9, sz: 0.95, ry: -0.7 },
+        { x: -0.35, z: -3.85, sx: 1.6, sy: 0.95, sz: 0.85, ry: 0.2 },
+        { x: -3.3, z: -1.1, sx: 1.1, sy: 0.68, sz: 1.1, ry: 1.1 },
+        { x: 3.25, z: -0.8, sx: 1.05, sy: 0.65, sz: 1.15, ry: -1.2 }
+      ];
+      rockConfigs.forEach((rc) => {
+        const m = new THREE.Mesh(rockGeo, matRockDark);
+        const y = getSlopeHeight(rc.x, rc.z) - 0.15;
+        m.position.set(rc.x, y, rc.z);
+        m.scale.set(rc.sx, rc.sy, rc.sz);
+        m.rotation.set(0.25, rc.ry, -0.15);
+        m.castShadow = true;
+        m.receiveShadow = true;
+        group.add(m);
+      });
+
+      return group;
+    }
+
+    const slabGroup = buildDioramaSlab();
+    worldGroup.add(slabGroup);
+
+    // Build Crown Scarp Face & Releasable Upper Snow Slab + Jagged Crack Line
+    const crownGroup = new THREE.Group();
+    worldGroup.add(crownGroup);
+
+    // Crown scarp bed wall (revealed when slab fractures, and subtly visible as a ridge line before release)
+    const crownPoints = [
+      { x: -2.35, z: -2.15 },
+      { x: -1.55, z: -2.48 },
+      { x: -0.75, z: -2.28 },
+      { x: 0.05, z: -2.56 },
+      { x: 0.88, z: -2.25 },
+      { x: 1.68, z: -2.42 },
+      { x: 2.35, z: -2.05 }
+    ];
+
+    function getCrownZAtX(x) {
+      for (let i = 0; i < crownPoints.length - 1; i++) {
+        const p0 = crownPoints[i];
+        const p1 = crownPoints[i + 1];
+        if (x >= p0.x && x <= p1.x) {
+          const t = (x - p0.x) / (p1.x - p0.x);
+          return THREE.MathUtils.lerp(p0.z, p1.z, t);
+        }
+      }
+      return -2.3;
+    }
+
+    // Build visible bevelled crown scarp step & jagged crack segments
+    const crackSegments = [];
+    const scarpGeo = new THREE.BoxGeometry(0.86, 0.34, 0.24);
+    const crackLineGeo = new THREE.BoxGeometry(0.88, 0.12, 0.09);
+
+    for (let i = 0; i < crownPoints.length - 1; i++) {
+      const p0 = crownPoints[i];
+      const p1 = crownPoints[i + 1];
+      const mx = (p0.x + p1.x) * 0.5;
+      const mz = (p0.z + p1.z) * 0.5;
+      const my = getSlopeHeight(mx, mz);
+      const len = Math.hypot(p1.x - p0.x, p1.z - p0.z);
+      const ang = Math.atan2(p1.z - p0.z, p1.x - p0.x);
+
+      // Crown scarp face
+      const scarp = new THREE.Mesh(scarpGeo, matCrownScarp);
+      scarp.position.set(mx, my + 0.11, mz);
+      scarp.scale.x = len / 0.82;
+      scarp.rotation.y = -ang;
+      scarp.rotation.x = 0.42;
+      scarp.castShadow = true;
+      scarp.receiveShadow = true;
+      crownGroup.add(scarp);
+
+      // Flashing jagged crack indicator
+      const crackMesh = new THREE.Mesh(crackLineGeo, matCrackGlow.clone());
+      crackMesh.position.set(mx, my + 0.29, mz + 0.07);
+      crackMesh.scale.x = len / 0.84;
+      crackMesh.rotation.y = -ang;
+      crackMesh.rotation.x = 0.42;
+      crownGroup.add(crackMesh);
+      crackSegments.push(crackMesh);
+    }
+
+    // Fracturing Upper Snow Slab Chunks (sit smoothly on the upper slope until triggered)
+    const slabChunks = [];
+    const chunkBaseGeo = new THREE.DodecahedronGeometry(0.38, 0);
+    // Flatten dodecahedron into a tactile tabular snow slab block
+    chunkBaseGeo.scale(1.18, 0.38, 0.95);
+
+    const rows = 4;
+    const cols = 7;
+    for (let r = 0; r < rows; r++) {
+      for (let c = 0; c < cols; c++) {
+        const u = (c + 0.5) / cols;
+        const x = THREE.MathUtils.lerp(-2.05, 2.05, u) + randRange(-0.12, 0.12);
+        const zCrown = getCrownZAtX(x);
+        const z = zCrown + 0.26 + r * 0.36 + randRange(-0.06, 0.06);
+        const y = getSlopeHeight(x, z) + 0.08;
+        const norm = getSlopeNormal(x, z);
+
+        const mesh = new THREE.Mesh(chunkBaseGeo, (r + c) % 2 === 0 ? matSnowPure : matSnowShade);
+        mesh.castShadow = true;
+        mesh.receiveShadow = true;
+
+        const baseScale = new THREE.Vector3(
+          randRange(0.75, 1.12),
+          randRange(0.75, 1.05),
+          randRange(0.75, 1.1)
+        );
+        mesh.scale.copy(baseScale);
+
+        const dummy = new THREE.Object3D();
+        dummy.position.set(x, y, z);
+        const qAlign = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), norm);
+        dummy.quaternion.copy(qAlign);
+        dummy.rotateY(randRange(-0.4, 0.4));
+
+        mesh.position.copy(dummy.position);
+        mesh.quaternion.copy(dummy.quaternion);
+        crownGroup.add(mesh);
+
+        slabChunks.push({
+          mesh,
+          homePos: dummy.position.clone(),
+          homeQuat: dummy.quaternion.clone(),
+          baseScale: baseScale.clone(),
+          delay: r * 0.055 + Math.abs(x) * 0.04 + randRange(0, 0.06),
+          speed: randRange(2.4, 3.35),
+          lateralDrift: x * randRange(0.12, 0.26) + randRange(-0.2, 0.2),
+          spinAxis: new THREE.Vector3(randRange(0.7, 1.2), randRange(-0.5, 0.5), randRange(-0.5, 0.5)).normalize(),
+          spinRate: randRange(4.5, 8.5),
+          runoutStopZ: randRange(2.25, 3.65)
+        });
+      }
+    }
+
+    // Half-buried Boulders on the Lower Slope & Runout with Dynamic Snow Caps
+    const boulders = [];
+    const boulderGeo = new THREE.DodecahedronGeometry(0.46, 1);
+    const boulderCapGeo = new THREE.SphereGeometry(0.38, 10, 8);
+    boulderCapGeo.scale(1.12, 0.42, 1.05);
+
+    const boulderSpecs = [
+      { x: -1.35, z: 1.05, s: 1.08, ry: 0.4 },
+      { x: 1.15, z: 0.72, s: 0.94, ry: 1.7 },
+      { x: -0.25, z: 2.05, s: 0.82, ry: 2.5 },
+      { x: 1.85, z: 2.45, s: 1.15, ry: 0.9 },
+      { x: -2.25, z: 2.75, s: 0.9, ry: -0.6 }
+    ];
+
+    boulderSpecs.forEach((bs) => {
+      const grp = new THREE.Group();
+      const by = getSlopeHeight(bs.x, bs.z) - 0.08;
+      grp.position.set(bs.x, by, bs.z);
+
+      const rockMesh = new THREE.Mesh(boulderGeo, matRockMid);
+      rockMesh.scale.set(bs.s * 1.1, bs.s * 0.82, bs.s * 0.95);
+      rockMesh.rotation.set(0.2, bs.ry, -0.15);
+      rockMesh.castShadow = true;
+      rockMesh.receiveShadow = true;
+      grp.add(rockMesh);
+
+      const capMesh = new THREE.Mesh(boulderCapGeo, matSnowPure);
+      capMesh.position.set(0, bs.s * 0.25, -0.02);
+      capMesh.scale.setScalar(bs.s * 0.78);
+      capMesh.castShadow = true;
+      capMesh.receiveShadow = true;
+      grp.add(capMesh);
+
+      worldGroup.add(grp);
+      boulders.push({
+        group: grp,
+        capMesh,
+        baseCapScale: bs.s * 0.78,
+        dustLevel: 0,
+        z: bs.z
+      });
+    });
+
+    // Cluster of Small Alpine Pines on Lower Slope & Runout
+    const pines = [];
+    const pineConeGeo = new THREE.ConeGeometry(0.42, 0.68, 7);
+    const pineCapGeo = new THREE.ConeGeometry(0.43, 0.28, 7);
+    const trunkGeo = new THREE.CylinderGeometry(0.07, 0.1, 0.36, 6);
+
+    const pineSpecs = [
+      // Main interactive cluster on right-front & left-front lower slope / runout
+      { x: -1.85, z: 1.75, s: 1.05 },
+      { x: -1.25, z: 2.38, s: 1.18 },
+      { x: -2.42, z: 2.15, s: 0.88 },
+      { x: -1.58, z: 3.08, s: 0.96 },
+      { x: 1.05, z: 1.72, s: 1.12 },
+      { x: 1.68, z: 1.95, s: 0.92 },
+      { x: 1.25, z: 2.75, s: 1.06 },
+      { x: 2.32, z: 1.62, s: 0.86 },
+      // Path edge pines that take direct avalanche buffeting
+      { x: -0.68, z: 1.48, s: 0.94 },
+      { x: 0.48, z: 1.58, s: 0.9 }
+    ];
+
+    pineSpecs.forEach((ps, idx) => {
+      const root = new THREE.Group();
+      const py = getSlopeHeight(ps.x, ps.z) - 0.03;
+      root.position.set(ps.x, py, ps.z);
+
+      const pivot = new THREE.Group();
+      root.add(pivot);
+
+      const trunk = new THREE.Mesh(trunkGeo, matTrunk);
+      trunk.position.y = 0.16 * ps.s;
+      trunk.scale.setScalar(ps.s);
+      trunk.castShadow = true;
+      trunk.receiveShadow = true;
+      pivot.add(trunk);
+
+      const snowCaps = [];
+      const tiers = 3;
+      for (let t = 0; t < tiers; t++) {
+        const tierScale = ps.s * (1 - t * 0.22);
+        const tierY = (0.38 + t * 0.32) * ps.s;
+        const tierMat = (idx + t) % 2 === 0 ? matPineDark : matPineMid;
+
+        const foliage = new THREE.Mesh(pineConeGeo, tierMat);
+        foliage.position.y = tierY;
+        foliage.scale.setScalar(tierScale);
+        foliage.rotation.y = t * 0.9 + idx;
+        foliage.castShadow = true;
+        foliage.receiveShadow = true;
+        pivot.add(foliage);
+
+        const snowCap = new THREE.Mesh(pineCapGeo, matSnowPure);
+        snowCap.position.y = tierY + 0.16 * tierScale;
+        snowCap.scale.setScalar(tierScale * 0.92);
+        snowCap.rotation.y = foliage.rotation.y;
+        snowCap.castShadow = true;
+        snowCap.receiveShadow = true;
+        pivot.add(snowCap);
+        snowCaps.push({ mesh: snowCap, baseScale: tierScale * 0.92 });
+      }
+
+      worldGroup.add(root);
+      pines.push({
+        root,
+        pivot,
+        x: ps.x,
+        y: py,
+        z: ps.z,
+        scale: ps.s,
+        snowCaps,
+        phase: randRange(0, Math.PI * 2),
+        inAvalanchePath: Math.abs(ps.x) < 1.95,
+        snowAmount: 1.0
+      });
+    });
+
+    // Soft Sculptural Clouds Behind the Peak
+    const clouds = [];
+    const cloudPuffGeo = new THREE.DodecahedronGeometry(0.55, 1);
+
+    const cloudConfigs = [
+      { x: -2.1, y: 6.25, z: -4.25, s: 1.05, speed: 0.22, range: 0.75, phase: 0.2 },
+      { x: 1.65, y: 6.55, z: -4.45, s: 1.18, speed: 0.18, range: 0.85, phase: 2.1 },
+      { x: -0.15, y: 5.85, z: -4.65, s: 0.88, speed: 0.26, range: 0.65, phase: 4.0 }
+    ];
+
+    cloudConfigs.forEach((cc) => {
+      const cGrp = new THREE.Group();
+      const puffs = [
+        { ox: 0, oy: 0, oz: 0, sx: 1.35, sy: 0.72, sz: 0.85 },
+        { ox: -0.52, oy: -0.08, oz: 0.06, sx: 0.95, sy: 0.58, sz: 0.75 },
+        { ox: 0.55, oy: -0.06, oz: -0.05, sx: 1.02, sy: 0.62, sz: 0.78 },
+        { ox: 0.18, oy: 0.22, oz: 0.04, sx: 0.82, sy: 0.55, sz: 0.7 }
+      ];
+      puffs.forEach((p) => {
+        const m = new THREE.Mesh(cloudPuffGeo, matCloud);
+        m.position.set(p.ox, p.oy, p.oz);
+        m.scale.set(p.sx, p.sy, p.sz);
+        cGrp.add(m);
+      });
+      cGrp.scale.setScalar(cc.s);
+      cGrp.position.set(cc.x, cc.y, cc.z);
+      worldGroup.add(cGrp);
+      clouds.push({ group: cGrp, baseX: cc.x, baseY: cc.y, baseZ: cc.z, ...cc });
+    });
+
+    // Runout Fresh Uneven Debris Blanket (stays after avalanche until re-triggered)
+    const debrisMounds = [];
+    const debrisGeo = new THREE.DodecahedronGeometry(0.45, 1);
+    debrisGeo.scale(1.35, 0.36, 1.15);
+
+    for (let i = 0; i < 38; i++) {
+      const x = randRange(-2.35, 2.35);
+      const z = randRange(1.75, 3.85);
+      const distCenter = Math.abs(x) / 2.4;
+      const y = getSlopeHeight(x, z) - 0.03;
+      const m = new THREE.Mesh(debrisGeo, i % 3 === 0 ? matSnowShade : matSnowPure);
+      const targetScale = new THREE.Vector3(
+        randRange(0.55, 1.25) * (1 - distCenter * 0.35),
+        randRange(0.45, 0.95),
+        randRange(0.55, 1.2)
+      );
+      m.position.set(x, y, z);
+      m.rotation.set(randRange(-0.12, 0.12), randRange(0, Math.PI * 2), randRange(-0.12, 0.12));
+      m.scale.set(0.0001, 0.0001, 0.0001);
+      m.castShadow = true;
+      m.receiveShadow = true;
+      worldGroup.add(m);
+      debrisMounds.push({
+        mesh: m,
+        targetScale,
+        appearDelay: 0.22 + ((z - 1.75) / 2.1) * 0.25 + randRange(0, 0.08)
+      });
+    }
+
+    // Instanced Meshes for Hundreds of Snowballs, Rolling Powder Cloud, Pine Spray & Ambient Snowfall
+    const dummyObj = new THREE.Object3D();
+
+    // 1. Tumbling Avalanche Snowballs (320 instances)
+    const SNOWBALL_COUNT = 320;
+    const snowballGeo = new THREE.IcosahedronGeometry(0.13, 0);
+    const snowballInst = new THREE.InstancedMesh(snowballGeo, matSnowPure, SNOWBALL_COUNT);
+    snowballInst.castShadow = true;
+    snowballInst.receiveShadow = true;
+    worldGroup.add(snowballInst);
+
+    const snowballData = [];
+    for (let i = 0; i < SNOWBALL_COUNT; i++) {
+      const startX = randRange(-2.15, 2.15);
+      const startZ = getCrownZAtX(startX) + randRange(0.05, 1.15);
+      const stopZ = randRange(1.85, 3.95);
+      snowballData.push({
+        startX,
+        startZ,
+        stopZ,
+        spreadX: startX * randRange(0.15, 0.38) + randRange(-0.55, 0.55),
+        delay: randRange(0.02, 0.34),
+        duration: randRange(0.28, 0.48),
+        radiusScale: randRange(0.55, 1.65),
+        bounceFreq: randRange(9, 18),
+        bounceAmp: randRange(0.06, 0.24),
+        phase: randRange(0, Math.PI * 2)
+      });
+      dummyObj.position.set(0, -50, 0);
+      dummyObj.scale.setScalar(0.0001);
+      dummyObj.updateMatrix();
+      snowballInst.setMatrixAt(i, dummyObj.matrix);
+    }
+    snowballInst.instanceMatrix.needsUpdate = true;
+
+    // 2. Rolling Billowing Powder Cloud & Spray Front (360 instances)
+    const POWDER_COUNT = 360;
+    const powderGeo = new THREE.DodecahedronGeometry(0.32, 0);
+    const powderMat = new THREE.MeshStandardMaterial({
+      color: 0xf4faff,
+      roughness: 0.9,
+      metalness: 0.0,
+      flatShading: true
+    });
+    const powderInst = new THREE.InstancedMesh(powderGeo, powderMat, POWDER_COUNT);
+    worldGroup.add(powderInst);
+
+    const powderData = [];
+    for (let i = 0; i < POWDER_COUNT; i++) {
+      const startX = randRange(-2.1, 2.1);
+      const startZ = getCrownZAtX(startX) + randRange(0.0, 0.95);
+      const endZ = randRange(1.9, 4.05);
+      powderData.push({
+        startX,
+        startZ,
+        endZ,
+        spreadX: startX * randRange(0.2, 0.42) + randRange(-0.65, 0.65),
+        delay: randRange(0.03, 0.32),
+        travelDuration: randRange(0.28, 0.46),
+        dissipateDuration: randRange(0.22, 0.36),
+        maxLift: randRange(0.22, 1.15),
+        maxScale: randRange(0.65, 1.85),
+        turbulence: randRange(4.0, 9.0),
+        phase: randRange(0, Math.PI * 2)
+      });
+      dummyObj.position.set(0, -50, 0);
+      dummyObj.scale.setScalar(0.0001);
+      dummyObj.updateMatrix();
+      powderInst.setMatrixAt(i, dummyObj.matrix);
+    }
+    powderInst.instanceMatrix.needsUpdate = true;
+
+    // 3. Dislodged Pine Branch Snow Spray (180 instances)
+    const PINE_SPRAY_COUNT = 180;
+    const pineSprayGeo = new THREE.OctahedronGeometry(0.085, 0);
+    const pineSprayInst = new THREE.InstancedMesh(pineSprayGeo, matSnowPure, PINE_SPRAY_COUNT);
+    worldGroup.add(pineSprayInst);
+
+    const pineSprayData = [];
+    for (let i = 0; i < PINE_SPRAY_COUNT; i++) {
+      const pineIdx = i % pines.length;
+      const p = pines[pineIdx];
+      const angle = randRange(0, Math.PI * 2);
+      const speedH = randRange(0.25, 0.95);
+      pineSprayData.push({
+        pineIdx,
+        ox: p.x + Math.cos(angle) * randRange(0.08, 0.34) * p.scale,
+        oy: p.y + randRange(0.38, 1.05) * p.scale,
+        oz: p.z + Math.sin(angle) * randRange(0.08, 0.34) * p.scale,
+        vx: Math.cos(angle) * speedH,
+        vy: randRange(0.35, 1.15),
+        vz: Math.sin(angle) * speedH,
+        delay: randRange(0, 0.18),
+        scale: randRange(0.55, 1.35)
+      });
+      dummyObj.position.set(0, -50, 0);
+      dummyObj.scale.setScalar(0.0001);
+      dummyObj.updateMatrix();
+      pineSprayInst.setMatrixAt(i, dummyObj.matrix);
+    }
+    pineSprayInst.instanceMatrix.needsUpdate = true;
+
+    // 4. Ambient Gentle Snowfall + Occasional Tiny Natural Ridge Sluffs (240 instances)
+    const SNOWFALL_COUNT = 200;
+    const SLUFF_COUNT = 40;
+    const flakeGeo = new THREE.OctahedronGeometry(0.048, 0);
+    const snowfallInst = new THREE.InstancedMesh(flakeGeo, matSnowPure, SNOWFALL_COUNT + SLUFF_COUNT);
+    worldGroup.add(snowfallInst);
+
+    const snowfallData = [];
+    for (let i = 0; i < SNOWFALL_COUNT; i++) {
+      snowfallData.push({
+        x: randRange(-4.1, 4.1),
+        z: randRange(-4.1, 4.1),
+        yOffset: randRange(0, 5.2),
+        fallSpeed: randRange(0.45, 0.85),
+        swayAmp: randRange(0.08, 0.22),
+        swayFreq: randRange(0.8, 1.7),
+        phase: randRange(0, Math.PI * 2),
+        scale: randRange(0.65, 1.35)
+      });
+    }
+
+    const sluffData = [];
+    for (let i = 0; i < SLUFF_COUNT; i++) {
+      const ridgeCluster = i < SLUFF_COUNT / 2 ? -1.45 : 1.35;
+      sluffData.push({
+        startX: ridgeCluster + randRange(-0.45, 0.45),
+        startZ: randRange(-3.55, -2.85),
+        travelDist: randRange(1.1, 1.95),
+        offsetTime: (i < SLUFF_COUNT / 2 ? 0 : 2.7) + randRange(0, 0.45),
+        cyclePeriod: 5.4,
+        scale: randRange(0.85, 1.55)
+      });
+    }
+
+    // Generous Invisible Hit Proxies for Reliable Tap at 320px
+    const proxyMat = new THREE.MeshBasicMaterial({ visible: false });
+    const interactiveProxies = [];
+
+    // Upper slope / crown face proxy
+    const slopeProxyGeo = new THREE.BoxGeometry(6.8, 3.8, 4.8);
+    const slopeProxy = new THREE.Mesh(slopeProxyGeo, proxyMat);
+    slopeProxy.position.set(0, 4.1, -2.0);
+    slopeProxy.rotation.x = 0.55;
+    slopeProxy.userData.targetType = 'avalanche';
+    worldGroup.add(slopeProxy);
+    interactiveProxies.push(slopeProxy);
+
+    // Lower slope / pine cluster generous proxies (left cluster, right cluster, and front bridge)
+    const pineProxyGeoL = new THREE.BoxGeometry(3.6, 2.8, 3.4);
+    const pineProxyL = new THREE.Mesh(pineProxyGeoL, proxyMat);
+    pineProxyL.position.set(-1.6, 1.4, 2.3);
+    pineProxyL.userData.targetType = 'pines';
+    worldGroup.add(pineProxyL);
+    interactiveProxies.push(pineProxyL);
+
+    const pineProxyGeoR = new THREE.BoxGeometry(3.6, 2.8, 3.4);
+    const pineProxyR = new THREE.Mesh(pineProxyGeoR, proxyMat);
+    pineProxyR.position.set(1.5, 1.4, 2.2);
+    pineProxyR.userData.targetType = 'pines';
+    worldGroup.add(pineProxyR);
+    interactiveProxies.push(pineProxyR);
+
+    // State Management (Independent Timers, Clean Re-trigger, Never Locks)
+    const AVALANCHE_DURATION = 8.0; // ~8 seconds hero sequence
+    const PINE_SHAKE_DURATION = 2.6;
+
+    const state = {
+      avalancheStartTime: -1,
+      avalancheActive: false,
+      hasDebrisBlanket: false,
+      resetTransitionStart: -1,
+      resetTransitionDuration: 0.42,
+      pineShakeStartTime: -1,
+      pineShakeActive: false
+    };
+
+    function triggerAvalanche(nowSec) {
+      // If a previous avalanche left debris or is mid-run, perform a clean, brisk snow-state reset at the start of the cycle
+      if (state.hasDebrisBlanket || state.avalancheActive) {
+        state.resetTransitionStart = nowSec;
+      }
+      state.avalancheStartTime = nowSec;
+      state.avalancheActive = true;
+      state.hasDebrisBlanket = true;
+    }
+
+    function triggerPineCluster(nowSec) {
+      state.pineShakeStartTime = nowSec;
+      state.pineShakeActive = true;
+    }
+
+    // Raycaster & Pointer Tap vs Drag Detection
+    const raycaster = new THREE.Raycaster();
+    const pointerNDC = new THREE.Vector2();
+    let pointerDownPos = null;
+    let pointerDownTime = 0;
+
+    renderer.domElement.addEventListener('pointerdown', (e) => {
+      pointerDownPos = { x: e.clientX, y: e.clientY };
+      pointerDownTime = performance.now();
+    });
+
+    renderer.domElement.addEventListener('pointerup', (e) => {
+      if (!pointerDownPos) return;
+      const dx = e.clientX - pointerDownPos.x;
+      const dy = e.clientY - pointerDownPos.y;
+      const dist = Math.hypot(dx, dy);
+      const dt = performance.now() - pointerDownTime;
+      pointerDownPos = null;
+
+      // Distinguish intentional tap from camera orbit drag
+      if (dist > 9 || dt > 600) return;
+
+      const rect = renderer.domElement.getBoundingClientRect();
+      pointerNDC.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+      pointerNDC.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+
+      raycaster.setFromCamera(pointerNDC, camera);
+      const nowSec = performance.now() * 0.001;
+
+      // 1. Check generous target proxies first
+      const hits = raycaster.intersectObjects(interactiveProxies, false);
+      if (hits.length > 0) {
+        const type = hits[0].object.userData.targetType;
+        if (type === 'pines') {
+          triggerPineCluster(nowSec);
+          return;
+        }
+        if (type === 'avalanche') {
+          triggerAvalanche(nowSec);
+          return;
+        }
+      }
+
+      // 2. Fallback: intersect visible scene geometry so any tap on the slab routes intuitively
+      const meshHits = raycaster.intersectObjects(worldGroup.children, true);
+      if (meshHits.length > 0) {
+        const pt = meshHits[0].point;
+        if (pt.z > 0.85) {
+          triggerPineCluster(nowSec);
+        } else {
+          triggerAvalanche(nowSec);
+        }
+      }
+    });
+
+    // Framing & Responsive Camera Distance Computation from Projected Bounding Box
+    // Includes slab base, peak top, clouds, powder cloud headroom, and debris runout
+    const framingBoundsPoints = [
+      new THREE.Vector3(-4.65, -0.92, -4.65),
+      new THREE.Vector3(4.65, -0.92, -4.65),
+      new THREE.Vector3(-4.65, -0.92, 4.65),
+      new THREE.Vector3(4.65, -0.92, 4.65),
+      new THREE.Vector3(-4.65, 3.1, 4.65),
+      new THREE.Vector3(4.65, 3.1, 4.65),
+      new THREE.Vector3(-3.8, 7.25, -4.75),
+      new THREE.Vector3(3.8, 7.25, -4.75),
+      new THREE.Vector3(0, 7.45, -3.5),
+      new THREE.Vector3(0, 5.2, 0.5)
+    ];
+
+    const sceneCenter = new THREE.Vector3(0, 2.35, -0.15);
+    // Slightly elevated three-quarter view direction
+    const baseViewDir = new THREE.Vector3(0.46, 0.62, 0.92).normalize();
+
+    function updateFramingAndSize() {
+      const vw = window.innerWidth;
+      const vh = window.innerHeight;
+      renderer.setSize(vw, vh);
+
+      const headerH = headerEl.getBoundingClientRect().height || 58;
+      const footerH = footerEl.getBoundingClientRect().height || 30;
+
+      // Safe vertical fraction between header and footer
+      const safeTopFrac = (headerH + 8) / vh;
+      const safeBotFrac = (footerH + 8) / vh;
+      const usableHeightFrac = Math.max(0.45, 1.0 - safeTopFrac - safeBotFrac);
+      const usableWidthFrac = 0.91;
+
+      const aspect = vw / Math.max(1, vh);
+      // Aspect-aware FOV (portrait wider)
+      camera.fov = aspect < 0.85 ? 43 : aspect < 1.15 ? 38 : 34;
+      camera.aspect = aspect;
+      camera.updateProjectionMatrix();
+
+      // Build camera basis vectors along baseViewDir
+      const forward = baseViewDir.clone().negate();
+      const right = new THREE.Vector3().crossVectors(forward, new THREE.Vector3(0, 1, 0)).normalize();
+      const up = new THREE.Vector3().crossVectors(right, forward).normalize();
+
+      const vFovRad = THREE.MathUtils.degToRad(camera.fov);
+      const tanHalfVFov = Math.tan(vFovRad * 0.5) * usableHeightFrac;
+      const tanHalfHFov = Math.tan(vFovRad * 0.5) * aspect * usableWidthFrac;
+
+      let requiredDist = 11.0;
+      const rel = new THREE.Vector3();
+
+      for (let i = 0; i < framingBoundsPoints.length; i++) {
+        rel.subVectors(framingBoundsPoints[i], sceneCenter);
+        const projX = Math.abs(rel.dot(right));
+        const projY = Math.abs(rel.dot(up));
+        const projZ = rel.dot(forward); // depth along view ray
+
+        const distForX = projX / Math.max(0.05, tanHalfHFov) - projZ;
+        const distForY = projY / Math.max(0.05, tanHalfVFov) - projZ;
+        requiredDist = Math.max(requiredDist, distForX, distForY);
+      }
+
+      // Small padding so nothing touches the edges or crosses header/footer
+      const finalDist = requiredDist * 1.07;
+
+      // Shift target slightly vertically to center inside the asymmetric header/footer safe box
+      const verticalBias = (safeTopFrac - safeBotFrac) * 1.15;
+      controls.target.set(sceneCenter.x, sceneCenter.y + verticalBias, sceneCenter.z);
+
+      camera.position.copy(controls.target).addScaledVector(baseViewDir, finalDist);
+      controls.minDistance = finalDist * 0.84;
+      controls.maxDistance = finalDist * 1.22;
+      controls.update();
+    }
+
+    window.addEventListener('resize', updateFramingAndSize);
+    updateFramingAndSize();
+
+    // Animation Helpers
+    const qTmp = new THREE.Quaternion();
+    const eulerTmp = new THREE.Euler();
+
+    function updateScene(nowMs) {
+      const now = nowMs * 0.001;
+
+      // 1. IDLE: Soft Clouds Sliding Behind the Peak
+      for (let i = 0; i < clouds.length; i++) {
+        const c = clouds[i];
+        c.group.position.x = c.baseX + Math.sin(now * c.speed + c.phase) * c.range;
+        c.group.position.y = c.baseY + Math.cos(now * c.speed * 1.4 + c.phase) * 0.07;
+      }
+
+      // 2. IDLE: Sparse Snowfall & Periodic Natural Ridge Sluffs (clamped strictly to slab airspace)
+      for (let i = 0; i < SNOWFALL_COUNT; i++) {
+        const sf = snowfallData[i];
+        const groundY = getSlopeHeight(sf.x, sf.z);
+        const maxAirY = 6.55; // Keeps flakes below header safe zone
+        const span = Math.max(1.2, maxAirY - groundY);
+        const progress = ((now * sf.fallSpeed + sf.yOffset) % span) / span;
+        const y = maxAirY - progress * span;
+        const x = sf.x + Math.sin(now * sf.swayFreq + sf.phase) * sf.swayAmp;
+        const z = sf.z + Math.cos(now * sf.swayFreq * 0.8 + sf.phase) * sf.swayAmp;
+
+        // Soft fade-in at top and fade-out near surface
+        const edgeFade = Math.min(1, progress * 5, (1 - progress) * 6);
+        dummyObj.position.set(x, y, z);
+        dummyObj.rotation.set(now + sf.phase, now * 0.7, 0);
+        dummyObj.scale.setScalar(sf.scale * edgeFade);
+        dummyObj.updateMatrix();
+        snowfallInst.setMatrixAt(i, dummyObj.matrix);
+      }
+
+      for (let i = 0; i < SLUFF_COUNT; i++) {
+        const sl = sluffData[i];
+        const idx = SNOWFALL_COUNT + i;
+        const cycleTime = (now + sl.offsetTime) % sl.cyclePeriod;
+        if (cycleTime < 1.8) {
+          const p = cycleTime / 1.8;
+          const easeP = p * p * (3 - 2 * p);
+          const z = sl.startZ + easeP * sl.travelDist;
+          const x = sl.startX + Math.sin(p * 6 + i) * 0.08;
+          const y = getSlopeHeight(x, z) + 0.05 + Math.sin(p * Math.PI) * 0.06;
+          const s = sl.scale * Math.sin(p * Math.PI);
+          dummyObj.position.set(x, y, z);
+          dummyObj.rotation.set(now * 5, i, 0);
+          dummyObj.scale.setScalar(s);
+        } else {
+          dummyObj.position.set(0, -50, 0);
+          dummyObj.scale.setScalar(0.0001);
+        }
+        dummyObj.updateMatrix();
+        snowfallInst.setMatrixAt(idx, dummyObj.matrix);
+      }
+      snowfallInst.instanceMatrix.needsUpdate = true;
+
+      // 3. INTERACTION 1: AVALANCHE HERO SEQUENCE (~8.0 seconds)
+      let avaProgress = -1;
+      if (state.avalancheActive) {
+        const elapsed = now - state.avalancheStartTime;
+        if (elapsed <= AVALANCHE_DURATION) {
+          avaProgress = elapsed / AVALANCHE_DURATION;
+        } else {
+          state.avalancheActive = false;
+          avaProgress = 1.0;
+        }
+      }
+
+      // Crown Crack Flash (0.0s -> 1.3s)
+      for (let i = 0; i < crackSegments.length; i++) {
+        const seg = crackSegments[i];
+        if (state.avalancheActive && avaProgress < 0.22) {
+          const localP = THREE.MathUtils.clamp((avaProgress - i * 0.012) / 0.14, 0, 1);
+          const flash = Math.sin(localP * Math.PI);
+          seg.material.opacity = flash * 0.95;
+          seg.scale.y = 1 + flash * 1.6;
+        } else {
+          seg.material.opacity = 0;
+          seg.scale.y = 1;
+        }
+      }
+
+      // Upper Snow Slab Chunks Fracturing & Tumbling Downhill
+      for (let i = 0; i < slabChunks.length; i++) {
+        const ch = slabChunks[i];
+        if (!state.avalancheActive && !state.hasDebrisBlanket) {
+          ch.mesh.position.copy(ch.homePos);
+          ch.mesh.quaternion.copy(ch.homeQuat);
+          ch.mesh.scale.copy(ch.baseScale);
+        } else if (state.avalancheActive) {
+          const elapsed = now - state.avalancheStartTime;
+          // Clean quick reset reform during first 0.22s if re-triggered
+          if (elapsed < ch.delay) {
+            const reformP = THREE.MathUtils.clamp(elapsed / Math.max(0.08, ch.delay), 0, 1);
+            ch.mesh.position.copy(ch.homePos);
+            ch.mesh.quaternion.copy(ch.homeQuat);
+            ch.mesh.scale.copy(ch.baseScale).multiplyScalar(0.35 + 0.65 * reformP);
+          } else {
+            const moveTime = elapsed - ch.delay;
+            const slideDur = 2.65;
+            const t = THREE.MathUtils.clamp(moveTime / slideDur, 0, 1);
+            // Accelerate under gravity then decelerate in runout
+            const easeT = t < 0.7 ? 1.42 * t * t : 1 - Math.pow(1 - t, 2.4) * 0.55;
+            const curZ = THREE.MathUtils.lerp(ch.homePos.z, ch.runoutStopZ, THREE.MathUtils.clamp(easeT, 0, 1));
+            const curX = ch.homePos.x + ch.lateralDrift * t;
+            const bounce = t < 0.92 ? Math.abs(Math.sin(moveTime * 9.5 + i)) * 0.16 * (1 - t) : 0;
+            const curY = getSlopeHeight(curX, curZ) + 0.07 + bounce;
+
+            ch.mesh.position.set(curX, curY, curZ);
+            qTmp.setFromAxisAngle(ch.spinAxis, moveTime * ch.spinRate * (1 - t * 0.55));
+            ch.mesh.quaternion.copy(ch.homeQuat).multiply(qTmp);
+
+            // Chunks break down and merge into the runout debris blanket
+            const shrink = t > 0.55 ? 1 - (t - 0.55) / 0.45 : 1.0;
+            ch.mesh.scale.copy(ch.baseScale).multiplyScalar(Math.max(0.0001, shrink));
+          }
+        } else if (state.hasDebrisBlanket) {
+          // Gradually reform upper snow pack after avalanche settles so slope is ready and natural
+          ch.mesh.position.copy(ch.homePos);
+          ch.mesh.quaternion.copy(ch.homeQuat);
+          ch.mesh.scale.copy(ch.baseScale);
+        }
+      }
+
+      // Hundreds of Instanced Tumbling Snowballs
+      if (state.avalancheActive) {
+        for (let i = 0; i < SNOWBALL_COUNT; i++) {
+          const sb = snowballData[i];
+          const localP = (avaProgress - sb.delay) / sb.duration;
+          if (localP > 0 && localP < 1) {
+            const ease = localP < 0.72
+              ? 1.35 * localP * localP
+              : 1 - Math.pow(1 - localP, 2.2) * 0.3;
+            const cEase = THREE.MathUtils.clamp(ease, 0, 1);
+            const z = THREE.MathUtils.lerp(sb.startZ, sb.stopZ, cEase);
+            const x = sb.startX + sb.spreadX * cEase + Math.sin(localP * 10 + sb.phase) * 0.09;
+            const bounce = Math.abs(Math.sin(localP * sb.bounceFreq + sb.phase)) * sb.bounceAmp * (1 - localP * 0.75);
+            const y = getSlopeHeight(x, z) + 0.08 + bounce;
+
+            const env = Math.sin(localP * Math.PI);
+            const s = sb.radiusScale * Math.min(1.0, env * 2.2);
+
+            dummyObj.position.set(x, y, z);
+            dummyObj.rotation.set(localP * 18 + sb.phase, localP * 12, 0);
+            dummyObj.scale.setScalar(Math.max(0.0001, s));
+          } else {
+            dummyObj.position.set(0, -50, 0);
+            dummyObj.scale.setScalar(0.0001);
+          }
+          dummyObj.updateMatrix();
+          snowballInst.setMatrixAt(i, dummyObj.matrix);
+        }
+        snowballInst.instanceMatrix.needsUpdate = true;
+      } else {
+        // Ensure hidden when idle
+        for (let i = 0; i < SNOWBALL_COUNT; i++) {
+          dummyObj.position.set(0, -50, 0);
+          dummyObj.scale.setScalar(0.0001);
+          dummyObj.updateMatrix();
+          snowballInst.setMatrixAt(i, dummyObj.matrix);
+        }
+        snowballInst.instanceMatrix.needsUpdate = true;
+      }
+
+      // Billowing Rolling Powder Cloud & Spray Front (clamped below y = 6.3 to protect header)
+      if (state.avalancheActive) {
+        for (let i = 0; i < POWDER_COUNT; i++) {
+          const pw = powderData[i];
+          const totalDur = pw.travelDuration + pw.dissipateDuration;
+          const localT = avaProgress - pw.delay;
+          if (localT > 0 && localT < totalDur) {
+            const moveP = THREE.MathUtils.clamp(localT / pw.travelDuration, 0, 1);
+            const easeMove = 1 - Math.pow(1 - moveP, 1.85);
+            const z = THREE.MathUtils.lerp(pw.startZ, pw.endZ, easeMove);
+            const x = pw.startX + pw.spreadX * easeMove + Math.sin(localT * pw.turbulence + pw.phase) * 0.16;
+
+            const billowLift = Math.sin(moveP * Math.PI) * pw.maxLift +
+              (localT > pw.travelDuration ? (localT - pw.travelDuration) * 0.85 : 0);
+            const rawY = getSlopeHeight(x, z) + 0.16 + billowLift;
+            const y = Math.min(6.15, rawY); // Keep powder cloud strictly within diorama headroom
+
+            let scaleEnv = 1.0;
+            if (localT < 0.07) {
+              scaleEnv = localT / 0.07;
+            } else if (localT > pw.travelDuration) {
+              const dissP = (localT - pw.travelDuration) / pw.dissipateDuration;
+              scaleEnv = Math.max(0, 1 - dissP * dissP);
+            }
+
+            const s = pw.maxScale * scaleEnv * (0.65 + 0.55 * moveP);
+            dummyObj.position.set(x, y, z);
+            dummyObj.rotation.set(
+              localT * pw.turbulence + pw.phase,
+              localT * 3.2,
+              pw.phase
+            );
+            dummyObj.scale.set(
+              Math.max(0.0001, s * 1.18),
+              Math.max(0.0001, s * 0.88),
+              Math.max(0.0001, s * 1.12)
+            );
+          } else {
+            dummyObj.position.set(0, -50, 0);
+            dummyObj.scale.setScalar(0.0001);
+          }
+          dummyObj.updateMatrix();
+          powderInst.setMatrixAt(i, dummyObj.matrix);
+        }
+        powderInst.instanceMatrix.needsUpdate = true;
+      } else {
+        for (let i = 0; i < POWDER_COUNT; i++) {
+          dummyObj.position.set(0, -50, 0);
+          dummyObj.scale.setScalar(0.0001);
+          dummyObj.updateMatrix();
+          powderInst.setMatrixAt(i, dummyObj.matrix);
+        }
+        powderInst.instanceMatrix.needsUpdate = true;
+      }
+
+      // Runout Uneven Debris Blanket & Boulder Dusting
+      for (let i = 0; i < debrisMounds.length; i++) {
+        const dm = debrisMounds[i];
+        let factor = 0;
+        if (state.avalancheActive) {
+          if (avaProgress < 0.12 && state.resetTransitionStart > 0) {
+            // Quick clean reset wipe before new avalanche wave arrives
+            factor = Math.max(0, 1 - avaProgress / 0.1);
+          } else if (avaProgress >= dm.appearDelay) {
+            const growP = THREE.MathUtils.clamp((avaProgress - dm.appearDelay) / 0.22, 0, 1);
+            factor = growP * growP * (3 - 2 * growP);
+          }
+        } else if (state.hasDebrisBlanket) {
+          factor = 1.0;
+        }
+        const s = Math.max(0.0001, factor);
+        dm.mesh.scale.set(
+          dm.targetScale.x * s,
+          dm.targetScale.y * s,
+          dm.targetScale.z * s
+        );
+      }
+
+      for (let i = 0; i < boulders.length; i++) {
+        const b = boulders[i];
+        let dustBoost = 0;
+        if (state.avalancheActive) {
+          const hitP = 0.18 + ((b.z + 1.0) / 4.5) * 0.22;
+          if (avaProgress > hitP) {
+            dustBoost = THREE.MathUtils.clamp((avaProgress - hitP) / 0.18, 0, 1) * 0.34;
+          }
+        } else if (state.hasDebrisBlanket) {
+          dustBoost = 0.34;
+        }
+        const cs = b.baseCapScale + dustBoost;
+        b.capMesh.scale.set(cs * 1.12, cs * 0.95, cs * 1.08);
+      }
+
+      // 4. INTERACTION 2 & AVALANCHE BUFFETING: Pines Sway, Wobble & Shed Branch Snow
+      let pineTapProgress = -1;
+      if (state.pineShakeActive) {
+        const pElapsed = now - state.pineShakeStartTime;
+        if (pElapsed <= PINE_SHAKE_DURATION) {
+          pineTapProgress = pElapsed / PINE_SHAKE_DURATION;
+        } else {
+          state.pineShakeActive = false;
+        }
+      }
+
+      for (let i = 0; i < pines.length; i++) {
+        const p = pines[i];
+        // Gentle idle wind sway
+        let rotX = Math.sin(now * 1.5 + p.phase) * 0.028;
+        let rotZ = Math.cos(now * 1.2 + p.phase) * 0.024;
+        let capScaleFactor = 1.0;
+
+        // Avalanche wave hitting lower slope pines
+        if (state.avalancheActive) {
+          const waveArrival = 0.22 + ((p.z - 1.2) / 2.5) * 0.18;
+          if (avaProgress > waveArrival && avaProgress < waveArrival + 0.45) {
+            const wP = (avaProgress - waveArrival) / 0.45;
+            const env = Math.pow(1 - wP, 1.8);
+            const strength = p.inAvalanchePath ? 0.42 : 0.24;
+            rotX += (Math.sin(wP * 28 + p.phase) * 0.65 + 0.55) * strength * env;
+            rotZ += Math.cos(wP * 24 + p.phase) * strength * 0.6 * env;
+          }
+          if (avaProgress > waveArrival) {
+            // Shed branch snow during avalanche hit, then softly restore toward end of 8s cycle
+            const shedT = (avaProgress - waveArrival) / (1 - waveArrival);
+            if (shedT < 0.65) {
+              capScaleFactor = Math.max(0.18, 1 - (shedT / 0.18) * 0.82);
+            } else {
+              const regrow = (shedT - 0.65) / 0.35;
+              capScaleFactor = 0.18 + 0.82 * (regrow * regrow * (3 - 2 * regrow));
+            }
+          }
+        }
+
+        // Direct tap on pine cluster
+        if (state.pineShakeActive && pineTapProgress >= 0) {
+          const damp = Math.exp(-pineTapProgress * 4.2);
+          rotX += Math.sin(pineTapProgress * 32 + p.phase) * 0.32 * damp;
+          rotZ += Math.cos(pineTapProgress * 28 + p.phase) * 0.28 * damp;
+
+          // Shed snow puff then cleanly restore baseline
+          if (pineTapProgress < 0.15) {
+            capScaleFactor = Math.min(capScaleFactor, 1 - (pineTapProgress / 0.15) * 0.78);
+          } else if (pineTapProgress < 0.55) {
+            capScaleFactor = Math.min(capScaleFactor, 0.22);
+          } else {
+            const restoreP = (pineTapProgress - 0.55) / 0.45;
+            const smoothRestore = restoreP * restoreP * (3 - 2 * restoreP);
+            capScaleFactor = Math.min(capScaleFactor, 0.22 + 0.78 * smoothRestore);
+          }
+        }
+
+        p.pivot.rotation.set(rotX, 0, rotZ);
+        for (let c = 0; c < p.snowCaps.length; c++) {
+          const sc = p.snowCaps[c];
+          sc.mesh.scale.setScalar(sc.baseScale * capScaleFactor);
+        }
+      }
+
+      // Dislodged Pine Branch Snow Spray (triggered either by tapping pines or when avalanche wave hits pines)
+      let sprayActiveTime = -1;
+      if (state.pineShakeActive) {
+        sprayActiveTime = (now - state.pineShakeStartTime) / 1.45;
+      } else if (state.avalancheActive && avaProgress > 0.23 && avaProgress < 0.52) {
+        sprayActiveTime = (avaProgress - 0.23) / 0.22;
+      }
+
+      if (sprayActiveTime >= 0 && sprayActiveTime <= 1.2) {
+        for (let i = 0; i < PINE_SPRAY_COUNT; i++) {
+          const ps = pineSprayData[i];
+          const t = sprayActiveTime - ps.delay;
+          if (t > 0 && t < 0.95) {
+            const x = ps.ox + ps.vx * t;
+            const z = ps.oz + ps.vz * t;
+            const groundY = getSlopeHeight(x, z) + 0.03;
+            const y = Math.max(groundY, ps.oy + ps.vy * t - 2.6 * t * t);
+            const fade = 1 - t / 0.95;
+            dummyObj.position.set(x, y, z);
+            dummyObj.rotation.set(t * 10, t * 8, i);
+            dummyObj.scale.setScalar(Math.max(0.0001, ps.scale * fade));
+          } else {
+            dummyObj.position.set(0, -50, 0);
+            dummyObj.scale.setScalar(0.0001);
+          }
+          dummyObj.updateMatrix();
+          pineSprayInst.setMatrixAt(i, dummyObj.matrix);
+        }
+        pineSprayInst.instanceMatrix.needsUpdate = true;
+      } else {
+        for (let i = 0; i < PINE_SPRAY_COUNT; i++) {
+          dummyObj.position.set(0, -50, 0);
+          dummyObj.scale.setScalar(0.0001);
+          dummyObj.updateMatrix();
+          pineSprayInst.setMatrixAt(i, dummyObj.matrix);
+        }
+        pineSprayInst.instanceMatrix.needsUpdate = true;
+      }
+    }
+
+    function animate() {
+      requestAnimationFrame(animate);
+      const nowMs = performance.now();
+      updateScene(nowMs);
+      controls.update();
+      renderer.render(scene, camera);
+    }
+
+    animate();
+  </script>
 </body>
 </html>
