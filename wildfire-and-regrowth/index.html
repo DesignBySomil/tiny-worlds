@@ -1,355 +1,1640 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Wildfire and Regrowth - a tiny world</title>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+<title>Wildfire and regrowth — a tiny world</title>
 <style>
-  html, body { margin:0; padding:0; height:100%; background:#2a2320; overflow:hidden;
-    font-family: Georgia, 'Times New Roman', serif; }
-  #app { position:fixed; inset:0; }
-  header { position:fixed; top:0; left:0; right:0; text-align:center; pointer-events:none;
-    padding: max(18px, env(safe-area-inset-top)) 16px 18px; z-index:5;
-    background: linear-gradient(rgba(8,5,3,.66), rgba(8,5,3,.32) 55%, rgba(8,5,3,0)); }
-  header h1 { margin:0; font-size:15px; letter-spacing:.42em; font-weight:400;
-    color:#f3e9dc; text-transform:uppercase; text-shadow:0 1px 8px rgba(0,0,0,.8); }
-  header .rule { width:44px; height:1px; background:rgba(243,233,220,.55); margin:9px auto; }
-  #hint { display:inline-block; font-size:11.5px; letter-spacing:.24em; text-transform:uppercase;
-    color:#fdf6ec; transition:opacity 1.2s ease; padding:5px 12px; border-radius:3px;
-    background:rgba(10,6,4,.5);
-    text-shadow:0 1px 3px rgba(0,0,0,.98), 0 0 8px rgba(0,0,0,.95), 0 0 18px rgba(0,0,0,.85); }
-  #hint.faded { opacity:.45; }
-  footer { position:fixed; bottom:0; left:0; right:0; text-align:center; pointer-events:none;
-    padding:0 16px max(14px, env(safe-area-inset-bottom)); z-index:5;
-    font-size:10px; letter-spacing:.34em; text-transform:uppercase; color:rgba(243,233,220,.55); }
-  canvas { display:block; touch-action:none; }
-  @media (max-width: 380px) {
-    header h1 { font-size:12px; letter-spacing:.3em; }
-    #hint { font-size:10px; letter-spacing:.2em; }
+  *, *::before, *::after {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+  }
+  html, body {
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    background-color: #161414;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    color: #e8e4df;
+    user-select: none;
+    -webkit-user-select: none;
+    touch-action: none;
+  }
+  #app {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    background: radial-gradient(circle at 50% 42%, #2c2523 0%, #191616 65%, #100e0e 100%);
+  }
+  #canvas-container {
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    overflow: hidden;
+  }
+  canvas {
+    display: block;
+    width: 100%;
+    height: 100%;
+    cursor: pointer;
+  }
+  header, footer {
+    position: relative;
+    z-index: 10;
+    pointer-events: none;
+    text-align: center;
+    width: 100%;
+    padding-left: 12px;
+    padding-right: 12px;
+    flex-shrink: 0;
+  }
+  header {
+    padding-top: clamp(10px, 2.2vh, 20px);
+    padding-bottom: 6px;
+    background: linear-gradient(to bottom, rgba(16, 14, 14, 0.88) 0%, rgba(16, 14, 14, 0.55) 70%, rgba(16, 14, 14, 0) 100%);
+  }
+  .title {
+    font-size: clamp(1.05rem, 3.6vw, 1.45rem);
+    font-weight: 600;
+    letter-spacing: 0.03em;
+    color: #f4EFEA;
+    line-height: 1.15;
+    text-shadow: 0 2px 8px rgba(0, 0, 0, 0.8);
+  }
+  .subtitle {
+    font-size: clamp(0.72rem, 2.3vw, 0.86rem);
+    font-weight: 400;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: #c2b4a6;
+    margin-top: 2px;
+    text-shadow: 0 1px 4px rgba(0, 0, 0, 0.8);
+  }
+  .hint-bar {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    margin-top: 6px;
+    padding: 4px 11px;
+    border-radius: 999px;
+    background: rgba(28, 25, 24, 0.78);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.35);
+    pointer-events: auto;
+  }
+  .hint {
+    font-size: clamp(0.66rem, 2.1vw, 0.78rem);
+    color: #dcd4cc;
+    letter-spacing: 0.02em;
+    line-height: 1.25;
+  }
+  .reset-btn {
+    pointer-events: auto;
+    background: rgba(255, 120, 50, 0.16);
+    color: #ffba8c;
+    border: 1px solid rgba(255, 130, 60, 0.38);
+    border-radius: 999px;
+    padding: 2px 8px;
+    font-size: clamp(0.62rem, 1.9vw, 0.72rem);
+    font-weight: 500;
+    cursor: pointer;
+    transition: background 0.2s, transform 0.15s, color 0.2s;
+    white-space: nowrap;
+  }
+  .reset-btn:hover {
+    background: rgba(255, 120, 50, 0.3);
+    color: #fff;
+  }
+  .reset-btn:active {
+    transform: scale(0.95);
+  }
+  footer {
+    padding-bottom: clamp(8px, 1.8vh, 16px);
+    padding-top: 6px;
+    background: linear-gradient(to top, rgba(16, 14, 14, 0.85) 0%, rgba(16, 14, 14, 0.45) 65%, rgba(16, 14, 14, 0) 100%);
+    font-size: clamp(0.68rem, 2vw, 0.78rem);
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: #9e9389;
+    text-shadow: 0 1px 4px rgba(0, 0, 0, 0.85);
+  }
+  #error-message {
+    display: none;
+    position: absolute;
+    inset: 20px;
+    z-index: 100;
+    background: rgba(24, 20, 20, 0.95);
+    border: 1px solid #553322;
+    border-radius: 12px;
+    padding: 24px;
+    color: #f0e6dd;
+    text-align: center;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
   }
 </style>
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
 </head>
 <body>
-<div id="app"></div>
-<header>
-  <h1>Wildfire and Regrowth</h1>
-  <div class="rule"></div>
-  <span id="hint"></span>
-</header>
-<footer>A tiny world</footer>
-<script type="importmap">
-{ "imports": {
-  "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
-  "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
-} }
-</script>
+<div id="app">
+  <header id="ui-header">
+    <h1 class="title">Wildfire and regrowth</h1>
+    <div class="subtitle">a tiny world</div>
+    <div class="hint-bar">
+      <span class="hint">tap the ashes to regrow - tap a burnt snag to clear it</span>
+      <button id="reset-world-btn" class="reset-btn" type="button" title="Reset charred forest">Reset</button>
+    </div>
+  </header>
+
+  <div id="canvas-container"></div>
+
+  <div id="error-message">
+    <h2>WebGL Required</h2>
+    <p>Unable to initialize the 3D miniature renderer. Please ensure hardware acceleration and WebGL are enabled in your browser.</p>
+  </div>
+
+  <footer id="ui-footer">A tiny world</footer>
+</div>
+
 <script type="module">
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 
-// pass 3
-const container = document.getElementById('app');
-const hintEl = document.getElementById('hint');
-const scene = new THREE.Scene();
-scene.background = new THREE.Color(0x2a2320);
-scene.fog = new THREE.Fog(0x2a2320, 60, 140);
-
-const camera = new THREE.PerspectiveCamera(38, innerWidth/innerHeight, 0.1, 240);
-function pickFov() {
-  const a = innerWidth / innerHeight;
-  camera.fov = a >= 0.9 ? 38 : (a >= 0.62 ? 46 : 58);
-  camera.updateProjectionMatrix();
-}
-pickFov();
-const renderer = new THREE.WebGLRenderer({ antialias: true });
-renderer.setSize(innerWidth, innerHeight);
-renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
-renderer.shadowMap.enabled = true;
-renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-container.appendChild(renderer.domElement);
-const controls = new OrbitControls(camera, renderer.domElement);
-controls.enableDamping = true; controls.dampingFactor = 0.06;
-controls.enablePan = false; controls.maxPolarAngle = Math.PI * 0.52;
-
-const sun = new THREE.DirectionalLight(0xffd9b0, 2.1);
-sun.position.set(7, 11, 5); sun.castShadow = true;
-sun.shadow.mapSize.set(1024, 1024);
-sun.shadow.camera.left = -14; sun.shadow.camera.right = 14;
-sun.shadow.camera.top = 14; sun.shadow.camera.bottom = -14;
-sun.shadow.camera.far = 60; sun.shadow.bias = -0.0006;
-scene.add(sun);
-const emberGlow = new THREE.PointLight(0xff6a26, 0.9, 22);
-emberGlow.position.set(0, 2.2, 0); scene.add(emberGlow);
-scene.add(new THREE.HemisphereLight(0x8a7462, 0x241a14, 1.3));
-
+// ============================================================================
+// DETERMINISTIC SEEDED PRNG: mulberry32(20261102) - Zero Math.random usage
+// ============================================================================
 function mulberry32(a) {
   return function() {
-    a |= 0; a = a + 0x6D2B79F5 | 0;
-    let t = Math.imul(a ^ a >>> 15, 1 | a);
-    t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+    let t = a += 0x6D2B79F5;
+    t = Math.imul(t ^ t >>> 15, t | 1);
+    t ^= t + Math.imul(t ^ t >>> 7, t | 61);
     return ((t ^ t >>> 14) >>> 0) / 4294967296;
   };
 }
-const rng = mulberry32(20261101);
-function rand(a, b) { return a + rng() * (b - a); }
 
-// ---------- slab: scorched earth ----------
-const SLAB_H = 1.4;
-const slabGroup = new THREE.Group(); scene.add(slabGroup);
-{
-  const ashMat = new THREE.MeshStandardMaterial({ color: 0x5f5347, roughness: 1 });
-  const top = new THREE.Mesh(new THREE.BoxGeometry(12, 0.22, 12), ashMat);
-  top.position.y = -0.11; top.receiveShadow = true; slabGroup.add(top);
-  const charMat = new THREE.MeshStandardMaterial({ color: 0x241d18, roughness: 1 });
-  const mid = new THREE.Mesh(new THREE.BoxGeometry(12, SLAB_H, 12), charMat);
-  mid.position.y = -SLAB_H/2 - 0.2; slabGroup.add(mid);
-  const baseMat = new THREE.MeshStandardMaterial({ color: 0x14100c, roughness: 1 });
-  const base = new THREE.Mesh(new THREE.BoxGeometry(12.4, 0.5, 12.4), baseMat);
-  base.position.y = -SLAB_H - 0.45; slabGroup.add(base);
-  // ash mounds + scorch patches
-  const patchMat = new THREE.MeshStandardMaterial({ color: 0x4a3f34, roughness: 1 });
-  for (let i = 0; i < 16; i++) {
-    const p = new THREE.Mesh(new THREE.CircleGeometry(rand(0.5, 1.4), 9), patchMat);
-    p.rotation.x = -Math.PI/2; p.position.set(rand(-5.4, 5.4), 0.011, rand(-5.4, 5.4));
-    p.receiveShadow = true; slabGroup.add(p);
-  }
-  const moundMat = new THREE.MeshStandardMaterial({ color: 0x6e5f4e, roughness: 1 });
-  for (let i = 0; i < 9; i++) {
-    const m = new THREE.Mesh(new THREE.SphereGeometry(rand(0.25, 0.55), 8, 6), moundMat);
-    m.scale.y = 0.35; m.position.set(rand(-5.2, 5.2), 0.02, rand(-5.2, 5.2));
-    m.castShadow = true; m.receiveShadow = true; slabGroup.add(m);
-  }
+const SEED = 20261102;
+const rand = mulberry32(SEED);
+function randRange(min, max) {
+  return min + (max - min) * rand();
 }
 
-// ---------- charred trunks with ember cracks ----------
-const embers = [];
-{
-  const trunkMat = new THREE.MeshStandardMaterial({ color: 0x2b211a, roughness: 1 });
-  const crackMat = new THREE.MeshStandardMaterial({ color: 0xff5a1a, emissive: 0xff4a10, emissiveIntensity: 1.4, roughness: 0.6 });
-  const spots = [
-    [-3.6,-2.6,3.4],[-1.8,-3.6,1.6],[1.2,-3.0,3.8],[3.8,-2.2,1.9],[4.4,0.8,3.2],
-    [2.6,3.0,1.5],[-0.6,3.4,2.2],[-3.2,2.2,1.7],[-4.4,0.2,3.6],[0.8,0.6,1.3],[4.2,-4.2,1.4],[-4.6,-4.0,2.2]
-  ];
-  for (const [x, z, h] of spots) {
-    const t = new THREE.Mesh(new THREE.CylinderGeometry(rand(0.09, 0.14), rand(0.16, 0.24), h, 7), trunkMat);
-    t.position.set(x, h/2, z); t.rotation.z = rand(-0.06, 0.06); t.rotation.x = rand(-0.05, 0.05);
-    t.castShadow = true; t.receiveShadow = true; slabGroup.add(t);
-    // broken top splinters
-    for (let k = 0; k < 3; k++) {
-      const sp = new THREE.Mesh(new THREE.ConeGeometry(0.045, rand(0.2, 0.4), 5), trunkMat);
-      sp.position.set(x + rand(-0.08, 0.08), h + rand(0.02, 0.12), z + rand(-0.08, 0.08));
-      sp.rotation.set(rand(-0.4, 0.4), 0, rand(-0.4, 0.4));
-      slabGroup.add(sp);
+// ============================================================================
+// INITIALIZATION & RENDERER SETUP
+// ============================================================================
+const container = document.getElementById('canvas-container');
+const headerEl = document.getElementById('ui-header');
+const footerEl = document.getElementById('ui-footer');
+const errorEl = document.getElementById('error-message');
+const resetBtn = document.getElementById('reset-world-btn');
+
+let renderer, scene, camera, controls;
+
+try {
+  renderer = new THREE.WebGLRenderer({
+    antialias: true,
+    powerPreference: 'high-performance',
+    alpha: true
+  });
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.75));
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  renderer.toneMapping = THREE.ACESFilmicToneMapping;
+  renderer.toneMappingExposure = 1.12;
+  renderer.localClippingEnabled = true;
+  container.appendChild(renderer.domElement);
+} catch (err) {
+  errorEl.style.display = 'flex';
+  throw err;
+}
+
+scene = new THREE.Scene();
+scene.fog = new THREE.FogExp2(0x211c1a, 0.042);
+
+camera = new THREE.PerspectiveCamera(36, 1, 0.5, 100);
+controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+controls.dampingFactor = 0.06;
+controls.enablePan = false;
+controls.enableZoom = true;
+controls.minPolarAngle = Math.PI * 0.16;
+controls.maxPolarAngle = Math.PI * 0.39;
+controls.minAzimuthAngle = -Math.PI * 0.35;
+controls.maxAzimuthAngle = Math.PI * 0.35;
+controls.rotateSpeed = 0.65;
+
+// World clipping planes to strictly prevent embers, smoke, or pollen crossing header/footer
+const topClipPlane = new THREE.Plane(new THREE.Vector3(0, -1, 0), 4.35);
+const bottomClipPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 1.6);
+renderer.clippingPlanes = [topClipPlane, bottomClipPlane];
+
+const worldGroup = new THREE.Group();
+scene.add(worldGroup);
+
+// ============================================================================
+// LIGHTING: Hazy Late-Day Atmosphere + Dynamic Ember Bed Lights
+// ============================================================================
+const hemiLight = new THREE.HemisphereLight(0xd99b72, 0x262124, 0.85);
+scene.add(hemiLight);
+
+const dirLight = new THREE.DirectionalLight(0xffb478, 2.2);
+dirLight.position.set(6.5, 9.5, 5.5);
+dirLight.castShadow = true;
+dirLight.shadow.mapSize.width = 1024;
+dirLight.shadow.mapSize.height = 1024;
+dirLight.shadow.camera.near = 2.0;
+dirLight.shadow.camera.far = 22.0;
+const d = 5.4;
+dirLight.shadow.camera.left = -d;
+dirLight.shadow.camera.right = d;
+dirLight.shadow.camera.top = d;
+dirLight.shadow.camera.bottom = -d;
+dirLight.shadow.bias = -0.0008;
+scene.add(dirLight);
+
+const rimLight = new THREE.DirectionalLight(0x7c96ab, 0.75);
+rimLight.position.set(-6.5, 4.0, -5.5);
+scene.add(rimLight);
+
+// ============================================================================
+// TERRAIN & DIORAMA SLAB: Sculptural Beveled Slab with Scorched & Regrowth Colors
+// ============================================================================
+const SLAB_RADIUS = 3.85;
+
+// Deterministic terrain height function
+function getTerrainHeight(x, z) {
+  const r2 = x * x + z * z;
+  const mound = Math.max(0, 1 - r2 / (SLAB_RADIUS * SLAB_RADIUS)) * 0.28;
+  const wave1 = Math.sin(x * 0.95 + 0.4) * Math.cos(z * 0.9 - 0.3) * 0.14;
+  const wave2 = Math.sin(x * 2.1 - z * 1.7) * 0.055;
+  const ripple = Math.cos((x * x + z * z) * 0.45) * 0.04;
+  return mound + wave1 + wave2 + ripple;
+}
+
+// Ember bed hotspot definitions
+const emberHotspots = [
+  { x: -1.15, z: 0.65, r: 1.05, intensity: 1.0, phase: 0.2 },
+  { x: 1.25, z: -0.45, r: 1.15, intensity: 1.0, phase: 1.7 },
+  { x: -0.25, z: -1.35, r: 0.90, intensity: 0.9, phase: 3.1 },
+  { x: 0.70, z: 1.30, r: 0.95, intensity: 0.95, phase: 4.5 },
+  { x: 0.05, z: 0.05, r: 0.85, intensity: 0.85, phase: 5.4 }
+];
+
+// Create point lights over major ember beds
+const emberLights = emberHotspots.map((spot) => {
+  const light = new THREE.PointLight(0xff5a1f, 1.35, 3.4, 1.8);
+  light.position.set(spot.x, getTerrainHeight(spot.x, spot.z) + 0.32, spot.z);
+  worldGroup.add(light);
+  return { light, spot };
+});
+
+function getHotspotHeat(x, z) {
+  let heat = 0;
+  for (let i = 0; i < emberHotspots.length; i++) {
+    const s = emberHotspots[i];
+    const dist = Math.hypot(x - s.x, z - s.z);
+    if (dist < s.r) {
+      const falloff = 1 - dist / s.r;
+      const crackle = 0.55 + 0.45 * Math.sin(x * 7.5 + z * 6.2) * Math.cos(x * 5.1 - z * 8.3);
+      heat = Math.max(heat, falloff * falloff * s.intensity * Math.max(0.25, crackle));
     }
-    // glowing cracks on some trunks
-    const nCr = 1 + Math.floor(rng() * 3);
-    for (let k = 0; k < nCr; k++) {
-      const c = new THREE.Mesh(new THREE.BoxGeometry(0.035, rand(0.15, 0.5), 0.035), crackMat.clone());
-      const a = rand(0, Math.PI * 2), rr = 0.15;
-      c.position.set(x + Math.cos(a) * rr, rand(0.2, h - 0.2), z + Math.sin(a) * rr);
-      slabGroup.add(c);
-      embers.push({ m: c, phase: rand(0, Math.PI * 2), spd: rand(1.2, 2.4) });
+  }
+  return Math.min(1, heat);
+}
+
+// Construct sculptural diorama slab geometry (cylinder with rich radial & vertical subdivisions)
+const slabGeo = new THREE.CylinderGeometry(SLAB_RADIUS, SLAB_RADIUS * 0.93, 1.05, 84, 18, false);
+const posAttr = slabGeo.attributes.position;
+const vCount = posAttr.count;
+
+const vertexData = [];
+const colorAttr = new Float32Array(vCount * 3);
+const emissiveAttr = new Float32Array(vCount * 3);
+
+const cCharcoal = new THREE.Color(0x181617);
+const cAshGrey = new THREE.Color(0x524e4b);
+const cLightAsh = new THREE.Color(0x7c7672);
+const cScorchedRim = new THREE.Color(0x231d1b);
+const cBaseEarth = new THREE.Color(0x161211);
+const cMossSoil = new THREE.Color(0x2f4d29);
+const cRichLoam = new THREE.Color(0x3a5d31);
+const cEmberGlow = new THREE.Color(0xff4e14);
+const cTemp = new THREE.Color();
+
+for (let i = 0; i < vCount; i++) {
+  let vx = posAttr.getX(i);
+  let vy = posAttr.getY(i);
+  let vz = posAttr.getZ(i);
+
+  const r = Math.hypot(vx, vz);
+  const angle = Math.atan2(vz, vx);
+
+  // Subtle organic sculptural profile around the slab perimeter
+  const edgeWave = 1 + 0.032 * Math.sin(angle * 5 + 0.7) + 0.018 * Math.cos(angle * 9 - 1.2);
+  vx *= edgeWave;
+  vz *= edgeWave;
+  const effR = Math.hypot(vx, vz);
+  const maxR = SLAB_RADIUS * edgeWave;
+  const normR = Math.min(1, effR / maxR);
+
+  let isTop = false;
+  let baseColor = new THREE.Color();
+  let greenColor = new THREE.Color();
+  let heat = 0;
+
+  if (vy > 0.48 && normR < 0.985) {
+    // Top forest floor surface
+    isTop = true;
+    const th = getTerrainHeight(vx, vz);
+    // Tactile bevel near rim
+    const bevel = normR > 0.87 ? -Math.pow((normR - 0.87) / 0.13, 2) * 0.22 : 0;
+    vy = th + bevel;
+
+    // Ash vs Charcoal vs Scorched patches
+    const ashNoise = 0.5 + 0.5 * Math.sin(vx * 2.4 + Math.cos(vz * 2.2)) * Math.cos(vz * 2.8 - vx * 1.3);
+    const fineAsh = 0.5 + 0.5 * Math.sin(vx * 6.7 - vz * 5.9);
+    baseColor.copy(cCharcoal).lerp(cAshGrey, Math.pow(ashNoise, 1.35) * 0.85);
+    if (ashNoise > 0.68 && fineAsh > 0.55) {
+      baseColor.lerp(cLightAsh, (ashNoise - 0.68) * 1.4);
     }
-    // fallen branch
-    if (rng() < 0.6) {
-      const b = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.06, rand(0.6, 1.1), 5), trunkMat);
-      b.rotation.set(Math.PI/2, 0, rand(0, Math.PI));
-      b.position.set(x + rand(-0.8, 0.8), 0.06, z + rand(-0.8, 0.8));
-      b.castShadow = true; slabGroup.add(b);
+
+    // Pioneer edge tint on a couple of rim arcs
+    const rimGreenMask = normR > 0.82 ? Math.max(0, Math.sin(angle * 2.0 + 1.1)) * ((normR - 0.82) / 0.18) : 0;
+
+    // Target soil color when regrown
+    greenColor.copy(cMossSoil).lerp(cRichLoam, ashNoise);
+    baseColor.lerp(greenColor, rimGreenMask * 0.45);
+
+    heat = getHotspotHeat(vx, vz);
+    if (heat > 0.05) {
+      baseColor.lerp(cEmberGlow, heat * 0.72);
+    }
+  } else {
+    // Sculptural beveled sides and base
+    const heightRatio = (vy + 0.525) / 1.05; // 0 at bottom, 1 at top rim
+    const topH = getTerrainHeight(vx, vz) - 0.22;
+    vy = -0.78 + heightRatio * (topH + 0.78);
+
+    // Chiseled rock/soil facet stratification on slab wall
+    const strata = Math.sin(heightRatio * 14 + angle * 3) * 0.035 * (1 - Math.abs(heightRatio - 0.5));
+    vx += Math.cos(angle) * strata;
+    vz += Math.sin(angle) * strata;
+
+    baseColor.copy(cBaseEarth).lerp(cScorchedRim, heightRatio * 0.85);
+    greenColor.copy(baseColor).lerp(cMossSoil, heightRatio * 0.4);
+  }
+
+  posAttr.setXYZ(i, vx, vy, vz);
+
+  colorAttr[i * 3] = baseColor.r;
+  colorAttr[i * 3 + 1] = baseColor.g;
+  colorAttr[i * 3 + 2] = baseColor.b;
+
+  vertexData.push({
+    x: vx,
+    y: vy,
+    z: vz,
+    isTop,
+    heat,
+    greenMix: 0,
+    baseR: baseColor.r,
+    baseG: baseColor.g,
+    baseB: baseColor.b,
+    greenR: greenColor.r,
+    greenG: greenColor.g,
+    greenB: greenColor.b
+  });
+}
+
+slabGeo.computeVertexNormals();
+slabGeo.setAttribute('color', new THREE.BufferAttribute(colorAttr, 3));
+
+const slabMat = new THREE.MeshStandardMaterial({
+  vertexColors: true,
+  roughness: 0.92,
+  metalness: 0.04,
+  flatShading: true
+});
+
+const slabMesh = new THREE.Mesh(slabGeo, slabMat);
+slabMesh.receiveShadow = true;
+slabMesh.castShadow = true;
+worldGroup.add(slabMesh);
+
+// Subtle dark pedestal base rim under the diorama slab
+const plinthGeo = new THREE.CylinderGeometry(SLAB_RADIUS * 0.90, SLAB_RADIUS * 0.86, 0.24, 64);
+const plinthMat = new THREE.MeshStandardMaterial({
+  color: 0x0f0d0d,
+  roughness: 0.85,
+  metalness: 0.1
+});
+const plinthMesh = new THREE.Mesh(plinthGeo, plinthMat);
+plinthMesh.position.y = -0.84;
+worldGroup.add(plinthMesh);
+
+// Glowing ember crust patches nestled in the ember beds
+const emberBedMeshes = [];
+const emberCrustMat = new THREE.MeshStandardMaterial({
+  color: 0x2a120a,
+  emissive: 0xff4508,
+  emissiveIntensity: 1.4,
+  roughness: 0.8,
+  flatShading: true
+});
+
+emberHotspots.forEach((spot) => {
+  const cluster = new THREE.Group();
+  const chunkCount = 7;
+  const mat = emberCrustMat.clone();
+  for (let c = 0; c < chunkCount; c++) {
+    const ang = (c / chunkCount) * Math.PI * 2 + randRange(-0.3, 0.3);
+    const dist = c === 0 ? 0 : randRange(0.15, spot.r * 0.55);
+    const cx = spot.x + Math.cos(ang) * dist;
+    const cz = spot.z + Math.sin(ang) * dist;
+    const cy = getTerrainHeight(cx, cz);
+
+    const g = new THREE.DodecahedronGeometry(randRange(0.11, 0.21), 0);
+    g.scale(1.3, 0.28, 1.1);
+    const m = new THREE.Mesh(g, mat);
+    m.position.set(cx, cy + 0.01, cz);
+    m.rotation.set(randRange(-0.15, 0.15), randRange(0, Math.PI * 2), randRange(-0.15, 0.15));
+    cluster.add(m);
+  }
+  worldGroup.add(cluster);
+  emberBedMeshes.push({
+    group: cluster,
+    mat,
+    spot,
+    suppression: 0
+  });
+});
+
+// Scattered charred stones & fire-cracked pebbles
+const rockGeo = new THREE.DodecahedronGeometry(1, 0);
+const rockMat = new THREE.MeshStandardMaterial({
+  color: 0x2b2726,
+  roughness: 0.9,
+  flatShading: true
+});
+const rockCount = 28;
+const rockInst = new THREE.InstancedMesh(rockGeo, rockMat, rockCount);
+rockInst.castShadow = true;
+rockInst.receiveShadow = true;
+const dummy = new THREE.Object3D();
+
+for (let i = 0; i < rockCount; i++) {
+  const r = Math.sqrt(rand()) * (SLAB_RADIUS - 0.45);
+  const theta = rand() * Math.PI * 2;
+  const rx = Math.cos(theta) * r;
+  const rz = Math.sin(theta) * r;
+  const ry = getTerrainHeight(rx, rz);
+
+  dummy.position.set(rx, ry + 0.02, rz);
+  dummy.rotation.set(rand() * 3, rand() * 3, rand() * 3);
+  const s = randRange(0.06, 0.16);
+  dummy.scale.set(s * randRange(0.8, 1.4), s * 0.55, s * randRange(0.8, 1.3));
+  dummy.updateMatrix();
+  rockInst.setMatrixAt(i, dummy.matrix);
+}
+rockInst.instanceMatrix.needsUpdate = true;
+worldGroup.add(rockInst);
+
+// ============================================================================
+// BURNT SNAGS: Standing Trunks, Snapped Tops, Leaning Trunks & Charred Stubs
+// ============================================================================
+const snagDefinitions = [
+  { id: 0, x: -1.45, z: -0.95, h: 2.35, rBase: 0.25, leanX: 0.08, leanZ: 0.05, snapped: true, branches: 3 },
+  { id: 1, x: 1.50, z: -1.10, h: 2.65, rBase: 0.27, leanX: -0.14, leanZ: 0.08, snapped: false, branches: 4 },
+  { id: 2, x: -0.15, z: 0.15, h: 2.85, rBase: 0.30, leanX: 0.04, leanZ: -0.06, snapped: true, branches: 4 },
+  { id: 3, x: -1.75, z: 1.15, h: 1.95, rBase: 0.23, leanX: 0.22, leanZ: -0.12, snapped: true, branches: 2 },
+  { id: 4, x: 1.55, z: 1.05, h: 2.25, rBase: 0.25, leanX: -0.10, leanZ: -0.15, snapped: false, branches: 3 },
+  { id: 5, x: 0.15, z: -1.95, h: 1.80, rBase: 0.22, leanX: -0.06, leanZ: 0.18, snapped: true, branches: 2 },
+  { id: 6, x: 0.05, z: 1.85, h: 1.65, rBase: 0.21, leanX: 0.16, leanZ: 0.10, snapped: true, branches: 2 }
+];
+
+const snags = [];
+const snagHitProxies = [];
+
+function createJaggedTrunkSegment(rBottom, rTop, height, radialSegs, heightSegs, isTopSegment, snapped) {
+  const geo = new THREE.CylinderGeometry(rTop, rBottom, height, radialSegs, heightSegs, false);
+  geo.translate(0, height / 2, 0);
+  const p = geo.attributes.position;
+  for (let i = 0; i < p.count; i++) {
+    let vx = p.getX(i);
+    let vy = p.getY(i);
+    let vz = p.getZ(i);
+    const ang = Math.atan2(vz, vx);
+    const yNorm = vy / height;
+
+    // Bark ridges and char fissures
+    const bark = 1 + 0.08 * Math.sin(ang * 7 + vy * 2.5) + 0.05 * Math.cos(ang * 4 - vy * 4.0);
+    vx *= bark;
+    vz *= bark;
+
+    // Splintered crown if top of a snapped snag
+    if (isTopSegment && snapped && yNorm > 0.85 && Math.hypot(vx, vz) > 0.01) {
+      const splinter = Math.sin(ang * 5 + 1.2) * 0.14 + Math.cos(ang * 3) * 0.09;
+      vy += Math.max(0, splinter) * ((yNorm - 0.85) / 0.15);
+    }
+    p.setXYZ(i, vx, vy, vz);
+  }
+  geo.computeVertexNormals();
+  return geo;
+}
+
+const baseSnagMat = new THREE.MeshStandardMaterial({
+  color: 0x1a1716,
+  roughness: 0.93,
+  metalness: 0.05,
+  emissive: 0xff3d00,
+  emissiveIntensity: 0.03,
+  flatShading: true
+});
+
+const ashMoundMat = new THREE.MeshStandardMaterial({
+  color: 0x4b4643,
+  roughness: 0.96,
+  metalness: 0.02,
+  flatShading: true
+});
+
+snagDefinitions.forEach((def) => {
+  const baseY = getTerrainHeight(def.x, def.z) - 0.04;
+  const rootGroup = new THREE.Group();
+  rootGroup.position.set(def.x, baseY, def.z);
+  worldGroup.add(rootGroup);
+
+  const snagMat = baseSnagMat.clone();
+  const segments = [];
+  const segCount = 4;
+  const segH = def.h / segCount;
+
+  let curY = 0;
+  let curX = 0;
+  let curZ = 0;
+
+  for (let s = 0; s < segCount; s++) {
+    const t0 = s / segCount;
+    const t1 = (s + 1) / segCount;
+    const rBot = def.rBase * (1 - t0 * 0.58) * (s === 0 ? 1.28 : 1.0);
+    const rTop = def.rBase * (1 - t1 * 0.58);
+
+    const segGeo = createJaggedTrunkSegment(rBot, rTop, segH * 1.04, 9, 3, s === segCount - 1, def.snapped);
+    const segMesh = new THREE.Mesh(segGeo, snagMat);
+    segMesh.castShadow = true;
+    segMesh.receiveShadow = true;
+
+    const restPos = new THREE.Vector3(curX, curY, curZ);
+    const restRot = new THREE.Euler(
+      def.leanZ * (0.6 + s * 0.25),
+      randRange(-0.2, 0.2),
+      -def.leanX * (0.6 + s * 0.25)
+    );
+
+    segMesh.position.copy(restPos);
+    segMesh.rotation.copy(restRot);
+
+    // Add charred branch stubs to upper segments
+    if (s >= 1 && s <= 3) {
+      const bHere = s === 2 ? 2 : 1;
+      for (let b = 0; b < bHere; b++) {
+        if (segments.length + b > def.branches + 1) continue;
+        const bLen = randRange(0.32, 0.62);
+        const bGeo = createJaggedTrunkSegment(rTop * 0.48, rTop * 0.18, bLen, 6, 2, true, true);
+        const bMesh = new THREE.Mesh(bGeo, snagMat);
+        bMesh.castShadow = true;
+        bMesh.position.set(0, segH * randRange(0.35, 0.8), 0);
+        const yaw = (s * 2.1 + b * 3.1) + randRange(-0.4, 0.4);
+        const pitch = randRange(0.65, 1.15);
+        bMesh.rotation.set(Math.cos(yaw) * pitch, yaw, Math.sin(yaw) * pitch);
+        segMesh.add(bMesh);
+      }
+    }
+
+    rootGroup.add(segMesh);
+
+    // Precompute deterministic collapse destination for each chunk
+    const fallAngle = randRange(0, Math.PI * 2);
+    const fallDist = randRange(0.12, 0.42);
+    const collapsePos = new THREE.Vector3(
+      Math.cos(fallAngle) * fallDist,
+      0.06 + s * 0.02,
+      Math.sin(fallAngle) * fallDist
+    );
+    const collapseRot = new THREE.Euler(
+      Math.PI * 0.48 + randRange(-0.25, 0.25),
+      fallAngle,
+      randRange(-0.5, 0.5)
+    );
+
+    segments.push({
+      mesh: segMesh,
+      restPos,
+      restRot,
+      collapsePos,
+      collapseRot,
+      delay: (segCount - 1 - s) * 0.07
+    });
+
+    curY += segH * 0.96;
+    curX += def.leanX * segH * 0.75;
+    curZ += def.leanZ * segH * 0.75;
+  }
+
+  // Collapsed ash mound that rises as the snag crumbles
+  const moundGroup = new THREE.Group();
+  const moundChunks = 5;
+  for (let m = 0; m < moundChunks; m++) {
+    const mg = new THREE.DodecahedronGeometry(def.rBase * randRange(0.85, 1.35), 1);
+    mg.scale(1.35, 0.48, 1.25);
+    const mm = new THREE.Mesh(mg, ashMoundMat);
+    mm.receiveShadow = true;
+    mm.castShadow = true;
+    const ma = (m / moundChunks) * Math.PI * 2;
+    const md = m === 0 ? 0 : def.rBase * 0.55;
+    mm.position.set(Math.cos(ma) * md, 0.05, Math.sin(ma) * md);
+    mm.rotation.y = randRange(0, Math.PI * 2);
+    moundGroup.add(mm);
+  }
+  moundGroup.scale.set(0.001, 0.001, 0.001);
+  moundGroup.visible = false;
+  rootGroup.add(moundGroup);
+
+  // Generous invisible hit proxy cylinder for effortless tapping even at 320px width
+  const proxyGeo = new THREE.CylinderGeometry(0.62, 0.68, def.h + 0.55, 12);
+  proxyGeo.translate(0, (def.h + 0.35) / 2, 0);
+  const proxyMat = new THREE.MeshBasicMaterial({ visible: false });
+  const proxyMesh = new THREE.Mesh(proxyGeo, proxyMat);
+  proxyMesh.userData.snagIndex = snags.length;
+  rootGroup.add(proxyMesh);
+  snagHitProxies.push(proxyMesh);
+
+  snags.push({
+    def,
+    rootGroup,
+    snagMat,
+    segments,
+    moundGroup,
+    proxyMesh,
+    state: 'standing', // 'standing' | 'collapsing' | 'collapsed' | 'restoring'
+    stateStartTime: 0,
+    ringTriggered: false
+  });
+});
+
+// Generous invisible ground proxy disc for reliable raycasting
+const groundProxyGeo = new THREE.CylinderGeometry(SLAB_RADIUS * 1.03, SLAB_RADIUS * 1.03, 0.6, 48);
+const groundProxyMat = new THREE.MeshBasicMaterial({ visible: false });
+const groundProxyMesh = new THREE.Mesh(groundProxyGeo, groundProxyMat);
+groundProxyMesh.position.y = -0.1;
+worldGroup.add(groundProxyMesh);
+
+// ============================================================================
+// VEGETATION INSTANCING: Pioneer Rim Shoots + Dense Interactive Regrowth Flora
+// ============================================================================
+// 1. Curved grass blade geometry
+function createGrassBladeGeometry() {
+  const geo = new THREE.PlaneGeometry(0.065, 0.42, 1, 4);
+  geo.translate(0, 0.21, 0);
+  const pos = geo.attributes.position;
+  for (let i = 0; i < pos.count; i++) {
+    const y = pos.getY(i);
+    const t = y / 0.42;
+    const taper = 1 - Math.pow(t, 1.4) * 0.88;
+    const x = pos.getX(i) * taper;
+    const z = Math.pow(t, 2.0) * 0.11;
+    pos.setXYZ(i, x, y, z);
+  }
+  geo.computeVertexNormals();
+  return geo;
+}
+
+// 2. Dicot pioneer sprout geometry (stem + two opposite unfurled leaves)
+function createShootGeometry() {
+  const geo = new THREE.ConeGeometry(0.085, 0.28, 5, 3);
+  geo.translate(0, 0.14, 0);
+  const pos = geo.attributes.position;
+  for (let i = 0; i < pos.count; i++) {
+    let x = pos.getX(i);
+    let y = pos.getY(i);
+    let z = pos.getZ(i);
+    const t = y / 0.28;
+    if (t > 0.45) {
+      x *= 1.65;
+      z *= 0.65;
+      y -= Math.abs(x) * 0.25;
+    } else {
+      x *= 0.35;
+      z *= 0.35;
+    }
+    pos.setXYZ(i, x, y, z);
+  }
+  geo.computeVertexNormals();
+  return geo;
+}
+
+// 3. Wildflower blossom head geometry
+function createFlowerHeadGeometry() {
+  const geo = new THREE.DodecahedronGeometry(0.095, 1);
+  geo.scale(1.15, 0.48, 1.15);
+  geo.translate(0, 0.34, 0.04);
+  return geo;
+}
+
+const grassGeo = createGrassBladeGeometry();
+const shootGeo = createShootGeometry();
+const flowerGeo = createFlowerHeadGeometry();
+
+const grassMat = new THREE.MeshStandardMaterial({
+  color: 0xffffff,
+  roughness: 0.65,
+  metalness: 0.02,
+  side: THREE.DoubleSide
+});
+
+const shootMat = new THREE.MeshStandardMaterial({
+  color: 0xffffff,
+  roughness: 0.58,
+  metalness: 0.04,
+  flatShading: true
+});
+
+const flowerMat = new THREE.MeshStandardMaterial({
+  color: 0xffffff,
+  roughness: 0.5,
+  metalness: 0.02,
+  emissive: 0x221818,
+  emissiveIntensity: 0.18,
+  flatShading: true
+});
+
+// Generate dense candidate flora across the entire diorama slab
+const FLORA_COUNT = 2200;
+const FLOWER_COUNT = 540;
+
+const grassMesh = new THREE.InstancedMesh(grassGeo, grassMat, FLORA_COUNT);
+const shootMesh = new THREE.InstancedMesh(shootGeo, shootMat, FLORA_COUNT);
+const flowerMesh = new THREE.InstancedMesh(flowerGeo, flowerMat, FLOWER_COUNT);
+
+grassMesh.castShadow = true;
+grassMesh.receiveShadow = true;
+shootMesh.castShadow = true;
+shootMesh.receiveShadow = true;
+flowerMesh.castShadow = true;
+
+worldGroup.add(grassMesh);
+worldGroup.add(shootMesh);
+worldGroup.add(flowerMesh);
+
+const greenPalette = [
+  new THREE.Color(0x5ec94b),
+  new THREE.Color(0x47b03b),
+  new THREE.Color(0x7ade54),
+  new THREE.Color(0x3b9c43),
+  new THREE.Color(0x8ee362)
+];
+
+const flowerPalette = [
+  new THREE.Color(0xff7eb6), // Wildfire fireweed pink
+  new THREE.Color(0xffd84d), // Goldenrod yellow
+  new THREE.Color(0xf7f5fb), // Meadow white
+  new THREE.Color(0xb678ff), // Lupine purple
+  new THREE.Color(0xff94c2)  // Soft rose
+];
+
+const floraItems = [];
+let flowerIdx = 0;
+
+for (let i = 0; i < FLORA_COUNT; i++) {
+  // Golden-angle spiral + jitter for organic clumping across the slab
+  const u = (i + 0.5) / FLORA_COUNT;
+  const r = Math.sqrt(u) * (SLAB_RADIUS - 0.24) + randRange(-0.08, 0.08);
+  const clampedR = Math.min(SLAB_RADIUS - 0.22, Math.max(0.05, r));
+  const theta = i * 2.3999632 + randRange(-0.12, 0.12);
+
+  const fx = Math.cos(theta) * clampedR;
+  const fz = Math.sin(theta) * clampedR;
+  const fy = getTerrainHeight(fx, fz) - 0.015;
+
+  // Pioneer shoots peeking at specific slab edge pockets from the very start
+  const edgeFactor = clampedR / (SLAB_RADIUS - 0.22);
+  const anglePocket = Math.sin(theta * 2.0 + 1.1) > 0.52 || Math.cos(theta * 3.0 - 0.6) > 0.68;
+  const isPioneer = edgeFactor > 0.87 && anglePocket && rand() < 0.55;
+
+  const hasFlower = !isPioneer && (i % 4 === 0) && flowerIdx < FLOWER_COUNT;
+  const assignedFlowerIdx = hasFlower ? flowerIdx++ : -1;
+
+  const gCol = greenPalette[Math.floor(rand() * greenPalette.length)];
+  grassMesh.setColorAt(i, gCol);
+
+  const sCol = greenPalette[Math.floor(rand() * greenPalette.length)];
+  shootMesh.setColorAt(i, sCol);
+
+  if (assignedFlowerIdx !== -1) {
+    const fCol = flowerPalette[Math.floor(rand() * flowerPalette.length)];
+    flowerMesh.setColorAt(assignedFlowerIdx, fCol);
+  }
+
+  floraItems.push({
+    index: i,
+    flowerIndex: assignedFlowerIdx,
+    x: fx,
+    y: fy,
+    z: fz,
+    rotY: randRange(0, Math.PI * 2),
+    tiltX: randRange(-0.18, 0.18),
+    tiltZ: randRange(-0.18, 0.18),
+    scaleBase: randRange(0.78, 1.38),
+    swayPhase: randRange(0, Math.PI * 2),
+    swaySpeed: randRange(1.4, 2.3),
+    isPioneer,
+    activated: isPioneer,
+    activationTime: isPioneer ? -10000 : Infinity,
+    growth: isPioneer ? 1.0 : 0.0
+  });
+}
+
+grassMesh.instanceColor.needsUpdate = true;
+shootMesh.instanceColor.needsUpdate = true;
+flowerMesh.instanceColor.needsUpdate = true;
+
+// ============================================================================
+// INSTANCED PARTICLES: Hundreds of Rising Embers,Burst Sparks & Low Smoke Haze
+// ============================================================================
+// 1. Continuous Rising Embers (380 instances)
+const EMBER_COUNT = 380;
+const emberGeo = new THREE.OctahedronGeometry(0.032, 0);
+const emberMat = new THREE.MeshBasicMaterial({
+  color: 0xffffff,
+  transparent: true,
+  opacity: 0.95,
+  blending: THREE.AdditiveBlending,
+  depthWrite: false
+});
+const emberInst = new THREE.InstancedMesh(emberGeo, emberMat, EMBER_COUNT);
+worldGroup.add(emberInst);
+
+const emberParticles = [];
+const cEmberHot = new THREE.Color(0xffd269);
+const cEmberMid = new THREE.Color(0xff5e1a);
+const cEmberDim = new THREE.Color(0x991f00);
+
+for (let i = 0; i < EMBER_COUNT; i++) {
+  const spotIdx = i % emberHotspots.length;
+  const spot = emberHotspots[spotIdx];
+  const ang = randRange(0, Math.PI * 2);
+  const rad = Math.sqrt(rand()) * spot.r * 0.85;
+  const ox = spot.x + Math.cos(ang) * rad;
+  const oz = spot.z + Math.sin(ang) * rad;
+  const oy = getTerrainHeight(ox, oz) + 0.03;
+
+  const tCol = rand();
+  const col = cEmberHot.clone().lerp(cEmberMid, tCol).lerp(cEmberDim, tCol * tCol * 0.5);
+  emberInst.setColorAt(i, col);
+
+  emberParticles.push({
+    spotIdx,
+    ox,
+    oy,
+    oz,
+    phase: randRange(0, 1),
+    speed: randRange(0.22, 0.48),
+    driftAmp: randRange(0.06, 0.22),
+    driftFreq: randRange(1.5, 3.4),
+    maxHeight: randRange(1.2, 2.55),
+    scale: randRange(0.55, 1.35)
+  });
+}
+emberInst.instanceColor.needsUpdate = true;
+
+// 2. Collapse & Tap Burst Sparks (160 instances)
+const BURST_COUNT = 160;
+const burstInst = new THREE.InstancedMesh(emberGeo, emberMat, BURST_COUNT);
+worldGroup.add(burstInst);
+
+const burstParticles = [];
+for (let i = 0; i < BURST_COUNT; i++) {
+  burstInst.setColorAt(i, cEmberHot.clone().lerp(cEmberMid, rand() * 0.7));
+  burstParticles.push({
+    active: false,
+    startTime: 0,
+    duration: 1800,
+    ox: 0,
+    oy: 0,
+    oz: 0,
+    vx: 0,
+    vy: 0,
+    vz: 0,
+    scale: 1,
+    isGreenPollen: false
+  });
+  dummy.scale.set(0, 0, 0);
+  dummy.updateMatrix();
+  burstInst.setMatrixAt(i, dummy.matrix);
+}
+burstInst.instanceColor.needsUpdate = true;
+burstInst.instanceMatrix.needsUpdate = true;
+
+let burstCursor = 0;
+function spawnParticleBurst(x, y, z, count, now, isGreen = false) {
+  for (let i = 0; i < count; i++) {
+    const p = burstParticles[burstCursor];
+    burstCursor = (burstCursor + 1) % BURST_COUNT;
+    p.active = true;
+    p.startTime = now;
+    p.duration = randRange(1200, 2400);
+    p.ox = x + randRange(-0.22, 0.22);
+    p.oy = y + randRange(0.02, 0.35);
+    p.oz = z + randRange(-0.22, 0.22);
+    const a = randRange(0, Math.PI * 2);
+    const spd = randRange(0.25, 0.95);
+    p.vx = Math.cos(a) * spd;
+    p.vy = randRange(0.65, 1.55);
+    p.vz = Math.sin(a) * spd;
+    p.scale = randRange(0.7, 1.45);
+    p.isGreenPollen = isGreen;
+
+    const col = isGreen
+      ? new THREE.Color(0xa8ff78)
+      : cEmberHot.clone().lerp(cEmberMid, rand() * 0.65);
+    burstInst.setColorAt(burstCursor, col);
+  }
+  burstInst.instanceColor.needsUpdate = true;
+}
+
+// 3. Soft Low Smoke Haze & Drifting Smoke Puffs (68 instances)
+const SMOKE_COUNT = 68;
+const smokeGeo = new THREE.IcosahedronGeometry(0.42, 1);
+const smokeMat = new THREE.MeshStandardMaterial({
+  color: 0x6e6865,
+  transparent: true,
+  opacity: 0.14,
+  roughness: 1.0,
+  metalness: 0.0,
+  depthWrite: false
+});
+const smokeInst = new THREE.InstancedMesh(smokeGeo, smokeMat, SMOKE_COUNT);
+worldGroup.add(smokeInst);
+
+const smokePuffs = [];
+for (let i = 0; i < SMOKE_COUNT; i++) {
+  const isBurstSmoke = i >= 44;
+  const r = Math.sqrt(rand()) * (SLAB_RADIUS * 0.85);
+  const ang = randRange(0, Math.PI * 2);
+  const sx = Math.cos(ang) * r;
+  const sz = Math.sin(ang) * r;
+  const sy = getTerrainHeight(sx, sz) + randRange(0.22, 0.85);
+
+  smokePuffs.push({
+    isBurstSmoke,
+    active: !isBurstSmoke,
+    startTime: 0,
+    duration: 2800,
+    ox: sx,
+    oy: sy,
+    oz: sz,
+    vx: randRange(-0.15, 0.15),
+    vy: randRange(0.18, 0.36),
+    vz: randRange(-0.15, 0.15),
+    phase: randRange(0, Math.PI * 2),
+    speed: randRange(0.25, 0.55),
+    scaleX: randRange(0.9, 1.8),
+    scaleY: randRange(0.32, 0.55),
+    scaleZ: randRange(0.9, 1.8)
+  });
+}
+
+let smokeBurstCursor = 44;
+function spawnSmokePuff(x, y, z, now) {
+  for (let i = 0; i < 6; i++) {
+    const sp = smokePuffs[smokeBurstCursor];
+    smokeBurstCursor = 44 + ((smokeBurstCursor - 44 + 1) % (SMOKE_COUNT - 44));
+    sp.active = true;
+    sp.startTime = now;
+    sp.duration = randRange(2300, 3100);
+    sp.ox = x + randRange(-0.25, 0.25);
+    sp.oy = y + randRange(0.05, 0.35);
+    sp.oz = z + randRange(-0.25, 0.25);
+    const ang = randRange(0, Math.PI * 2);
+    const spd = randRange(0.15, 0.45);
+    sp.vx = Math.cos(ang) * spd;
+    sp.vy = randRange(0.35, 0.72);
+    sp.vz = Math.sin(ang) * spd;
+  }
+}
+
+// ============================================================================
+// REGROWTH WAVE RINGS: Visible Expanding Bloom Rings & Soil Brightening
+// ============================================================================
+const activeWaves = [];
+const waveRingVisuals = [];
+
+const ringGeo = new THREE.RingGeometry(0.86, 1.0, 48);
+ringGeo.rotateX(-Math.PI / 2);
+
+for (let i = 0; i < 8; i++) {
+  const rMat = new THREE.MeshBasicMaterial({
+    color: 0x7dfa64,
+    transparent: true,
+    opacity: 0.0,
+    side: THREE.DoubleSide,
+    blending: THREE.AdditiveBlending,
+    depthWrite: false
+  });
+  const rMesh = new THREE.Mesh(ringGeo, rMat);
+  rMesh.visible = false;
+  worldGroup.add(rMesh);
+  waveRingVisuals.push({ mesh: rMesh, mat: rMat, inUse: false });
+}
+
+function triggerRegrowthWave(cx, cz, maxRadius, durationMs, now) {
+  const cy = getTerrainHeight(cx, cz);
+
+  // Assign a visual expanding light ring
+  let ringVis = waveRingVisuals.find((r) => !r.inUse) || waveRingVisuals[0];
+  ringVis.inUse = true;
+  ringVis.mesh.visible = true;
+  ringVis.mesh.position.set(cx, cy + 0.08, cz);
+
+  activeWaves.push({
+    cx,
+    cz,
+    maxRadius,
+    durationMs,
+    startTime: now,
+    ringVis
+  });
+
+  // Schedule flora activation inside maxRadius
+  const waveSpeed = maxRadius / (durationMs * 0.78); // ms per unit distance
+  for (let i = 0; i < floraItems.length; i++) {
+    const item = floraItems[i];
+    const dist = Math.hypot(item.x - cx, item.z - cz);
+    if (dist <= maxRadius) {
+      const arrivalTime = now + dist / waveSpeed;
+      if (!item.activated) {
+        item.activated = true;
+        item.activationTime = arrivalTime;
+      } else if (item.growth >= 0.95) {
+        // Re-trigger subtle joyful pop-and-sway ripple on already grown patches so cycle never locks
+        item.activationTime = arrivalTime - 320;
+        item.growth = 0.68;
+      }
     }
   }
-  // scattered stones
-  const stoneMat = new THREE.MeshStandardMaterial({ color: 0x77695c, roughness: 1 });
-  for (let i = 0; i < 14; i++) {
-    const s = new THREE.Mesh(new THREE.DodecahedronGeometry(rand(0.07, 0.16), 0), stoneMat);
-    s.position.set(rand(-5.4, 5.4), 0.05, rand(-5.4, 5.4));
-    s.castShadow = true; slabGroup.add(s);
+
+  // Spawn a celebratory puff of glowing pollen motes at tap point
+  spawnParticleBurst(cx, cy + 0.05, cz, 18, now, true);
+}
+
+// ============================================================================
+// INTERACTION 2: SNAG COLLAPSE & RESTORE LOGIC
+// ============================================================================
+function triggerSnagInteraction(snagIndex, now) {
+  const snag = snags[snagIndex];
+  if (!snag) return;
+
+  if (snag.state === 'standing') {
+    snag.state = 'collapsing';
+    snag.stateStartTime = now;
+    snag.ringTriggered = false;
+    snag.moundGroup.visible = true;
+
+    // Immediate smolder & ember puff
+    spawnParticleBurst(snag.def.x, snag.rootGroup.position.y + 0.6, snag.def.z, 26, now, false);
+    spawnSmokePuff(snag.def.x, snag.rootGroup.position.y + 0.4, snag.def.z, now);
+  } else if (snag.state === 'collapsed') {
+    // Tapping a collapsed snag mound triggers a fresh lush bloom AND smoothly restores the snag if desired or blooms around it
+    triggerRegrowthWave(snag.def.x, snag.def.z, 1.95, 5200, now);
+    snag.state = 'restoring';
+    snag.stateStartTime = now;
+    spawnParticleBurst(snag.def.x, snag.rootGroup.position.y + 0.2, snag.def.z, 20, now, true);
   }
 }
 
-// ---------- drifting smoke wisps + rising embers (upper band; NDC faded) ----------
-const wisps = [];
-function makeSoftTexture(inner, outer) {
-  const c = document.createElement('canvas'); c.width = c.height = 64;
-  const ctx = c.getContext('2d');
-  const g = ctx.createRadialGradient(32, 32, 4, 32, 32, 30);
-  g.addColorStop(0, inner); g.addColorStop(1, outer);
-  ctx.fillStyle = g; ctx.fillRect(0, 0, 64, 64);
-  return new THREE.CanvasTexture(c);
-}
-{
-  const tex = makeSoftTexture('rgba(200,190,180,0.7)', 'rgba(200,190,180,0)');
-  for (let i = 0; i < 11; i++) {
-    const mat = new THREE.SpriteMaterial({ map: tex, transparent: true, opacity: rand(0.3, 0.55), depthWrite: false });
-    const s = new THREE.Sprite(mat);
-    const sc = rand(2.0, 4.4); s.scale.set(sc, sc * 0.7, 1);
-    s.position.set(rand(-7, 7), rand(2.4, 8.6), rand(-5, 4));
-    scene.add(s);
-    wisps.push({ s, spd: rand(0.1, 0.28), baseOp: mat.opacity });
+// Reset world button to return to newly burned state anytime
+function resetWorld(now) {
+  activeWaves.length = 0;
+  waveRingVisuals.forEach((rv) => {
+    rv.inUse = false;
+    rv.mesh.visible = false;
+  });
+
+  // Reset soil colors to charred state
+  const colAttr = slabGeo.attributes.color;
+  for (let i = 0; i < vertexData.length; i++) {
+    const vd = vertexData[i];
+    vd.greenMix = 0;
+    colAttr.setXYZ(i, vd.baseR, vd.baseG, vd.baseB);
   }
-}
-const sparks = [];
-{
-  const tex = makeSoftTexture('rgba(255,170,80,1)', 'rgba(255,90,20,0)');
-  for (let i = 0; i < 14; i++) {
-    const mat = new THREE.SpriteMaterial({ map: tex, transparent: true, opacity: rand(0.6, 1), depthWrite: false });
-    const s = new THREE.Sprite(mat);
-    const sc = rand(0.08, 0.18); s.scale.set(sc, sc, 1);
-    s.position.set(rand(-5, 5), rand(0.3, 6), rand(-5, 4));
-    scene.add(s);
-    sparks.push({ s, spd: rand(0.5, 1.1), sway: rand(0.4, 1.2), phase: rand(0, Math.PI * 2), baseOp: mat.opacity });
+  colAttr.needsUpdate = true;
+
+  // Reset ember beds
+  emberBedMeshes.forEach((eb) => {
+    eb.suppression = 0;
+  });
+
+  // Reset flora to only edge pioneers
+  for (let i = 0; i < floraItems.length; i++) {
+    const item = floraItems[i];
+    item.activated = item.isPioneer;
+    item.activationTime = item.isPioneer ? now - 10000 : Infinity;
+    item.growth = item.isPioneer ? 1.0 : 0.0;
   }
+
+  // Restore all snags
+  snags.forEach((snag) => {
+    snag.state = 'standing';
+    snag.stateStartTime = now;
+    snag.ringTriggered = false;
+    snag.moundGroup.visible = false;
+    snag.moundGroup.scale.set(0.001, 0.001, 0.001);
+    snag.snagMat.emissiveIntensity = 0.03;
+    snag.segments.forEach((seg) => {
+      seg.mesh.position.copy(seg.restPos);
+      seg.mesh.rotation.copy(seg.restRot);
+      seg.mesh.scale.set(1, 1, 1);
+      seg.mesh.visible = true;
+    });
+  });
+
+  spawnParticleBurst(0, 0.3, 0, 32, now, false);
 }
 
-// ---------- regrowth event ----------
-const hintIdle = 'Tap the ashes';
-const hintGrow = 'Watch it regrow';
-let hintOwner = 'idle';
-function setHint(text, owner) { hintEl.textContent = text; hintEl.classList.remove('faded'); hintOwner = owner; }
-function resetHintIf(owner) { if (hintOwner === owner) setHint(hintIdle, 'idle'); }
-setHint(hintIdle, 'idle');
+resetBtn.addEventListener('click', (e) => {
+  e.stopPropagation();
+  resetWorld(performance.now());
+});
 
-const sprouts = []; // {g, t0, delay, grown}
-const GREEN = new THREE.MeshStandardMaterial({ color: 0x3f8f3a, roughness: 0.8 });
-const GREEN2 = new THREE.MeshStandardMaterial({ color: 0x63b04a, roughness: 0.8 });
-const FLOWER_COLS = [0xe86a92, 0xf2c14e, 0xf3f0e4, 0x9a6ad0];
-function spawnSprout(x, z, delay, now) {
-  const g = new THREE.Group(); g.position.set(x, 0, z);
-  const blades = 2 + Math.floor(rng() * 3);
-  for (let i = 0; i < blades; i++) {
-    const bl = new THREE.Mesh(new THREE.ConeGeometry(0.045, rand(0.3, 0.55), 5), rng() < 0.5 ? GREEN : GREEN2);
-    bl.position.set(rand(-0.1, 0.1), 0.2, rand(-0.1, 0.1));
-    bl.rotation.set(rand(-0.25, 0.25), 0, rand(-0.25, 0.25));
-    bl.castShadow = true; g.add(bl);
-  }
-  if (rng() < 0.45) {
-    const fm = new THREE.MeshStandardMaterial({ color: FLOWER_COLS[Math.floor(rng() * FLOWER_COLS.length)], roughness: 0.6 });
-    const f = new THREE.Mesh(new THREE.SphereGeometry(0.075, 8, 6), fm);
-    f.position.set(0, rand(0.32, 0.5), 0); g.add(f);
-  }
-  g.scale.setScalar(0.001);
-  slabGroup.add(g);
-  sprouts.push({ g, t0: now, delay, phase: rand(0, Math.PI * 2) });
-}
-let lastTap = 0;
-function regrow(x, z, now) {
-  lastTap = now;
-  setHint(hintGrow, 'user');
-  const n = 16;
-  for (let i = 0; i < n; i++) {
-    const a = rand(0, Math.PI * 2), r = rand(0.15, 2.2);
-    const px = THREE.MathUtils.clamp(x + Math.cos(a) * r, -5.5, 5.5);
-    const pz = THREE.MathUtils.clamp(z + Math.sin(a) * r, -5.5, 5.5);
-    spawnSprout(px, pz, r * 0.5 + rand(0, 0.25), now);
-  }
-  // cap total sprouts
-  while (sprouts.length > 140) { const old = sprouts.shift(); slabGroup.remove(old.g); }
-  setTimeout(() => resetHintIf('user'), 5200);
-}
+// ============================================================================
+// RAYCASTING: Distinguish Tap vs Orbit Drag + Generous Target Proxies
+// ============================================================================
+const raycaster = new THREE.Raycaster();
+const pointerNDC = new THREE.Vector2();
+let pointerDownX = 0;
+let pointerDownY = 0;
+let pointerDownTime = 0;
+let isDragging = false;
 
-// ---------- interaction ----------
-const ray = new THREE.Raycaster();
-const ptr = new THREE.Vector2();
-const groundProxy = new THREE.Mesh(new THREE.BoxGeometry(12, 0.4, 12),
-  new THREE.MeshBasicMaterial({ visible: false }));
-groundProxy.position.y = 0.0; scene.add(groundProxy);
-let downX = 0, downY = 0;
-renderer.domElement.addEventListener('pointerdown', e => { downX = e.clientX; downY = e.clientY; });
-renderer.domElement.addEventListener('pointerup', e => {
-  if (Math.hypot(e.clientX - downX, e.clientY - downY) > 8) return;
-  ptr.x = (e.clientX / innerWidth) * 2 - 1;
-  ptr.y = -(e.clientY / innerHeight) * 2 + 1;
-  ray.setFromCamera(ptr, camera);
-  const hit = ray.intersectObject(groundProxy, false);
-  if (hit.length) {
-    const now = performance.now() / 1000;
-    if (now - lastTap > 0.8) regrow(hit[0].point.x, hit[0].point.z, now);
+renderer.domElement.addEventListener('pointerdown', (e) => {
+  pointerDownX = e.clientX;
+  pointerDownY = e.clientY;
+  pointerDownTime = performance.now();
+  isDragging = false;
+});
+
+renderer.domElement.addEventListener('pointermove', (e) => {
+  if (Math.hypot(e.clientX - pointerDownX, e.clientY - pointerDownY) > 7) {
+    isDragging = true;
   }
 });
 
-// ---------- camera containment ----------
-function collectFit() {
-  const b = new THREE.Box3().setFromObject(slabGroup);
-  b.expandByPoint(new THREE.Vector3(0, 4.6, 0));
-  return b;
-}
-const fitBox = collectFit();
-function fitCamera() {
-  const center = fitBox.getCenter(new THREE.Vector3());
-  controls.target.copy(center);
-  const dir = new THREE.Vector3(0.08, 0.85, 1).normalize();
-  const corners = [];
-  for (const x of [fitBox.min.x, fitBox.max.x])
-    for (const y of [fitBox.min.y, fitBox.max.y])
-      for (const z of [fitBox.min.z, fitBox.max.z])
-        corners.push(new THREE.Vector3(x, y, z));
-  const probe = new THREE.PerspectiveCamera(camera.fov, camera.aspect, 0.1, 240);
-  probe.position.copy(center).addScaledVector(dir, 10); probe.lookAt(center); probe.updateMatrixWorld();
-  const inv = probe.matrixWorldInverse;
-  let need = 0;
-  const vFov = THREE.MathUtils.degToRad(camera.fov) / 2;
-  const hFov = Math.atan(Math.tan(vFov) * camera.aspect);
-  for (const c of corners) {
-    const p = c.clone().applyMatrix4(inv);
-    const d = -p.z;
-    need = Math.max(need, d + Math.abs(p.y) / Math.tan(vFov), d + Math.abs(p.x) / Math.tan(hFov));
+renderer.domElement.addEventListener('pointerup', (e) => {
+  const dist = Math.hypot(e.clientX - pointerDownX, e.clientY - pointerDownY);
+  const elapsed = performance.now() - pointerDownTime;
+  if (isDragging || dist > 9 || elapsed > 650) return;
+
+  const rect = renderer.domElement.getBoundingClientRect();
+  pointerNDC.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+  pointerNDC.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+
+  raycaster.setFromCamera(pointerNDC, camera);
+  const now = performance.now();
+
+  // 1. Check snag proxies first (Interaction 2)
+  const snagHits = raycaster.intersectObjects(snagHitProxies, false);
+  if (snagHits.length > 0) {
+    const snagIndex = snagHits[0].object.userData.snagIndex;
+    triggerSnagInteraction(snagIndex, now);
+    return;
   }
-  const dist = need * 1.02 + 0.2;
-  camera.position.copy(center).addScaledVector(dir, dist);
-  camera.lookAt(center); controls.update();
-}
-fitCamera();
-addEventListener('resize', () => {
-  camera.aspect = innerWidth / innerHeight; pickFov();
-  renderer.setSize(innerWidth, innerHeight); fitCamera();
+
+  // 2. Check slab / ground proxy (Interaction 1: Regrowth wave bloom)
+  const groundHits = raycaster.intersectObjects([slabMesh, groundProxyMesh], false);
+  if (groundHits.length > 0) {
+    const pt = groundHits[0].point;
+    const clampedDist = Math.hypot(pt.x, pt.z);
+    let tx = pt.x;
+    let tz = pt.z;
+    if (clampedDist > SLAB_RADIUS - 0.35) {
+      const s = (SLAB_RADIUS - 0.35) / clampedDist;
+      tx *= s;
+      tz *= s;
+    }
+    triggerRegrowthWave(tx, tz, 2.55, 6000, now);
+  }
 });
 
-// ---------- animate ----------
-const clock = new THREE.Clock();
-const ndcV = new THREE.Vector3();
-function animate() {
+// ============================================================================
+// RESPONSIVE CAMERA FRAMING: Exact Bounding Box + Safe Header/Footer Clearance
+// ============================================================================
+// Important world bounding box encompassing full slab, every snag, and smoke headroom
+const WORLD_BOUNDS = {
+  radiusX: SLAB_RADIUS + 0.38, // 4.23
+  minY: -0.95,
+  maxY: 3.45,
+  centerY: 0.72
+};
+
+function updateCameraFraming() {
+  const width = container.clientWidth || window.innerWidth;
+  const height = container.clientHeight || window.innerHeight;
+  if (width <= 0 || height <= 0) return;
+
+  renderer.setSize(width, height);
+  const aspect = width / height;
+
+  // Aspect-aware FOV: slightly wider on narrow portrait viewports (e.g. 320x700, 390x844)
+  const fovDeg = aspect < 0.85 ? 42 : (aspect < 1.15 ? 38 : 34);
+  camera.fov = fovDeg;
+  camera.aspect = aspect;
+
+  // Measure actual header and footer safe areas in pixels
+  const headerH = headerEl ? headerEl.getBoundingClientRect().height : 74;
+  const footerH = footerEl ? footerEl.getBoundingClientRect().height : 32;
+
+  const safeTopRatio = Math.min(0.28, (headerH + 8) / height);
+  const safeBottomRatio = Math.min(0.18, (footerH + 8) / height);
+  const usableHeightFraction = Math.max(0.52, 1.0 - safeTopRatio - safeBottomRatio);
+
+  const vFovRad = THREE.MathUtils.degToRad(fovDeg);
+  const effectiveVFovHalf = Math.atan(Math.tan(vFovRad * 0.5) * usableHeightFraction);
+  const effectiveHFovHalf = Math.atan(Math.tan(vFovRad * 0.5) * aspect * (aspect < 1.0 ? 1.30 : 0.90));
+
+  // Project bounding sphere / box of slab + snags + headroom so zero cropping occurs
+  const halfSpanW = WORLD_BOUNDS.radiusX * 1.04;
+  const halfSpanH = (WORLD_BOUNDS.maxY - WORLD_BOUNDS.minY) * 0.54;
+
+  const distForWidth = halfSpanW / Math.tan(effectiveHFovHalf);
+  const distForHeight = halfSpanH / Math.tan(effectiveVFovHalf);
+  let requiredDist = Math.max(distForWidth, distForHeight) + 1.35;
+  if (aspect < 1.0) requiredDist *= 0.70; // Portrait: slab edges bleed so the scene fills the tall frame
+
+  // Vertical target shift so the miniature sits centered in the safe area between header and footer
+  const verticalAsymmetry = (safeTopRatio - safeBottomRatio) * 1.65;
+  let targetY = WORLD_BOUNDS.centerY + verticalAsymmetry;
+  if (aspect < 1.0) targetY += (-55 / Math.max(1, height)) * (2.0 * requiredDist * Math.tan(vFovRad * 0.5)); // raise content into the upper band
+
+  controls.target.set(0, targetY, 0);
+
+  // Slightly elevated three-quarter view
+  const elevAngle = (aspect < 1.0 ? 0.38 : 0.50); // flatter in portrait for vertical presence
+  const azimAngle = 0.58; // classic 3/4 view angle
+  camera.position.set(
+    Math.sin(azimAngle) * Math.cos(elevAngle) * requiredDist,
+    targetY + Math.sin(elevAngle) * requiredDist,
+    Math.cos(azimAngle) * Math.cos(elevAngle) * requiredDist
+  );
+
+  // Lock zoom limits closely around the ideal framing so objects cannot be cropped
+  controls.minDistance = requiredDist * 0.88;
+  controls.maxDistance = requiredDist * 1.15;
+
+  camera.updateProjectionMatrix();
+  controls.update();
+
+  // Update world top clipping plane so rising particles vanish cleanly before the header
+  const headerWorldLimit = WORLD_BOUNDS.maxY + 0.35;
+  topClipPlane.constant = headerWorldLimit;
+}
+
+window.addEventListener('resize', updateCameraFraming);
+updateCameraFraming();
+
+// ============================================================================
+// MAIN ANIMATION LOOP: All Motion Driven by performance.now()
+// ============================================================================
+const tempObj = new THREE.Object3D();
+const flowerObj = new THREE.Object3D();
+
+function animate(now) {
   requestAnimationFrame(animate);
-  const dt = Math.min(clock.getDelta(), 0.3);
-  const now = performance.now() / 1000;
-  // ember crack pulse
-  let glow = 0;
-  for (const e of embers) {
-    const p = 0.9 + Math.sin(now * e.spd + e.phase) * 0.6;
-    e.m.material.emissiveIntensity = p;
-    glow += p;
+
+  const tSec = now * 0.001;
+
+  // 1. Update Active Regrowth Waves (6-second expanding bloom, soil brightening & ember suppression)
+  let soilNeedsUpdate = false;
+  const colAttr = slabGeo.attributes.color;
+
+  for (let w = activeWaves.length - 1; w >= 0; w--) {
+    const wave = activeWaves[w];
+    const elapsed = now - wave.startTime;
+    const progress = Math.min(1, elapsed / wave.durationMs);
+
+    // Expanding wave radius over the first 78% of duration, settling over final 22%
+    const radiusProgress = Math.min(1, elapsed / (wave.durationMs * 0.78));
+    const currentRadius = (1 - Math.pow(1 - radiusProgress, 2.2)) * wave.maxRadius;
+
+    // Update glowing ring visual
+    if (wave.ringVis) {
+      const rScale = Math.max(0.05, currentRadius);
+      wave.ringVis.mesh.scale.set(rScale, 1, rScale);
+      const ringAlpha = Math.sin(radiusProgress * Math.PI) * 0.52 * (1 - progress * 0.5);
+      wave.ringVis.mat.opacity = Math.max(0, ringAlpha);
+    }
+
+    // Soft green wash brightens the charred soil inside the ring
+    for (let v = 0; v < vertexData.length; v++) {
+      const vd = vertexData[v];
+      if (!vd.isTop || vd.greenMix >= 0.999) continue;
+      const dist = Math.hypot(vd.x - wave.cx, vd.z - wave.cz);
+      if (dist < currentRadius) {
+        const edgeSoftness = Math.min(1, (currentRadius - dist) / 0.55);
+        const targetMix = Math.min(1, edgeSoftness * 0.92);
+        if (targetMix > vd.greenMix) {
+          vd.greenMix += (targetMix - vd.greenMix) * 0.14;
+          const r = vd.baseR + (vd.greenR - vd.baseR) * vd.greenMix;
+          const g = vd.baseG + (vd.greenG - vd.baseG) * vd.greenMix;
+          const b = vd.baseB + (vd.greenB - vd.baseB) * vd.greenMix;
+          colAttr.setXYZ(v, r, g, b);
+          soilNeedsUpdate = true;
+        }
+      }
+    }
+
+    // Suppress ember beds inside the expanding regrowth ring
+    for (let e = 0; e < emberBedMeshes.length; e++) {
+      const eb = emberBedMeshes[e];
+      const dist = Math.hypot(eb.spot.x - wave.cx, eb.spot.z - wave.cz);
+      if (dist < currentRadius + 0.35) {
+        const targetSup = Math.min(0.88, Math.max(eb.suppression, (currentRadius + 0.35 - dist) / 0.9));
+        eb.suppression += (targetSup - eb.suppression) * 0.08;
+      }
+    }
+
+    if (progress >= 1) {
+      if (wave.ringVis) {
+        wave.ringVis.inUse = false;
+        wave.ringVis.mesh.visible = false;
+      }
+      activeWaves.splice(w, 1);
+    }
   }
-  emberGlow.intensity = 0.5 + glow / embers.length * 0.35;
-  // smoke drift
-  for (const w of wisps) {
-    w.s.position.x += w.spd * dt;
-    if (w.s.position.x > 8) w.s.position.x = -8;
-    ndcV.copy(w.s.position).project(camera);
-    const inBand = ndcV.y > 0.45 && Math.abs(ndcV.x) < 0.62;
-    const target = inBand ? 0.08 : w.baseOp;
-    w.s.material.opacity += (target - w.s.material.opacity) * Math.min(1, dt * 3);
+
+  if (soilNeedsUpdate) {
+    colAttr.needsUpdate = true;
   }
-  // rising embers
-  for (const s of sparks) {
-    s.s.position.y += s.spd * dt;
-    s.s.position.x += Math.sin(now * s.sway + s.phase) * dt * 0.5;
-    if (s.s.position.y > 9) { s.s.position.y = 0.3; s.s.position.x = rand(-5, 5); }
-    ndcV.copy(s.s.position).project(camera);
-    const inBand = ndcV.y > 0.45 && Math.abs(ndcV.x) < 0.62;
-    const target = inBand ? 0.12 : s.baseOp;
-    s.s.material.opacity += (target - s.s.material.opacity) * Math.min(1, dt * 3);
+
+  // 2. Update Ember Beds & Point Lights (idle pulse + suppression from regrowth)
+  for (let i = 0; i < emberBedMeshes.length; i++) {
+    const eb = emberBedMeshes[i];
+    const pulse = 0.72 + 0.28 * Math.sin(tSec * 2.6 + eb.spot.phase) * Math.cos(tSec * 1.4 - eb.spot.phase);
+    const activeGlow = (1 - eb.suppression * 0.85) * pulse;
+    eb.mat.emissiveIntensity = 1.65 * activeGlow;
+    emberLights[i].light.intensity = 1.35 * activeGlow;
   }
-  // sprouts grow with distance-delayed wave
-  for (const sp of sprouts) {
-    const t = (now - sp.t0 - sp.delay) / 1.1;
-    if (t <= 0) { sp.g.scale.setScalar(0.001); continue; }
-    const k = t >= 1 ? 1 : 1 - Math.pow(1 - t, 3);
-    sp.g.scale.setScalar(Math.max(0.001, k));
-    if (t >= 1) sp.g.rotation.z = Math.sin(now * 1.4 + sp.phase) * 0.02;
+
+  // 3. Update Burnt Snags (Interaction 2: Smolder -> Crumble & Collapse -> Ring of Shoots)
+  for (let i = 0; i < snags.length; i++) {
+    const snag = snags[i];
+    if (snag.state === 'collapsing') {
+      const elapsed = now - snag.stateStartTime;
+      const totalDur = 3000; // ~3 seconds collapse sequence
+      const p = Math.min(1, elapsed / totalDur);
+
+      // Phase A (0 - 650ms): Intense orange smolder & tremor
+      if (elapsed < 650) {
+        const smolderP = elapsed / 650;
+        snag.snagMat.emissiveIntensity = 0.05 + Math.sin(smolderP * Math.PI) * 1.85;
+        const shake = Math.sin(elapsed * 0.07) * 0.035 * smolderP;
+        snag.segments.forEach((seg, sIdx) => {
+          seg.mesh.position.x = seg.restPos.x + shake * (sIdx + 1);
+        });
+      } else {
+        // Phase B (650ms - 2200ms): Segments crumble & collapse into ash mound
+        const fallP = Math.min(1, (elapsed - 650) / 1450);
+        snag.snagMat.emissiveIntensity = Math.max(0.02, (1 - fallP) * 0.9);
+
+        snag.segments.forEach((seg) => {
+          const localP = Math.max(0, Math.min(1, (fallP - seg.delay) / (1 - seg.delay)));
+          // Bounce-settle easing
+          const ease = 1 - Math.pow(1 - localP, 2.6);
+          seg.mesh.position.lerpVectors(seg.restPos, seg.collapsePos, ease);
+          seg.mesh.rotation.x = THREE.MathUtils.lerp(seg.restRot.x, seg.collapseRot.x, ease);
+          seg.mesh.rotation.y = THREE.MathUtils.lerp(seg.restRot.y, seg.collapseRot.y, ease);
+          seg.mesh.rotation.z = THREE.MathUtils.lerp(seg.restRot.z, seg.collapseRot.z, ease);
+          const sScale = 1 - ease * 0.48;
+          seg.mesh.scale.set(sScale, sScale * (1 - ease * 0.35), sScale);
+        });
+
+        // Ash mound swells up smoothly
+        const moundEase = Math.min(1, fallP * 1.25);
+        snag.moundGroup.scale.set(moundEase, moundEase, moundEase);
+
+        // Trigger the ring of fresh shoots around the collapsed snag at 1150ms
+        if (!snag.ringTriggered && elapsed > 1150) {
+          snag.ringTriggered = true;
+          triggerRegrowthWave(snag.def.x, snag.def.z, 1.55, 3800, now);
+          spawnParticleBurst(snag.def.x, snag.rootGroup.position.y + 0.15, snag.def.z, 22, now, false);
+        }
+      }
+
+      if (p >= 1) {
+        snag.state = 'collapsed';
+      }
+    } else if (snag.state === 'restoring') {
+      // Smoothly re-erect snag over 1.6s when user taps a collapsed mound so cycle never locks
+      const elapsed = now - snag.stateStartTime;
+      const p = Math.min(1, elapsed / 1600);
+      const ease = 1 - Math.pow(1 - p, 3);
+
+      snag.segments.forEach((seg) => {
+        seg.mesh.position.lerpVectors(seg.collapsePos, seg.restPos, ease);
+        seg.mesh.rotation.x = THREE.MathUtils.lerp(seg.collapseRot.x, seg.restRot.x, ease);
+        seg.mesh.rotation.y = THREE.MathUtils.lerp(seg.collapseRot.y, seg.restRot.y, ease);
+        seg.mesh.rotation.z = THREE.MathUtils.lerp(seg.collapseRot.z, seg.restRot.z, ease);
+        const sScale = 0.52 + ease * 0.48;
+        seg.mesh.scale.set(sScale, sScale, sScale);
+      });
+
+      const mScale = Math.max(0.001, 1 - ease);
+      snag.moundGroup.scale.set(mScale, mScale, mScale);
+
+      if (p >= 1) {
+        snag.moundGroup.visible = false;
+        snag.state = 'standing';
+      }
+    } else if (snag.state === 'standing') {
+      // Subtle ambient ember shimmer on standing snag fissures
+      snag.snagMat.emissiveIntensity = 0.025 + 0.02 * Math.sin(tSec * 1.9 + snag.def.id);
+    }
   }
+
+  // 4. Update Flora Instanced Meshes (Per-shoot pop-and-sway growth + gentle breeze)
+  for (let i = 0; i < FLORA_COUNT; i++) {
+    const item = floraItems[i];
+
+    if (item.activated && now >= item.activationTime) {
+      const growElapsed = now - item.activationTime;
+      const growDur = 1350; // per-shoot pop duration
+      const u = Math.min(1, growElapsed / growDur);
+      // Elastic spring overshoot for unmistakable tactile pop at 320px
+      const spring = u < 1
+        ? 1 - Math.pow(1 - u, 2.5) * Math.cos(u * Math.PI * 2.2)
+        : 1.0;
+      item.growth = Math.max(0.001, spring);
+    } else {
+      item.growth = 0;
+    }
+
+    if (item.growth <= 0.001) {
+      tempObj.position.set(0, -10, 0);
+      tempObj.scale.set(0, 0, 0);
+      tempObj.updateMatrix();
+      grassMesh.setMatrixAt(i, tempObj.matrix);
+      shootMesh.setMatrixAt(i, tempObj.matrix);
+      if (item.flowerIndex !== -1) {
+        flowerMesh.setMatrixAt(item.flowerIndex, tempObj.matrix);
+      }
+      continue;
+    }
+
+    // Gentle continuous breeze sway + lively pop sway during emergence
+    const emergeSway = item.growth < 0.99 ? Math.sin((now - item.activationTime) * 0.014) * 0.22 * (1 - item.growth) : 0;
+    const breezeX = Math.sin(tSec * item.swaySpeed + item.swayPhase + item.x * 0.7) * 0.11 + emergeSway;
+    const breezeZ = Math.cos(tSec * (item.swaySpeed * 0.85) + item.swayPhase + item.z * 0.7) * 0.09;
+
+    const s = item.scaleBase * item.growth;
+    tempObj.position.set(item.x, item.y, item.z);
+    tempObj.rotation.set(item.tiltX + breezeX, item.rotY, item.tiltZ + breezeZ);
+    tempObj.scale.set(s, s, s);
+    tempObj.updateMatrix();
+
+    grassMesh.setMatrixAt(i, tempObj.matrix);
+    shootMesh.setMatrixAt(i, tempObj.matrix);
+
+    if (item.flowerIndex !== -1) {
+      flowerObj.position.set(item.x, item.y, item.z);
+      flowerObj.rotation.set(item.tiltX + breezeX * 1.25, item.rotY + 0.5, item.tiltZ + breezeZ * 1.25);
+      flowerObj.scale.set(s, s, s);
+      flowerObj.updateMatrix();
+      flowerMesh.setMatrixAt(item.flowerIndex, flowerObj.matrix);
+    }
+  }
+  grassMesh.instanceMatrix.needsUpdate = true;
+  shootMesh.instanceMatrix.needsUpdate = true;
+  flowerMesh.instanceMatrix.needsUpdate = true;
+
+  // 5. Update Hundreds of Continuous Rising Embers
+  for (let i = 0; i < EMBER_COUNT; i++) {
+    const ep = emberParticles[i];
+    const eb = emberBedMeshes[ep.spotIdx];
+    const suppression = eb ? eb.suppression : 0;
+
+    // Continuous cycle phase in [0, 1]
+    const life = (tSec * ep.speed + ep.phase) % 1.0;
+    const fadeIn = Math.min(1, life * 5.0);
+    const fadeOut = Math.max(0, 1 - Math.pow(life, 1.6));
+    const visFactor = (1 - suppression * 0.82);
+
+    const ex = ep.ox + Math.sin(tSec * ep.driftFreq + ep.phase * 6.28) * ep.driftAmp * life;
+    const ez = ep.oz + Math.cos(tSec * (ep.driftFreq * 0.8) + ep.phase * 6.28) * ep.driftAmp * life;
+    const ey = ep.oy + life * ep.maxHeight;
+
+    const sc = ep.scale * fadeIn * fadeOut * visFactor;
+    tempObj.position.set(ex, ey, ez);
+    tempObj.rotation.set(tSec * 2.0 + i, tSec * 1.5, 0);
+    tempObj.scale.set(sc, sc, sc);
+    tempObj.updateMatrix();
+    emberInst.setMatrixAt(i, tempObj.matrix);
+  }
+  emberInst.instanceMatrix.needsUpdate = true;
+
+  // 6. Update Burst Sparks & Pollen Particles
+  let burstDirty = false;
+  for (let i = 0; i < BURST_COUNT; i++) {
+    const bp = burstParticles[i];
+    if (!bp.active) continue;
+    burstDirty = true;
+    const elapsed = now - bp.startTime;
+    if (elapsed >= bp.duration) {
+      bp.active = false;
+      tempObj.scale.set(0, 0, 0);
+      tempObj.updateMatrix();
+      burstInst.setMatrixAt(i, tempObj.matrix);
+      continue;
+    }
+    const p = elapsed / bp.duration;
+    const dt = elapsed * 0.001;
+    const bx = bp.ox + bp.vx * dt + Math.sin(dt * 5 + i) * 0.06;
+    const by = bp.oy + bp.vy * dt - (bp.isGreenPollen ? 0.12 : 0.25) * dt * dt;
+    const bz = bp.oz + bp.vz * dt + Math.cos(dt * 4 + i) * 0.06;
+    const sc = bp.scale * Math.sin(p * Math.PI);
+
+    tempObj.position.set(bx, Math.min(3.1, by), bz);
+    tempObj.rotation.set(dt * 4, dt * 3, 0);
+    tempObj.scale.set(sc, sc, sc);
+    tempObj.updateMatrix();
+    burstInst.setMatrixAt(i, tempObj.matrix);
+  }
+  if (burstDirty) {
+    burstInst.instanceMatrix.needsUpdate = true;
+  }
+
+  // 7. Update Low Hanging Smoke Haze & Collapse Smoke Wisps
+  for (let i = 0; i < SMOKE_COUNT; i++) {
+    const sp = smokePuffs[i];
+    if (!sp.isBurstSmoke) {
+      // Ambient wandering low smoke wisps
+      const driftX = sp.ox + Math.sin(tSec * sp.speed + sp.phase) * 0.45;
+      const driftZ = sp.oz + Math.cos(tSec * (sp.speed * 0.85) + sp.phase) * 0.45;
+      const driftY = sp.oy + Math.sin(tSec * 0.6 + sp.phase) * 0.12;
+      const pulse = 0.85 + 0.2 * Math.sin(tSec * 0.9 + sp.phase);
+
+      tempObj.position.set(driftX, driftY, driftZ);
+      tempObj.rotation.set(0, tSec * 0.12 + sp.phase, 0);
+      tempObj.scale.set(sp.scaleX * pulse, sp.scaleY, sp.scaleZ * pulse);
+      tempObj.updateMatrix();
+      smokeInst.setMatrixAt(i, tempObj.matrix);
+    } else {
+      if (!sp.active) {
+        tempObj.scale.set(0, 0, 0);
+        tempObj.updateMatrix();
+        smokeInst.setMatrixAt(i, tempObj.matrix);
+        continue;
+      }
+      const elapsed = now - sp.startTime;
+      if (elapsed >= sp.duration) {
+        sp.active = false;
+        tempObj.scale.set(0, 0, 0);
+        tempObj.updateMatrix();
+        smokeInst.setMatrixAt(i, tempObj.matrix);
+        continue;
+      }
+      const p = elapsed / sp.duration;
+      const dt = elapsed * 0.001;
+      const sx = sp.ox + sp.vx * dt;
+      const sy = Math.min(2.9, sp.oy + sp.vy * dt);
+      const sz = sp.oz + sp.vz * dt;
+      const env = Math.sin(p * Math.PI) * (1 + p * 0.8);
+
+      tempObj.position.set(sx, sy, sz);
+      tempObj.rotation.set(dt * 0.5, dt * 0.8, 0);
+      tempObj.scale.set(0.75 * env, 0.5 * env, 0.75 * env);
+      tempObj.updateMatrix();
+      smokeInst.setMatrixAt(i, tempObj.matrix);
+    }
+  }
+  smokeInst.instanceMatrix.needsUpdate = true;
+
   controls.update();
   renderer.render(scene, camera);
 }
-animate();
+
+requestAnimationFrame(animate);
 </script>
 </body>
 </html>
