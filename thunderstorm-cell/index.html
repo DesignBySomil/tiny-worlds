@@ -188,14 +188,14 @@
     container.appendChild(renderer.domElement);
 
     const scene = new THREE.Scene();
-    scene.fog = new THREE.FogExp2(0x8ba2b8, 0.012);
+    scene.fog = new THREE.FogExp2(0x8ba2b8, 0.009);
 
-    const camera = new THREE.PerspectiveCamera(36, window.innerWidth / window.innerHeight, 0.5, 120);
+    const camera = new THREE.PerspectiveCamera(40, window.innerWidth / window.innerHeight, 0.5, 120);
     const controls = new OrbitControls(camera, renderer.domElement);
     controls.enableDamping = true;
     controls.dampingFactor = 0.065;
     controls.enablePan = false;
-    controls.minPolarAngle = THREE.MathUtils.degToRad(34);
+    controls.minPolarAngle = THREE.MathUtils.degToRad(36);
     controls.maxPolarAngle = THREE.MathUtils.degToRad(74);
     controls.minAzimuthAngle = THREE.MathUtils.degToRad(-55);
     controls.maxAzimuthAngle = THREE.MathUtils.degToRad(55);
@@ -208,15 +208,15 @@
     scene.add(hemiLight);
 
     const sunBreakLight = new THREE.DirectionalLight(0xfff1d0, 2.75);
-    sunBreakLight.position.set(11.5, 15.0, 9.5);
+    sunBreakLight.position.set(11.5, 17.5, 9.5);
     sunBreakLight.castShadow = true;
     sunBreakLight.shadow.mapSize.set(1024, 1024);
     sunBreakLight.shadow.camera.near = 2;
-    sunBreakLight.shadow.camera.far = 36;
-    const sc = 7.2;
+    sunBreakLight.shadow.camera.far = 42;
+    const sc = 8.5;
     sunBreakLight.shadow.camera.left = -sc;
     sunBreakLight.shadow.camera.right = sc;
-    sunBreakLight.shadow.camera.top = sc;
+    sunBreakLight.shadow.camera.top = sc + 3.5;
     sunBreakLight.shadow.camera.bottom = -sc;
     sunBreakLight.shadow.bias = -0.0008;
     sunBreakLight.shadow.normalBias = 0.025;
@@ -224,7 +224,7 @@
 
     // Silver-lining rim light from opposite upper side so cloud is sculpted & luminous
     const rimLight = new THREE.DirectionalLight(0xcce6ff, 1.45);
-    rimLight.position.set(-10.0, 12.0, -8.5);
+    rimLight.position.set(-10.0, 14.0, -8.5);
     scene.add(rimLight);
 
     // Soft uplift bounce light so under-cloud is never a murky black blob
@@ -233,21 +233,21 @@
     scene.add(bounceLight);
 
     // Internal cloud point light (idle rumble + strike burst)
-    const cloudInternalLight = new THREE.PointLight(0x9bd2ff, 0.5, 14, 1.4);
-    cloudInternalLight.position.set(-0.6, 5.2, -0.4);
+    const cloudInternalLight = new THREE.PointLight(0x9bd2ff, 0.5, 18, 1.3);
+    cloudInternalLight.position.set(-0.5, 5.8, -0.3);
     worldRoot.add(cloudInternalLight);
 
     // Scene-wide lightning flash light
-    const strikeFlashLight = new THREE.PointLight(0xd8ecff, 0.0, 28, 1.1);
+    const strikeFlashLight = new THREE.PointLight(0xd8ecff, 0.0, 32, 1.1);
     strikeFlashLight.position.set(-0.5, 3.8, 0.2);
     worldRoot.add(strikeFlashLight);
 
     // --- TERRAIN HEIGHT FUNCTION ---
-    // Pond centered around (1.25, 0.95)
-    const POND_X = 1.25;
-    const POND_Z = 0.95;
-    const POND_RX = 1.55;
-    const POND_RZ = 1.22;
+    // Pond centered around (1.15, 0.85)
+    const POND_X = 1.15;
+    const POND_Z = 0.85;
+    const POND_RX = 1.48;
+    const POND_RZ = 1.16;
     const WATER_Y = 0.05;
 
     function getPondFactor(x, z) {
@@ -279,7 +279,7 @@
       }
 
       // Soft bevel near slab perimeter
-      const maxR = 4.35;
+      const maxR = 4.15;
       if (distEdge > maxR - 0.5) {
         const t = Math.min(1, (distEdge - (maxR - 0.5)) / 0.5);
         h = THREE.MathUtils.lerp(h, 0.02, t * t);
@@ -288,32 +288,32 @@
     }
 
     // --- DIORAMA SLAB & TERRAIN ---
-    const SLAB_RADIUS = 4.35;
+    const SLAB_RADIUS = 4.15;
     const slabGroup = new THREE.Group();
     worldRoot.add(slabGroup);
 
     // Base soil/stone plinth with rich bevel look
-    const plinthGeo = new THREE.CylinderGeometry(SLAB_RADIUS, SLAB_RADIUS * 0.95, 0.9, 64, 1);
+    const plinthGeo = new THREE.CylinderGeometry(SLAB_RADIUS, SLAB_RADIUS * 0.95, 0.95, 64, 1);
     const plinthMat = new THREE.MeshStandardMaterial({
       color: 0x52453b,
       roughness: 0.85,
       metalness: 0.05
     });
     const plinthMesh = new THREE.Mesh(plinthGeo, plinthMat);
-    plinthMesh.position.y = -0.45;
+    plinthMesh.position.y = -0.475;
     plinthMesh.receiveShadow = true;
     plinthMesh.castShadow = true;
     slabGroup.add(plinthMesh);
 
     // Darker bottom rim ring for miniature pedestal finish
-    const rimGeo = new THREE.CylinderGeometry(SLAB_RADIUS * 0.96, SLAB_RADIUS * 0.92, 0.22, 64);
+    const rimGeo = new THREE.CylinderGeometry(SLAB_RADIUS * 0.96, SLAB_RADIUS * 0.92, 0.24, 64);
     const rimMat = new THREE.MeshStandardMaterial({
       color: 0x362d26,
       roughness: 0.75,
       metalness: 0.1
     });
     const rimMesh = new THREE.Mesh(rimGeo, rimMat);
-    rimMesh.position.y = -0.88;
+    rimMesh.position.y = -0.94;
     slabGroup.add(rimMesh);
 
     // Sculpted top prairie surface
@@ -464,16 +464,16 @@
 
     const rockPlacements = [
       // Pond border stones
-      [POND_X - 1.48, POND_Z - 0.3, 0.9, 0.55, 0.8],
-      [POND_X - 1.32, POND_Z - 0.62, 0.6, 0.45, 0.55],
-      [POND_X + 1.38, POND_Z - 0.48, 0.85, 0.5, 0.75],
-      [POND_X + 0.75, POND_Z + 1.08, 0.7, 0.42, 0.65],
+      [POND_X - 1.42, POND_Z - 0.3, 0.9, 0.55, 0.8],
+      [POND_X - 1.26, POND_Z - 0.62, 0.6, 0.45, 0.55],
+      [POND_X + 1.32, POND_Z - 0.48, 0.85, 0.5, 0.75],
+      [POND_X + 0.72, POND_Z + 1.04, 0.7, 0.42, 0.65],
       // Prairie field boulders
-      [-2.35, 1.35, 1.25, 0.78, 1.1],
-      [-2.05, 1.62, 0.72, 0.52, 0.68],
-      [-2.75, -1.25, 1.35, 0.85, 1.15],
-      [2.55, -1.65, 1.1, 0.68, 0.95],
-      [0.35, -2.85, 1.4, 0.8, 1.2]
+      [-2.25, 1.30, 1.25, 0.78, 1.1],
+      [-1.95, 1.55, 0.72, 0.52, 0.68],
+      [-2.62, -1.20, 1.35, 0.85, 1.15],
+      [2.42, -1.55, 1.1, 0.68, 0.95],
+      [0.35, -2.72, 1.4, 0.8, 1.2]
     ];
 
     rockPlacements.forEach(([rx, rz, sx, sy, sz]) => {
@@ -500,11 +500,11 @@
     const capGeo = new THREE.ConeGeometry(0.072, 0.09, 10);
 
     const postCoords = [
-      { x: -2.85, z: 0.55, tiltX: 0.06, tiltZ: -0.08, rotY: 0.2 },
-      { x: -1.95, z: 0.05, tiltX: -0.04, tiltZ: 0.05, rotY: 0.8 },
-      { x: -1.05, z: -0.42, tiltX: 0.09, tiltZ: 0.11, rotY: 1.4 },
-      { x: -0.12, z: -0.88, tiltX: -0.05, tiltZ: -0.04, rotY: 2.1 },
-      { x: 1.65, z: -1.45, tiltX: 0.12, tiltZ: -0.09, rotY: 0.5 }
+      { x: -2.72, z: 0.52, tiltX: 0.06, tiltZ: -0.08, rotY: 0.2 },
+      { x: -1.85, z: 0.04, tiltX: -0.04, tiltZ: 0.05, rotY: 0.8 },
+      { x: -0.98, z: -0.40, tiltX: 0.09, tiltZ: 0.11, rotY: 1.4 },
+      { x: -0.10, z: -0.85, tiltX: -0.05, tiltZ: -0.04, rotY: 2.1 },
+      { x: 1.58, z: -1.38, tiltX: 0.12, tiltZ: -0.09, rotY: 0.5 }
     ];
 
     const postTops = [];
@@ -581,7 +581,7 @@
 
     let gIdx = 0;
     while (gIdx < GRASS_COUNT) {
-      const r = Math.sqrt(rand()) * (SLAB_RADIUS - 0.32);
+      const r = Math.sqrt(rand()) * (SLAB_RADIUS - 0.30);
       const theta = rand() * Math.PI * 2;
       const gx = Math.cos(theta) * r;
       const gz = Math.sin(theta) * r;
@@ -645,7 +645,7 @@
 
     let fIdx = 0;
     while (fIdx < FLOWER_COUNT) {
-      const r = Math.sqrt(rand()) * (SLAB_RADIUS - 0.48);
+      const r = Math.sqrt(rand()) * (SLAB_RADIUS - 0.44);
       const theta = rand() * Math.PI * 2;
       const fx = Math.cos(theta) * r;
       const fz = Math.sin(theta) * r;
@@ -671,12 +671,13 @@
     flowerInst.instanceMatrix.needsUpdate = true;
     flowerInst.instanceColor.needsUpdate = true;
 
-    // --- CUMULONIMBUS STORM CELL (Towering Anvil Top, Sculpted Puff Cluster, Ragged Base) ---
+    // --- CUMULONIMBUS STORM CELL (Towering Vertical Stack, Anvil Top & Lower Ragged Base) ---
     const cloudGroup = new THREE.Group();
-    const CLOUD_CENTER_X = -0.55;
-    const CLOUD_CENTER_Y = 5.15;
-    const CLOUD_CENTER_Z = -0.35;
-    cloudGroup.position.set(CLOUD_CENTER_X, CLOUD_CENTER_Y, CLOUD_CENTER_Z);
+    const CLOUD_CENTER_X = -0.42;
+    let currentCloudCenterY = 5.25;
+    let currentCloudBaseWorldY = 2.95;
+    const CLOUD_CENTER_Z = -0.28;
+    cloudGroup.position.set(CLOUD_CENTER_X, currentCloudCenterY, CLOUD_CENTER_Z);
     worldRoot.add(cloudGroup);
 
     // Three cohesive tonal materials so the cloud reads as sculpted silver-gray & slate-blue (never a black blob)
@@ -705,7 +706,6 @@
 
     // Sculpted low-poly beveled puff geometry
     const puffGeo = new THREE.IcosahedronGeometry(1.0, 2);
-    // Subtle organic facet displacement on puff template
     const pAttr = puffGeo.attributes.position;
     for (let i = 0; i < pAttr.count; i++) {
       const vx = pAttr.getX(i);
@@ -716,37 +716,46 @@
     }
     puffGeo.computeVertexNormals();
 
-    // Spec: [x, y, z, sx, sy, sz, tier (0=crown/anvil, 1=mid, 2=base)]
+    // Spec: [x, y, z, sx, sy, sz, tier (0=crown/anvil, 1=mid tower, 2=ragged base)]
+    // Vertically towering cumulonimbus column spanning y = -1.95 to +3.10 in local space
     const puffSpecs = [
-      // Wide Flat Anvil Crown & Overshooting Top (y: +1.3 to +2.2)
-      [0.0, 1.95, 0.0, 1.35, 0.62, 1.25, 0],
-      [0.35, 1.65, 0.1, 2.45, 0.52, 1.95, 0],
-      [-1.25, 1.58, -0.15, 1.75, 0.48, 1.55, 0],
-      [1.75, 1.62, 0.28, 1.85, 0.45, 1.5, 0], // Forward anvil shelf
-      [2.65, 1.66, 0.42, 1.25, 0.36, 1.15, 0], // Anvil tip
-      [0.15, 1.55, 1.22, 1.55, 0.45, 1.15, 0],
-      [-0.25, 1.55, -1.18, 1.6, 0.46, 1.15, 0],
-      [-2.1, 1.52, 0.1, 1.15, 0.38, 1.05, 0],
+      // Overshooting Top & Wide Flat Anvil Crown (local y: +2.05 to +2.85)
+      [-0.05, 2.72, 0.0, 1.38, 0.68, 1.28, 0],
+      [0.32, 2.38, 0.08, 2.35, 0.56, 1.92, 0],
+      [-1.18, 2.30, -0.14, 1.72, 0.52, 1.52, 0],
+      [1.68, 2.35, 0.26, 1.82, 0.48, 1.48, 0], // Forward anvil shelf
+      [2.52, 2.40, 0.38, 1.24, 0.38, 1.12, 0], // Anvil tip
+      [0.14, 2.26, 1.18, 1.52, 0.48, 1.14, 0],
+      [-0.22, 2.26, -1.14, 1.56, 0.48, 1.14, 0],
+      [-1.98, 2.22, 0.10, 1.15, 0.40, 1.04, 0],
 
-      // Sculpted Boiling Mid-Tower Billows (y: +0.1 to +1.15)
-      [-0.55, 0.95, 0.25, 1.45, 1.05, 1.35, 1],
-      [0.68, 0.98, -0.22, 1.42, 1.02, 1.3, 1],
-      [0.05, 0.72, 0.85, 1.28, 0.92, 1.15, 1],
-      [-0.2, 0.78, -0.82, 1.32, 0.95, 1.18, 1],
-      [-1.35, 0.58, -0.1, 1.15, 0.82, 1.08, 1],
-      [1.28, 0.65, 0.35, 1.18, 0.85, 1.05, 1],
-      [0.42, 0.32, 0.95, 1.1, 0.75, 0.95, 1],
-      [-0.85, 0.28, 0.72, 1.08, 0.72, 0.95, 1],
+      // Upper-Mid Convective Turrets (local y: +1.05 to +1.85)
+      [-0.45, 1.68, 0.22, 1.48, 1.08, 1.36, 0],
+      [0.62, 1.72, -0.18, 1.45, 1.05, 1.32, 0],
+      [0.08, 1.42, 0.82, 1.32, 0.96, 1.18, 1],
+      [-0.22, 1.46, -0.78, 1.35, 0.98, 1.20, 1],
+      [1.18, 1.38, 0.28, 1.22, 0.88, 1.08, 1],
+      [-1.22, 1.32, -0.12, 1.18, 0.86, 1.08, 1],
 
-      // Darker Ragged Rain Base & Mammatus Under-puffs (y: -0.95 to -0.25)
-      [0.0, -0.45, 0.0, 2.05, 0.52, 1.72, 2],
-      [-1.18, -0.58, 0.22, 1.35, 0.46, 1.22, 2],
-      [1.12, -0.55, -0.18, 1.35, 0.46, 1.2, 2],
-      [0.25, -0.62, 0.88, 1.22, 0.42, 1.08, 2],
-      [-0.35, -0.6, -0.82, 1.25, 0.44, 1.08, 2],
-      [-0.65, -0.82, -0.15, 0.95, 0.36, 0.9, 2],
-      [0.62, -0.84, 0.25, 0.92, 0.35, 0.88, 2],
-      [0.0, -0.88, 0.42, 0.82, 0.32, 0.78, 2]
+      // Lower-Mid Boiling Column (local y: -0.15 to +0.85)
+      [-0.52, 0.58, 0.24, 1.46, 1.06, 1.35, 1],
+      [0.64, 0.62, -0.20, 1.42, 1.02, 1.30, 1],
+      [0.05, 0.34, 0.84, 1.28, 0.94, 1.16, 1],
+      [-0.18, 0.38, -0.80, 1.32, 0.96, 1.18, 1],
+      [-1.30, 0.18, -0.08, 1.18, 0.84, 1.08, 1],
+      [1.24, 0.24, 0.32, 1.20, 0.86, 1.06, 1],
+      [0.38, -0.12, 0.92, 1.12, 0.78, 0.96, 1],
+      [-0.82, -0.16, 0.70, 1.10, 0.76, 0.96, 1],
+
+      // Darker Ragged Rain Base & Mammatus Under-puffs (local y: -1.75 to -0.85)
+      [0.0, -0.98, 0.0, 2.08, 0.58, 1.75, 2],
+      [-1.15, -1.12, 0.22, 1.38, 0.50, 1.24, 2],
+      [1.10, -1.10, -0.18, 1.38, 0.50, 1.22, 2],
+      [0.24, -1.18, 0.88, 1.24, 0.46, 1.10, 2],
+      [-0.34, -1.16, -0.82, 1.26, 0.48, 1.10, 2],
+      [-0.62, -1.42, -0.15, 0.98, 0.40, 0.92, 2],
+      [0.60, -1.44, 0.24, 0.95, 0.38, 0.90, 2],
+      [0.0, -1.52, 0.40, 0.86, 0.36, 0.82, 2]
     ];
 
     const cloudPuffs = [];
@@ -772,17 +781,17 @@
     });
 
     // --- RAIN CURTAIN & FALLING RAIN STREAKS (Instanced) ---
-    // Soft translucent rain shaft column under the cloud base
-    const shaftGeo = new THREE.CylinderGeometry(1.55, 1.95, 4.35, 28, 1, true);
+    // Soft translucent rain shaft column under the cloud base (unit height, dynamically scaled to cloud base)
+    const shaftGeo = new THREE.CylinderGeometry(1.52, 1.92, 1.0, 28, 1, true);
     const shaftMat = new THREE.MeshBasicMaterial({
       color: 0xc8e2f8,
       transparent: true,
-      opacity: 0.11,
+      opacity: 0.12,
       side: THREE.DoubleSide,
       depthWrite: false
     });
     const rainShaftMesh = new THREE.Mesh(shaftGeo, shaftMat);
-    rainShaftMesh.position.set(CLOUD_CENTER_X + 0.25, 2.25, CLOUD_CENTER_Z + 0.2);
+    rainShaftMesh.position.set(CLOUD_CENTER_X + 0.25, 1.65, CLOUD_CENTER_Z + 0.2);
     rainShaftMesh.rotation.z = -0.11; // Wind slant toward the pond
     worldRoot.add(rainShaftMesh);
 
@@ -800,12 +809,12 @@
 
     const rainDrops = [];
     for (let i = 0; i < RAIN_COUNT; i++) {
-      const r = Math.sqrt(rand()) * 1.85;
+      const r = Math.sqrt(rand()) * 1.82;
       const a = rand() * Math.PI * 2;
       rainDrops.push({
         ox: Math.cos(a) * r,
         oz: Math.sin(a) * r,
-        y: randRange(0.1, 4.35),
+        y: randRange(0.1, 4.0),
         speed: randRange(6.2, 8.8),
         len: randRange(0.75, 1.35)
       });
@@ -830,8 +839,8 @@
         mesh: rMesh,
         mat: rMat,
         phase: i / IDLE_RIPPLE_COUNT,
-        x: POND_X + randRange(-0.85, 0.45),
-        z: POND_Z + randRange(-0.65, 0.45)
+        x: POND_X + randRange(-0.82, 0.42),
+        z: POND_Z + randRange(-0.62, 0.42)
       });
     }
 
@@ -883,16 +892,16 @@
     }
 
     const strikeTargets = [
-      { x: -0.95, z: -0.15 },
-      { x: -1.45, z: 0.48 },
-      { x: -0.25, z: -0.65 },
-      { x: -0.65, z: 0.55 }
+      { x: -0.92, z: -0.15 },
+      { x: -1.40, z: 0.45 },
+      { x: -0.24, z: -0.62 },
+      { x: -0.62, z: 0.52 }
     ];
     let strikeCounter = 0;
     let strikeState = {
       active: false,
       startTime: -99999,
-      targetX: -0.95,
+      targetX: -0.92,
       targetY: 0.2,
       targetZ: -0.15
     };
@@ -926,9 +935,9 @@
 
       // Build jagged bolt path from cloud base down to ground target
       const startPt = new THREE.Vector3(
-        CLOUD_CENTER_X + randRange(-0.4, 0.4),
-        CLOUD_CENTER_Y - 0.65,
-        CLOUD_CENTER_Z + randRange(-0.4, 0.4)
+        CLOUD_CENTER_X + randRange(-0.38, 0.38),
+        currentCloudBaseWorldY + 0.15,
+        CLOUD_CENTER_Z + randRange(-0.38, 0.38)
       );
       const endPt = new THREE.Vector3(target.x, gy + 0.02, target.z);
 
@@ -955,9 +964,9 @@
       let f1Prev = fork1Start;
       for (let i = 0; i < 4; i++) {
         const fNext = f1Prev.clone().add(new THREE.Vector3(
-          randRange(-0.45, -0.15),
-          randRange(-0.55, -0.35),
-          randRange(-0.35, 0.35)
+          randRange(-0.42, -0.14),
+          randRange(-0.48, -0.30),
+          randRange(-0.32, 0.32)
         ));
         placeSegment(boltSegments[sIdx++], f1Prev, fNext, 0.026 * (1 - i * 0.2));
         f1Prev = fNext;
@@ -968,9 +977,9 @@
       let f2Prev = fork2Start;
       for (let i = 0; i < 4; i++) {
         const fNext = f2Prev.clone().add(new THREE.Vector3(
-          randRange(0.15, 0.45),
-          randRange(-0.5, -0.3),
-          randRange(-0.35, 0.35)
+          randRange(0.14, 0.42),
+          randRange(-0.44, -0.26),
+          randRange(-0.32, 0.32)
         ));
         placeSegment(boltSegments[sIdx++], f2Prev, fNext, 0.024 * (1 - i * 0.2));
         f2Prev = fNext;
@@ -1028,7 +1037,7 @@
       if (hitPoint) {
         const dx = hitPoint.x - POND_X;
         const dz = hitPoint.z - POND_Z;
-        const maxD = 0.65;
+        const maxD = 0.62;
         const d = Math.sqrt(dx * dx + dz * dz);
         if (d > maxD) {
           sx = POND_X + (dx / d) * maxD;
@@ -1063,9 +1072,9 @@
     // --- GENEROUS INVISIBLE PROXY TARGETS FOR RAYCASTING (Easy tapping at 320px) ---
     const proxyMat = new THREE.MeshBasicMaterial({ visible: false });
 
-    const cloudProxy = new THREE.Mesh(new THREE.SphereGeometry(2.85, 16, 12), proxyMat);
-    cloudProxy.scale.set(1.35, 0.88, 1.15);
-    cloudProxy.position.set(CLOUD_CENTER_X + 0.2, CLOUD_CENTER_Y + 0.45, CLOUD_CENTER_Z);
+    const cloudProxy = new THREE.Mesh(new THREE.SphereGeometry(2.95, 16, 12), proxyMat);
+    cloudProxy.scale.set(1.32, 1.15, 1.15);
+    cloudProxy.position.set(CLOUD_CENTER_X + 0.2, currentCloudCenterY + 0.55, CLOUD_CENTER_Z);
     cloudProxy.userData.targetType = 'cloud';
     worldRoot.add(cloudProxy);
 
@@ -1122,72 +1131,166 @@
       }
     });
 
-    // --- RESPONSIVE CAMERA FRAMING WITH SAFE HEADER/FOOTER CLEARANCE ---
-    // Bounding envelope of all important geometry (slab plinth, full cloud anvil top, rain curtain, splash height)
-    const BOUNDS_MIN = new THREE.Vector3(-4.55, -1.05, -4.55);
-    const BOUNDS_MAX = new THREE.Vector3(4.55, 7.65, 4.55);
-    const boundsCorners = [];
-    for (let ix = 0; ix <= 1; ix++) {
-      for (let iy = 0; iy <= 1; iy++) {
-        for (let iz = 0; iz <= 1; iz++) {
-          boundsCorners.push(new THREE.Vector3(
-            ix ? BOUNDS_MAX.x : BOUNDS_MIN.x,
-            iy ? BOUNDS_MAX.y : BOUNDS_MIN.y,
-            iz ? BOUNDS_MAX.z : BOUNDS_MIN.z
-          ));
-        }
+    // --- ASPECT-ADAPTIVE VERTICAL PROPORTIONS & EXACT BOUNDING-BOX CAMERA FIT ---
+    // Collect representative 3D sample points across the slab perimeter, plinth base, rain curtain, and cloud crown
+    const keyWorldSamples = [];
+    const tempCorner = new THREE.Vector3();
+
+    function rebuildKeySamples() {
+      keyWorldSamples.length = 0;
+      // 16 points around the slab top and plinth bottom rim
+      for (let i = 0; i < 16; i++) {
+        const ang = (i / 16) * Math.PI * 2;
+        const sx = Math.cos(ang) * SLAB_RADIUS;
+        const sz = Math.sin(ang) * SLAB_RADIUS;
+        keyWorldSamples.push(new THREE.Vector3(sx, 0.35, sz));
+        keyWorldSamples.push(new THREE.Vector3(sx * 0.96, -1.06, sz * 0.96));
+      }
+      // Every cloud puff's outer extents in world space
+      const cScaleX = cloudGroup.scale.x;
+      const cScaleY = cloudGroup.scale.y;
+      const cScaleZ = cloudGroup.scale.z;
+      for (let i = 0; i < cloudPuffs.length; i++) {
+        const cp = cloudPuffs[i];
+        const wx = CLOUD_CENTER_X + cp.baseX * cScaleX;
+        const wy = currentCloudCenterY + cp.baseY * cScaleY;
+        const wz = CLOUD_CENTER_Z + cp.baseZ * cScaleZ;
+        const rx = cp.sx * cScaleX * 1.04;
+        const ry = cp.sy * cScaleY * 1.06;
+        const rz = cp.sz * cScaleZ * 1.04;
+        keyWorldSamples.push(new THREE.Vector3(wx + rx, wy, wz));
+        keyWorldSamples.push(new THREE.Vector3(wx - rx, wy, wz));
+        keyWorldSamples.push(new THREE.Vector3(wx, wy + ry, wz));
+        keyWorldSamples.push(new THREE.Vector3(wx, wy - ry, wz));
+        keyWorldSamples.push(new THREE.Vector3(wx, wy, wz + rz));
+        keyWorldSamples.push(new THREE.Vector3(wx, wy, wz - rz));
       }
     }
 
     function fitCameraToScene() {
-      const vw = window.innerWidth;
-      const vh = window.innerHeight;
+      const vw = Math.max(1, window.innerWidth);
+      const vh = Math.max(1, window.innerHeight);
       renderer.setSize(vw, vh);
 
-      const aspect = vw / Math.max(1, vh);
-      // Aspect-aware FOV (wider on portrait so towering cloud + slab fit comfortably)
-      camera.fov = aspect < 1.0 ? 42 : 35;
-      camera.aspect = aspect;
-
-      // Measure actual header and footer DOM heights
       const headerH = headerEl ? headerEl.getBoundingClientRect().height : 68;
       const footerH = footerEl ? footerEl.getBoundingClientRect().height : 32;
 
-      const safeTopPx = headerH + 10;
-      const safeBotPx = footerH + 10;
-      const usableHeightFrac = Math.max(0.45, (vh - safeTopPx - safeBotPx) / vh);
-      const usableWidthFrac = 0.90;
+      const safeTopPx = headerH + 6;
+      const safeBotPx = footerH + 6;
+      const usableW = vw * 0.94;
+      const usableH = Math.max(120, vh - safeTopPx - safeBotPx);
+      const usableAspect = usableW / usableH;
+
+      // Adapt cloud vertical tower height & base height so on tall portrait viewports (e.g. 320x700, 390x844)
+      // the towering cumulonimbus anvil reaches toward the header safe area while the ragged base sits close
+      // over the prairie slab, matching the viewport's aspect ratio so BOTH width and height fill the screen.
+      const portraitness = THREE.MathUtils.clamp((1.05 - usableAspect) / 0.52, 0, 1);
+
+      const cloudScaleXZ = THREE.MathUtils.lerp(1.0, 1.06, portraitness);
+      const cloudScaleY = THREE.MathUtils.lerp(0.95, 1.62, portraitness);
+      cloudGroup.scale.set(cloudScaleXZ, cloudScaleY, cloudScaleXZ);
+
+      // Keep ragged cloud base low over the prairie slab (~2.35 to 2.75) while the anvil crown towers high
+      currentCloudBaseWorldY = THREE.MathUtils.lerp(2.75, 2.38, portraitness);
+      currentCloudCenterY = currentCloudBaseWorldY + 1.55 * cloudScaleY;
+      cloudGroup.position.set(CLOUD_CENTER_X, currentCloudCenterY, CLOUD_CENTER_Z);
+
+      // Update rain curtain shaft to span cleanly from the ragged cloud base down to the prairie surface
+      const shaftTopY = currentCloudBaseWorldY + 0.25;
+      const shaftBotY = 0.05;
+      const shaftHeight = shaftTopY - shaftBotY;
+      rainShaftMesh.scale.set(1, shaftHeight, 1);
+      rainShaftMesh.position.set(
+        CLOUD_CENTER_X + 0.25,
+        shaftBotY + shaftHeight * 0.5,
+        CLOUD_CENTER_Z + 0.2
+      );
+
+      // Update cloud raycast proxy to match scaled cloud tower
+      cloudProxy.scale.set(1.35 * cloudScaleXZ, 1.45 * cloudScaleY, 1.18 * cloudScaleXZ);
+      cloudProxy.position.set(CLOUD_CENTER_X + 0.2, currentCloudCenterY + 0.45 * cloudScaleY, CLOUD_CENTER_Z);
+      cloudInternalLight.position.set(CLOUD_CENTER_X, currentCloudCenterY + 0.3, CLOUD_CENTER_Z);
+
+      rebuildKeySamples();
+
+      const aspect = vw / vh;
+      camera.fov = aspect < 1.0 ? 44 : 36;
+      camera.aspect = aspect;
 
       // Slightly elevated three-quarter view direction
-      const viewDir = new THREE.Vector3(0.56, 0.34, 0.75).normalize();
-      const targetCenter = new THREE.Vector3(0.0, 3.25, 0.0);
-
-      // Compute camera distance from projected bounding box of all key geometry
-      const vFovRad = THREE.MathUtils.degToRad(camera.fov);
-      const tanHalfVFov = Math.tan(vFovRad * 0.5) * usableHeightFrac;
-      const tanHalfHFov = Math.tan(vFovRad * 0.5) * aspect * usableWidthFrac;
-
-      // Build camera basis at unit distance
+      const viewDir = new THREE.Vector3(0.54, 0.31, 0.78).normalize();
       const camForward = viewDir.clone().negate();
       const worldUp = new THREE.Vector3(0, 1, 0);
       const camRight = new THREE.Vector3().crossVectors(camForward, worldUp).normalize();
       const camUp = new THREE.Vector3().crossVectors(camRight, camForward).normalize();
 
-      let requiredDist = 8.0;
-      for (let i = 0; i < boundsCorners.length; i++) {
-        const rel = boundsCorners[i].clone().sub(targetCenter);
-        const zProj = rel.dot( viewDir );
+      // Find initial centroid in camera-plane coordinates
+      let minU = Infinity, maxU = -Infinity;
+      let minV = Infinity, maxV = -Infinity;
+      for (let i = 0; i < keyWorldSamples.length; i++) {
+        const p = keyWorldSamples[i];
+        const u = p.dot(camRight);
+        const v = p.dot(camUp);
+        if (u < minU) minU = u;
+        if (u > maxU) maxU = u;
+        if (v < minV) minV = v;
+        if (v > maxV) maxV = v;
+      }
+
+      const midU = (minU + maxU) * 0.5;
+      const midV = (minV + maxV) * 0.5;
+      const targetCenter = new THREE.Vector3()
+        .addScaledVector(camRight, midU)
+        .addScaledVector(camUp, midV);
+
+      const vFovRad = THREE.MathUtils.degToRad(camera.fov);
+      const tanHalfVFov = Math.tan(vFovRad * 0.5) * (usableH / vh) * 0.96;
+      const tanHalfHFov = Math.tan(vFovRad * 0.5) * aspect * (usableW / vw) * 0.96;
+
+      // Perspective-exact distance required so every sample projects inside [usableW x usableH]
+      let requiredDist = 6.0;
+      for (let i = 0; i < keyWorldSamples.length; i++) {
+        const rel = tempCorner.copy(keyWorldSamples[i]).sub(targetCenter);
+        const zProj = rel.dot(viewDir);
         const xProj = Math.abs(rel.dot(camRight));
         const yProj = Math.abs(rel.dot(camUp));
 
         const dH = xProj / tanHalfHFov + zProj;
         const dV = yProj / tanHalfVFov + zProj;
-        requiredDist = Math.max(requiredDist, dH, dV);
+        if (dH > requiredDist) requiredDist = dH;
+        if (dV > requiredDist) requiredDist = dV;
       }
 
-      const finalDist = requiredDist * 1.05;
+      // Refine vertical centering for perspective depth differences between front slab rim and high anvil top
+      let topSlopeMax = -Infinity;
+      let botSlopeMin = Infinity;
+      for (let i = 0; i < keyWorldSamples.length; i++) {
+        const rel = tempCorner.copy(keyWorldSamples[i]).sub(targetCenter);
+        const depth = Math.max(1.0, requiredDist - rel.dot(viewDir));
+        const slopeY = rel.dot(camUp) / depth;
+        if (slopeY > topSlopeMax) topSlopeMax = slopeY;
+        if (slopeY < botSlopeMin) botSlopeMin = slopeY;
+      }
+      const slopeMidOffset = (topSlopeMax + botSlopeMin) * 0.5 * requiredDist;
+      targetCenter.addScaledVector(camUp, slopeMidOffset * 0.85);
 
-      // Vertical screen-space offset so center sits halfway between header and footer
+      // Recompute exact tight distance around perspective-centered target
+      requiredDist = 6.0;
+      for (let i = 0; i < keyWorldSamples.length; i++) {
+        const rel = tempCorner.copy(keyWorldSamples[i]).sub(targetCenter);
+        const zProj = rel.dot(viewDir);
+        const xProj = Math.abs(rel.dot(camRight));
+        const yProj = Math.abs(rel.dot(camUp));
+
+        const dH = xProj / tanHalfHFov + zProj;
+        const dV = yProj / tanHalfVFov + zProj;
+        if (dH > requiredDist) requiredDist = dH;
+        if (dV > requiredDist) requiredDist = dV;
+      }
+
+      const finalDist = requiredDist * 1.02;
+
+      // Shift target vertically so the usable viewport center sits exactly between header and footer
       const pixelOffsetY = (safeTopPx - safeBotPx) * 0.5;
       const worldPerPixel = (2 * finalDist * Math.tan(vFovRad * 0.5)) / vh;
       const shiftedTarget = targetCenter.clone().addScaledVector(camUp, pixelOffsetY * worldPerPixel);
@@ -1197,8 +1300,8 @@
       camera.updateProjectionMatrix();
 
       // Lock zoom range around the computed optimal distance
-      controls.minDistance = finalDist * 0.86;
-      controls.maxDistance = finalDist * 1.18;
+      controls.minDistance = finalDist * 0.88;
+      controls.maxDistance = finalDist * 1.16;
       controls.update();
     }
 
@@ -1217,20 +1320,20 @@
       const t = nowMs * 0.001;
 
       // 1. CLOUD IDLE BOIL, DRIFT & OCCASIONAL INTERNAL RUMBLE GLOW
-      const driftX = Math.sin(t * 0.45) * 0.14;
-      const driftY = Math.cos(t * 0.6) * 0.07;
+      const driftX = Math.sin(t * 0.45) * 0.12;
+      const driftY = Math.cos(t * 0.6) * 0.05;
       cloudGroup.position.set(
         CLOUD_CENTER_X + driftX,
-        CLOUD_CENTER_Y + driftY,
-        CLOUD_CENTER_Z + Math.sin(t * 0.35) * 0.08
+        currentCloudCenterY + driftY,
+        CLOUD_CENTER_Z + Math.sin(t * 0.35) * 0.07
       );
       rainShaftMesh.position.x = CLOUD_CENTER_X + 0.25 + driftX * 0.8;
 
       for (let i = 0; i < cloudPuffs.length; i++) {
         const cp = cloudPuffs[i];
-        const boil = 1.0 + 0.042 * Math.sin(t * 1.55 + cp.phase);
+        const boil = 1.0 + 0.038 * Math.sin(t * 1.55 + cp.phase);
         cp.mesh.scale.set(cp.sx * boil, cp.sy * (2.0 - boil * 0.96), cp.sz * boil);
-        cp.mesh.position.y = cp.baseY + Math.sin(t * 1.2 + cp.phase) * 0.045;
+        cp.mesh.position.y = cp.baseY + Math.sin(t * 1.2 + cp.phase) * 0.038;
       }
 
       // Faint periodic internal cloud glow in idle state
@@ -1242,7 +1345,6 @@
       if (strikeState.active) {
         const dt = nowMs - strikeState.startTime;
         if (dt < 850) {
-          // Multi-pulse realistic lightning flicker envelope
           let boltAlpha = 0;
           if (dt < 65) boltAlpha = 1.0;
           else if (dt < 110) boltAlpha = 0.18;
@@ -1279,12 +1381,14 @@
       matRaggedBase.emissiveIntensity = 0.28 + totalCloudGlow * 0.42;
 
       // 3. FALLING RAIN STREAKS & IDLE POND RAIN RINGS
+      const rainTopY = currentCloudBaseWorldY + 0.2;
+      const rainSpan = Math.max(1.8, rainTopY - 0.1);
       tempEuler.set(0, 0, -0.11);
       tempQuat.setFromEuler(tempEuler);
       for (let i = 0; i < RAIN_COUNT; i++) {
         const rd = rainDrops[i];
-        const curY = 4.35 - ((t * rd.speed + rd.y) % 4.25);
-        const slantOffset = (4.35 - curY) * 0.11;
+        const curY = rainTopY - ((t * rd.speed + rd.y) % rainSpan);
+        const slantOffset = (rainTopY - curY) * 0.11;
         tempPos.set(
           CLOUD_CENTER_X + 0.15 + driftX * 0.7 + rd.ox + slantOffset,
           curY,
@@ -1350,7 +1454,6 @@
       flowerInst.instanceMatrix.needsUpdate = true;
 
       // 6. POND SPLASH INTERACTION (Expanding Ripple Rings, Droplet Arc, Frog Hop & Fish Flash)
-      // Gentle idle breathing of pond sheen & fish
       sheenMesh.scale.set(
         POND_RX * (0.88 + 0.03 * Math.sin(t * 1.8)),
         1,
@@ -1362,7 +1465,6 @@
         const sec = dt * 0.001;
 
         if (dt < 1450) {
-          // Expanding concentric ripple rings
           for (let i = 0; i < SPLASH_RINGS; i++) {
             const r = splashRings[i];
             const rTime = (dt - r.delay) * 0.001;
@@ -1376,7 +1478,6 @@
             }
           }
 
-          // Parabolic water droplet scatter
           const gravity = 7.6;
           for (let i = 0; i < DROPLET_COUNT; i++) {
             const dv = dropletVel[i];
@@ -1399,7 +1500,6 @@
           }
           dropletInst.instanceMatrix.needsUpdate = true;
 
-          // Shore frog celebratory double hop
           const hopCycle = Math.min(1, dt / 950);
           const hopArc = Math.abs(Math.sin(hopCycle * Math.PI * 2));
           frogGroup.position.set(
@@ -1409,7 +1509,6 @@
           );
           frogGroup.rotation.x = -hopArc * 0.45;
 
-          // Bright fish darting arc just under/through water surface
           const fishAng = sec * 5.2;
           fishGroup.position.set(
             POND_X + Math.cos(fishAng) * 0.55,
@@ -1430,7 +1529,6 @@
           fishMat.emissiveIntensity = 0.35;
         }
       } else {
-        // Gentle idle frog throat/breathing & slow fish swim
         frogBody.scale.y = 0.78 + Math.sin(t * 3.5) * 0.04;
         const slowAng = t * 0.75;
         fishGroup.position.set(
