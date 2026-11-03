@@ -247,8 +247,8 @@
     const SLAB_RADIUS = 4.15;
     const POND_X = 1.05;
     const POND_Z = 1.38;
-    const POND_RX = 1.68;
-    const POND_RZ = 1.34;
+    const POND_RX = 1.72;
+    const POND_RZ = 1.38;
     const WATER_Y = 0.14;
 
     function getPondFactor(x, z) {
@@ -271,18 +271,18 @@
 
       h += backHill * 0.36 + hillBump;
 
-      // Foreground pond basin with a gentle tactile shore berm around pf = 1.05..1.35
+      // Foreground pond basin with a defined sculpted shore bank around pf = 1.0..1.38
       const pf = getPondFactor(x, z);
       if (pf < 2.1) {
-        if (pf < 1.05) {
-          const dip = Math.max(0, 1 - pf / 1.05);
+        if (pf < 1.02) {
+          const dip = Math.max(0, 1 - pf / 1.02);
           const smoothDip = dip * dip * (3 - 2 * dip);
-          h = THREE.MathUtils.lerp(WATER_Y + 0.02, -0.26, smoothDip);
+          h = THREE.MathUtils.lerp(WATER_Y - 0.01, -0.32, smoothDip);
         } else {
-          const t = Math.min(1, (pf - 1.05) / 1.05);
+          const t = Math.min(1, (pf - 1.02) / 1.08);
           const smoothT = t * t * (3 - 2 * t);
-          const berm = Math.sin(t * Math.PI) * 0.07;
-          h = THREE.MathUtils.lerp(WATER_Y + 0.02, h, smoothT) + berm;
+          const berm = Math.sin(t * Math.PI) * 0.085;
+          h = THREE.MathUtils.lerp(WATER_Y + 0.03, h, smoothT) + berm;
         }
       }
 
@@ -330,8 +330,8 @@
     const colHill = new THREE.Color(0x639a46);
     const colMeadow = new THREE.Color(0x7cb855);
     const colSunGrass = new THREE.Color(0x98cf63);
-    const colShoreRim = new THREE.Color(0xb8a47e); // Warm sandy/pebble shore rim so pond outline pops
-    const colMud = new THREE.Color(0x2d4a5e);
+    const colDarkBank = new THREE.Color(0x3a2d22); // Defined dark wet earth bank ring separating pond from green grass
+    const colDeepBasin = new THREE.Color(0x062d42); // Deep teal-blue underwater basin
     const tempCol = new THREE.Color();
 
     for (let i = 0; i < posAttr.count; i++) {
@@ -344,14 +344,14 @@
         posAttr.setY(i, th);
 
         const pf = getPondFactor(vx, vz);
-        if (pf < 0.96) {
-          tempCol.copy(colMud);
-        } else if (pf < 1.18) {
-          const t = (pf - 0.96) / 0.22;
-          tempCol.copy(colMud).lerp(colShoreRim, Math.sin(t * Math.PI * 0.5));
-        } else if (pf < 1.48) {
-          const t = (pf - 1.18) / 0.30;
-          tempCol.copy(colShoreRim).lerp(colMeadow, t);
+        if (pf < 0.95) {
+          tempCol.copy(colDeepBasin);
+        } else if (pf < 1.24) {
+          const t = (pf - 0.95) / 0.29;
+          tempCol.copy(colDeepBasin).lerp(colDarkBank, Math.min(1, t * 1.35));
+        } else if (pf < 1.50) {
+          const t = (pf - 1.24) / 0.26;
+          tempCol.copy(colDarkBank).lerp(colMeadow, t);
         } else {
           const sunMix = THREE.MathUtils.clamp((vx + vz + 3.5) / 7.0, 0, 1);
           tempCol.copy(colHill).lerp(colMeadow, 0.65).lerp(colSunGrass, sunMix * 0.55);
@@ -377,72 +377,122 @@
     terrainMesh.castShadow = true;
     slabGroup.add(terrainMesh);
 
-    // --- RAIN-FED FOREGROUND POND (Bright Reflective Surface + Visible Shore Rim + Idle Rain Rings) ---
+    // --- RAIN-FED FOREGROUND POND (Deep Saturated Blue-Teal Water + Defined Dark Bank Rim + Moving Mirror Glints) ---
     const pondGroup = new THREE.Group();
     worldRoot.add(pondGroup);
 
-    // Tactile sculpted pebble/stone shore rim around pond perimeter so it reads clearly at 320px
-    const pondRimGeo = new THREE.RingGeometry(0.93, 1.06, 48);
-    pondRimGeo.rotateX(-Math.PI / 2);
-    pondRimGeo.scale(POND_RX, 1, POND_RZ);
-    const pondRimMat = new THREE.MeshStandardMaterial({
-      color: 0xa8997c,
-      roughness: 0.72,
-      metalness: 0.05
+    // Defined darker wet-earth/stone outer bank rim ring so the pond boundary is crisp and unmistakable against green grass
+    const outerBankRimGeo = new THREE.RingGeometry(0.95, 1.13, 56);
+    outerBankRimGeo.rotateX(-Math.PI / 2);
+    outerBankRimGeo.scale(POND_RX, 1, POND_RZ);
+    const outerBankRimMat = new THREE.MeshStandardMaterial({
+      color: 0x3b2f26,
+      roughness: 0.86,
+      metalness: 0.04
     });
-    const pondRimMesh = new THREE.Mesh(pondRimGeo, pondRimMat);
-    pondRimMesh.position.set(POND_X, WATER_Y + 0.008, POND_Z);
-    pondRimMesh.receiveShadow = true;
-    pondGroup.add(pondRimMesh);
+    const outerBankRimMesh = new THREE.Mesh(outerBankRimGeo, outerBankRimMat);
+    outerBankRimMesh.position.set(POND_X, WATER_Y + 0.012, POND_Z);
+    outerBankRimMesh.receiveShadow = true;
+    pondGroup.add(outerBankRimMesh);
 
-    // Main water body with luminous sky reflection contrast
-    const pondGeo = new THREE.CircleGeometry(0.95, 48);
+    // Crisp inner wet-slate shoreline lip right at the water's edge
+    const innerShoreLipGeo = new THREE.RingGeometry(0.91, 0.97, 56);
+    innerShoreLipGeo.rotateX(-Math.PI / 2);
+    innerShoreLipGeo.scale(POND_RX, 1, POND_RZ);
+    const innerShoreLipMat = new THREE.MeshStandardMaterial({
+      color: 0x1c3647,
+      roughness: 0.35,
+      metalness: 0.15
+    });
+    const innerShoreLipMesh = new THREE.Mesh(innerShoreLipGeo, innerShoreLipMat);
+    innerShoreLipMesh.position.set(POND_X, WATER_Y + 0.008, POND_Z);
+    pondGroup.add(innerShoreLipMesh);
+
+    // Main water body: rich saturated blue-teal clearly separated from meadow green, with mirror-like finish
+    const pondGeo = new THREE.CircleGeometry(0.94, 56);
     pondGeo.rotateX(-Math.PI / 2);
     pondGeo.scale(POND_RX, 1, POND_RZ);
 
     const pondMat = new THREE.MeshStandardMaterial({
-      color: 0x26658c,
-      emissive: 0x164466,
-      emissiveIntensity: 0.65,
-      roughness: 0.08,
-      metalness: 0.28,
-      transparent: true,
-      opacity: 0.95
+      color: 0x006d94,
+      emissive: 0x003f5c,
+      emissiveIntensity: 0.78,
+      roughness: 0.04,
+      metalness: 0.22
     });
     const pondMesh = new THREE.Mesh(pondGeo, pondMat);
     pondMesh.position.set(POND_X, WATER_Y, POND_Z);
-    pondMesh.receiveShadow = true;
+    pondMesh.receiveShadow = false; // Keep water surface luminous and vivid even under storm shadow
     pondGroup.add(pondMesh);
 
-    // Bright sky-mirror highlight across the pond center
-    const sheenGeo = new THREE.CircleGeometry(0.76, 40);
-    sheenGeo.rotateX(-Math.PI / 2);
-    sheenGeo.scale(POND_RX, 1, POND_RZ);
-    const sheenMat = new THREE.MeshBasicMaterial({
-      color: 0xaee2ff,
+    // Deep cyan-teal inner lagoon gradient layer
+    const innerWaterGeo = new THREE.CircleGeometry(0.78, 48);
+    innerWaterGeo.rotateX(-Math.PI / 2);
+    innerWaterGeo.scale(POND_RX, 1, POND_RZ);
+    const innerWaterMat = new THREE.MeshBasicMaterial({
+      color: 0x1497be,
       transparent: true,
-      opacity: 0.34
+      opacity: 0.55
+    });
+    const innerWaterMesh = new THREE.Mesh(innerWaterGeo, innerWaterMat);
+    innerWaterMesh.position.set(POND_X - 0.03, WATER_Y + 0.003, POND_Z - 0.02);
+    pondGroup.add(innerWaterMesh);
+
+    // Bright sky-mirror specular reflection across the upper-left water surface
+    const sheenGeo = new THREE.CircleGeometry(0.56, 40);
+    sheenGeo.rotateX(-Math.PI / 2);
+    sheenGeo.scale(POND_RX * 0.95, 1, POND_RZ * 0.82);
+    const sheenMat = new THREE.MeshBasicMaterial({
+      color: 0x8be4ff,
+      transparent: true,
+      opacity: 0.46
     });
     const sheenMesh = new THREE.Mesh(sheenGeo, sheenMat);
-    sheenMesh.position.set(POND_X - 0.06, WATER_Y + 0.005, POND_Z - 0.04);
+    sheenMesh.position.set(POND_X - 0.14, WATER_Y + 0.005, POND_Z - 0.08);
     pondGroup.add(sheenMesh);
 
-    // Inner specular sun-glint patch
-    const glintGeo = new THREE.CircleGeometry(0.42, 32);
+    // Bright mirror-like specular highlight crescent
+    const glintGeo = new THREE.CircleGeometry(0.32, 32);
     glintGeo.rotateX(-Math.PI / 2);
-    glintGeo.scale(POND_RX, 1, POND_RZ);
+    glintGeo.scale(POND_RX * 0.9, 1, POND_RZ * 0.65);
     const glintMat = new THREE.MeshBasicMaterial({
-      color: 0xe3f6ff,
+      color: 0xe8fbff,
       transparent: true,
-      opacity: 0.38
+      opacity: 0.68
     });
     const glintMesh = new THREE.Mesh(glintGeo, glintMat);
-    glintMesh.position.set(POND_X + 0.14, WATER_Y + 0.007, POND_Z + 0.08);
+    glintMesh.position.set(POND_X + 0.22, WATER_Y + 0.007, POND_Z - 0.14);
     pondGroup.add(glintMesh);
+
+    // Animated shimmering surface glints (crisp elongated light bars that drift across the pond in idle)
+    const GLINT_BAR_COUNT = 5;
+    const glintBars = [];
+    const glintBarGeo = new THREE.PlaneGeometry(0.46, 0.075);
+    glintBarGeo.rotateX(-Math.PI / 2);
+    const glintBarSpecs = [
+      { ox: -0.35, oz: -0.22, sx: 1.15, sz: 0.85, phase: 0.0 },
+      { ox: 0.28, oz: -0.12, sx: 0.95, sz: 0.75, phase: 1.3 },
+      { ox: -0.12, oz: 0.24, sx: 1.25, sz: 0.90, phase: 2.5 },
+      { ox: 0.38, oz: 0.26, sx: 0.85, sz: 0.70, phase: 3.8 },
+      { ox: -0.45, oz: 0.10, sx: 0.90, sz: 0.75, phase: 5.1 }
+    ];
+    glintBarSpecs.forEach((sp) => {
+      const gbMat = new THREE.MeshBasicMaterial({
+        color: 0xffffff,
+        transparent: true,
+        opacity: 0.65,
+        depthWrite: false
+      });
+      const gbMesh = new THREE.Mesh(glintBarGeo, gbMat);
+      gbMesh.position.set(POND_X + sp.ox, WATER_Y + 0.009, POND_Z + sp.oz);
+      gbMesh.rotation.y = -0.25;
+      pondGroup.add(gbMesh);
+      glintBars.push({ mesh: gbMesh, mat: gbMat, ...sp });
+    });
 
     // Little green frog sitting on a shoreline stone
     const frogGroup = new THREE.Group();
-    const frogBaseX = POND_X - POND_RX * 0.76;
+    const frogBaseX = POND_X - POND_RX * 0.78;
     const frogBaseZ = POND_Z - POND_RZ * 0.38;
     const frogBaseY = Math.max(WATER_Y + 0.03, getTerrainHeight(frogBaseX, frogBaseZ));
     frogGroup.position.set(frogBaseX, frogBaseY, frogBaseZ);
@@ -475,13 +525,13 @@
 
     // Golden-orange koi/minnow fish under pond surface that flashes when pond is tapped
     const fishGroup = new THREE.Group();
-    fishGroup.position.set(POND_X + 0.15, WATER_Y - 0.04, POND_Z + 0.1);
+    fishGroup.position.set(POND_X + 0.15, WATER_Y - 0.03, POND_Z + 0.1);
     worldRoot.add(fishGroup);
 
     const fishMat = new THREE.MeshStandardMaterial({
       color: 0xffa642,
       emissive: 0xff771a,
-      emissiveIntensity: 0.45,
+      emissiveIntensity: 0.5,
       roughness: 0.22
     });
     const fishBody = new THREE.Mesh(new THREE.ConeGeometry(0.072, 0.28, 12), fishMat);
@@ -495,18 +545,19 @@
     // --- SCATTERED ROCKS & LONELY FENCE POSTS ---
     const rockGeo = new THREE.DodecahedronGeometry(0.18, 1);
     const rockMat = new THREE.MeshStandardMaterial({
-      color: 0x869098,
-      roughness: 0.76,
+      color: 0x76828c,
+      roughness: 0.74,
       metalness: 0.08
     });
 
     const rockPlacements = [
-      // Pond border stones framing the water edge
-      [POND_X - 1.56, POND_Z - 0.25, 0.95, 0.58, 0.85],
-      [POND_X - 1.38, POND_Z - 0.65, 0.68, 0.48, 0.60],
-      [POND_X + 1.48, POND_Z - 0.42, 0.90, 0.54, 0.80],
-      [POND_X + 0.68, POND_Z + 1.18, 0.78, 0.46, 0.70],
-      [POND_X - 0.75, POND_Z + 1.14, 0.72, 0.44, 0.66],
+      // Pond border stones framing the defined dark bank rim
+      [POND_X - 1.62, POND_Z - 0.25, 0.98, 0.58, 0.88],
+      [POND_X - 1.44, POND_Z - 0.68, 0.72, 0.48, 0.64],
+      [POND_X + 1.54, POND_Z - 0.44, 0.92, 0.54, 0.82],
+      [POND_X + 0.72, POND_Z + 1.24, 0.80, 0.46, 0.72],
+      [POND_X - 0.78, POND_Z + 1.20, 0.75, 0.44, 0.68],
+      [POND_X + 0.15, POND_Z - 1.32, 0.85, 0.48, 0.74],
       // Prairie field boulders
       [-2.35, 1.35, 1.25, 0.78, 1.1],
       [-2.02, 1.62, 0.72, 0.52, 0.68],
@@ -587,7 +638,7 @@
       });
     }
 
-    // --- INSTANCED WIND-BENT GRASS TUFTS (Hundreds of blades, kept clear of pond front view) ---
+    // --- INSTANCED WIND-BENT GRASS TUFTS (Hundreds of blades, kept clear of pond & dark bank rim) ---
     const GRASS_COUNT = 800;
     const bladeGeo = new THREE.ConeGeometry(0.048, 0.42, 4, 4);
     bladeGeo.translate(0, 0.21, 0);
@@ -624,11 +675,11 @@
       const gx = Math.cos(theta) * r;
       const gz = Math.sin(theta) * r;
       const pf = getPondFactor(gx, gz);
-      // Keep grass outside the pond rim so the water surface and shoreline rim are completely unobstructed
-      if (pf < 1.18) continue;
+      // Keep grass outside the defined dark bank rim so the water surface and rim ring are completely unobstructed
+      if (pf < 1.28) continue;
 
       const gy = getTerrainHeight(gx, gz);
-      const scaleY = randRange(0.65, 1.38) * (pf < 1.38 && gz < POND_Z ? 1.15 : 0.95);
+      const scaleY = randRange(0.65, 1.38) * (pf < 1.45 && gz < POND_Z ? 1.12 : 0.92);
       const scaleXZ = randRange(0.75, 1.25);
       const rotY = randRange(-0.45, 0.45) + 0.35;
       const baseTilt = randRange(0.18, 0.42);
@@ -688,7 +739,7 @@
       const theta = rand() * Math.PI * 2;
       const fx = Math.cos(theta) * r;
       const fz = Math.sin(theta) * r;
-      if (getPondFactor(fx, fz) < 1.26) continue;
+      if (getPondFactor(fx, fz) < 1.32) continue;
 
       const fy = getTerrainHeight(fx, fz);
       const sc = randRange(0.75, 1.3);
@@ -711,8 +762,6 @@
     flowerInst.instanceColor.needsUpdate = true;
 
     // --- CUMULONIMBUS STORM CELL (Classic Wide Flat Anvil + Compact Darker Base Held HIGH Above Prairie) ---
-    // Vertically compact (~2.6 units total thickness) and held high (base at y ~ 4.4..5.2) so there is a generous,
-    // unmistakable open AIR GAP between the cloud base and the prairie below.
     const cloudGroup = new THREE.Group();
     const CLOUD_CENTER_X = -0.58;
     const CLOUD_CENTER_Z = -0.55;
@@ -757,14 +806,13 @@
     puffGeo.computeVertexNormals();
 
     // Spec: [x, y, z, sx, sy, sz, tier (0=wide anvil crown, 1=sculpted mid neck, 2=compact ragged base)]
-    // Local y spans only from -0.95 (base) to +1.45 (overshooting anvil top) -> classic wide anvil silhouette!
     const puffSpecs = [
       // Wide Flat Anvil Top & Forward-Spreading Shelf (local y: +0.82 to +1.28)
       [0.05, 1.24, 0.0, 1.55, 0.42, 1.38, 0],
       [0.42, 0.98, 0.08, 2.75, 0.38, 2.15, 0],
       [-1.55, 0.94, -0.12, 1.95, 0.36, 1.68, 0],
-      [1.95, 0.96, 0.24, 2.15, 0.35, 1.68, 0], // Wide forward anvil wing
-      [2.95, 1.00, 0.36, 1.45, 0.28, 1.28, 0], // Anvil leading edge tip
+      [1.95, 0.96, 0.24, 2.15, 0.35, 1.68, 0],
+      [2.95, 1.00, 0.36, 1.45, 0.28, 1.28, 0],
       [0.18, 0.92, 1.35, 1.78, 0.34, 1.28, 0],
       [-0.25, 0.92, -1.28, 1.82, 0.35, 1.28, 0],
       [-2.42, 0.90, 0.08, 1.35, 0.30, 1.18, 0],
@@ -811,10 +859,9 @@
     });
 
     // --- DISTINCT TRANSLUCENT RAIN CURTAIN SHAFT & FALLING RAIN STREAKS ---
-    // Two nested translucent shafts (outer veil + inner core) spanning the open air gap under the cloud base
     const rainCurtainGroup = new THREE.Group();
     rainCurtainGroup.position.set(CLOUD_CENTER_X + 0.18, 2.2, CLOUD_CENTER_Z + 0.18);
-    rainCurtainGroup.rotation.z = -0.09; // Gentle wind slant toward the foreground pond
+    rainCurtainGroup.rotation.z = -0.09;
     worldRoot.add(rainCurtainGroup);
 
     const outerShaftGeo = new THREE.CylinderGeometry(1.42, 1.78, 1.0, 32, 1, true);
@@ -839,7 +886,7 @@
     const innerShaftMesh = new THREE.Mesh(innerShaftGeo, innerShaftMat);
     rainCurtainGroup.add(innerShaftMesh);
 
-    // Instanced falling rain streaks clearly visible inside the open air gap
+    // Instanced falling rain streaks
     const RAIN_COUNT = 380;
     const streakGeo = new THREE.CylinderGeometry(0.013, 0.013, 0.58, 5);
     const streakMat = new THREE.MeshBasicMaterial({
@@ -864,24 +911,25 @@
       });
     }
 
-    // Prominent idle rain rings across the foreground pond so the pond immediately reads as active water
-    const IDLE_RIPPLE_COUNT = 8;
-    const ringGeo = new THREE.RingGeometry(0.09, 0.14, 32);
+    // Crisp, unmistakable idle rain rings across the blue-teal pond surface when rain drifts over it
+    const IDLE_RIPPLE_COUNT = 9;
+    const ringGeo = new THREE.RingGeometry(0.10, 0.175, 36);
     ringGeo.rotateX(-Math.PI / 2);
     const idleRipples = [];
     const idleRippleOffsets = [
-      [-0.55, -0.25],
-      [0.25, -0.35],
-      [-0.20, 0.28],
-      [0.52, 0.18],
-      [-0.68, 0.22],
-      [0.05, -0.05],
-      [0.42, -0.18],
-      [-0.32, -0.42]
+      [-0.58, -0.28],
+      [0.28, -0.38],
+      [-0.22, 0.30],
+      [0.56, 0.20],
+      [-0.72, 0.24],
+      [0.06, -0.06],
+      [0.45, -0.20],
+      [-0.35, -0.45],
+      [0.12, 0.42]
     ];
     for (let i = 0; i < IDLE_RIPPLE_COUNT; i++) {
       const rMat = new THREE.MeshBasicMaterial({
-        color: 0xeaf7ff,
+        color: 0xffffff,
         transparent: true,
         opacity: 0,
         side: THREE.DoubleSide,
@@ -928,7 +976,6 @@
     const impactDiscMesh = new THREE.Mesh(impactDiscGeo, impactDiscMat);
     worldRoot.add(impactDiscMesh);
 
-    // Pre-build reusable segment meshes for main bolt + 2 forks
     const MAX_BOLT_SEGS = 18;
     const boltSegments = [];
     const segCylinderGeo = new THREE.CylinderGeometry(1, 1, 1, 8);
@@ -945,8 +992,6 @@
       boltSegments.push({ core, halo });
     }
 
-    // Foreground-left / mid-prairie strike points completely unoccluded from the default camera
-    // and positioned right against the darker rain shaft / slate background for high contrast
     const strikeTargets = [
       { x: -0.68, z: 0.52 },
       { x: -1.18, z: 0.78 },
@@ -989,8 +1034,6 @@
       impactDiscMesh.position.set(target.x, gy + 0.04, target.z);
       strikeFlashLight.position.set(target.x, currentCloudBaseWorldY * 0.65, target.z);
 
-      // Originate bolt just below the front-bottom of the darker cloud base so the entire cloud-to-ground
-      // jagged path is 100% visible across the open air gap & dark rain curtain from the default camera
       const startPt = new THREE.Vector3(
         target.x * 0.65 + CLOUD_CENTER_X * 0.35,
         currentCloudBaseWorldY - 0.04,
@@ -1012,12 +1055,10 @@
 
       let sIdx = 0;
       for (let i = 0; i < mainSteps; i++) {
-        // Bold, unmistakable bolt thickness at 320px
         const thick = THREE.MathUtils.lerp(0.095, 0.056, i / mainSteps);
         placeSegment(boltSegments[sIdx++], mainPts[i], mainPts[i + 1], thick);
       }
 
-      // Branch fork 1 (splits left across the rain curtain)
       const fork1Start = mainPts[3].clone();
       let f1Prev = fork1Start;
       for (let i = 0; i < 4; i++) {
@@ -1030,7 +1071,6 @@
         f1Prev = fNext;
       }
 
-      // Branch fork 2 (splits right across the rain curtain)
       const fork2Start = mainPts[6].clone();
       let f2Prev = fork2Start;
       for (let i = 0; i < 4; i++) {
@@ -1044,15 +1084,16 @@
       }
     }
 
-    // --- INTERACTION 2: POND SPLASH, EXPANDING RIPPLES, DROPLETS & FROG HOP ---
-    const SPLASH_RINGS = 4;
+    // --- INTERACTION 2: HIGH-CONTRAST POND SPLASH, EXPANDING RINGS, BRIGHT DROPLETS & FROG HOP ---
+    const SPLASH_RINGS = 5;
     const splashRings = [];
-    const splashRingGeo = new THREE.RingGeometry(0.11, 0.165, 36);
+    // Thicker, bolder ring band so expanding splash waves read immediately at 320px
+    const splashRingGeo = new THREE.RingGeometry(0.10, 0.195, 44);
     splashRingGeo.rotateX(-Math.PI / 2);
 
     for (let i = 0; i < SPLASH_RINGS; i++) {
       const mat = new THREE.MeshBasicMaterial({
-        color: 0xffffff,
+        color: i % 2 === 0 ? 0xffffff : 0x9ee8ff,
         transparent: true,
         opacity: 0,
         side: THREE.DoubleSide,
@@ -1061,26 +1102,40 @@
       const mesh = new THREE.Mesh(splashRingGeo, mat);
       mesh.visible = false;
       worldRoot.add(mesh);
-      splashRings.push({ mesh, mat, delay: i * 115 });
+      splashRings.push({ mesh, mat, delay: i * 95 });
     }
 
-    // Instanced splash water droplets
-    const DROPLET_COUNT = 64;
-    const dropletGeo = new THREE.SphereGeometry(0.046, 8, 8);
-    const dropletMat = new THREE.MeshStandardMaterial({
-      color: 0xe6f6ff,
-      emissive: 0x6cb8ff,
-      emissiveIntensity: 0.45,
-      roughness: 0.15
+    // Central white-blue water crown flash disc at the tap impact point
+    const splashCrownGeo = new THREE.CircleGeometry(0.32, 32);
+    splashCrownGeo.rotateX(-Math.PI / 2);
+    const splashCrownMat = new THREE.MeshBasicMaterial({
+      color: 0xe8fbff,
+      transparent: true,
+      opacity: 0,
+      depthWrite: false
+    });
+    const splashCrownMesh = new THREE.Mesh(splashCrownGeo, splashCrownMat);
+    splashCrownMesh.visible = false;
+    worldRoot.add(splashCrownMesh);
+
+    // Instanced bright white-blue splash water droplets (larger & unlit-bright so they pop clearly from rain streaks)
+    const DROPLET_COUNT = 76;
+    const dropletGeo = new THREE.SphereGeometry(0.068, 10, 10);
+    const dropletMat = new THREE.MeshBasicMaterial({
+      color: 0xf2fcff
     });
     const dropletInst = new THREE.InstancedMesh(dropletGeo, dropletMat, DROPLET_COUNT);
     dropletInst.visible = false;
     worldRoot.add(dropletInst);
 
     const dropletVel = [];
+    const colDropWhite = new THREE.Color(0xffffff);
+    const colDropCyan = new THREE.Color(0x88e2ff);
     for (let i = 0; i < DROPLET_COUNT; i++) {
       dropletVel.push({ vx: 0, vy: 0, vz: 0, sc: 1 });
+      dropletInst.setColorAt(i, i % 3 === 0 ? colDropCyan : colDropWhite);
     }
+    dropletInst.instanceColor.needsUpdate = true;
 
     let splashState = {
       active: false,
@@ -1095,7 +1150,7 @@
       if (hitPoint) {
         const dx = hitPoint.x - POND_X;
         const dz = hitPoint.z - POND_Z;
-        const maxD = 0.72;
+        const maxD = 0.75;
         const d = Math.sqrt(dx * dx + dz * dz);
         if (d > maxD) {
           sx = POND_X + (dx / d) * maxD;
@@ -1113,16 +1168,20 @@
 
       dropletInst.visible = true;
       for (let i = 0; i < DROPLET_COUNT; i++) {
-        const ang = (i / DROPLET_COUNT) * Math.PI * 2 + randRange(-0.15, 0.15);
-        const spd = randRange(0.55, 1.9);
+        const ringLayer = i % 3;
+        const ang = (i / DROPLET_COUNT) * Math.PI * 2 + randRange(-0.14, 0.14);
+        const spd = ringLayer === 0 ? randRange(0.35, 0.95) : randRange(0.85, 2.25);
         dropletVel[i].vx = Math.cos(ang) * spd;
         dropletVel[i].vz = Math.sin(ang) * spd;
-        dropletVel[i].vy = randRange(2.2, 3.9);
-        dropletVel[i].sc = randRange(0.7, 1.4);
+        dropletVel[i].vy = ringLayer === 0 ? randRange(3.0, 4.4) : randRange(2.1, 3.6);
+        dropletVel[i].sc = randRange(0.85, 1.55);
       }
 
+      splashCrownMesh.position.set(sx, WATER_Y + 0.015, sz);
+      splashCrownMesh.visible = true;
+
       splashRings.forEach((r) => {
-        r.mesh.position.set(sx, WATER_Y + 0.014, sz);
+        r.mesh.position.set(sx, WATER_Y + 0.016, sz);
         r.mesh.visible = true;
       });
     }
@@ -1136,7 +1195,7 @@
     cloudProxy.userData.targetType = 'cloud';
     worldRoot.add(cloudProxy);
 
-    const pondProxy = new THREE.Mesh(new THREE.CylinderGeometry(2.15, 2.15, 0.9, 24), proxyMat);
+    const pondProxy = new THREE.Mesh(new THREE.CylinderGeometry(2.2, 2.2, 0.9, 24), proxyMat);
     pondProxy.position.set(POND_X, WATER_Y + 0.12, POND_Z);
     pondProxy.userData.targetType = 'pond';
     worldRoot.add(pondProxy);
@@ -1173,7 +1232,7 @@
     renderer.domElement.addEventListener('pointerup', (e) => {
       const moveDist = Math.hypot(e.clientX - downX, e.clientY - downY);
       const elapsed = performance.now() - downTime;
-      if (moveDist > 12 || elapsed > 600) return; // Dragged orbit, not a tap
+      if (moveDist > 12 || elapsed > 600) return;
 
       updatePointerNDC(e.clientX, e.clientY);
       raycaster.setFromCamera(pointerNDC, camera);
@@ -1195,7 +1254,6 @@
 
     function rebuildKeySamples() {
       keyWorldSamples.length = 0;
-      // 16 points around the slab top and plinth bottom rim
       for (let i = 0; i < 16; i++) {
         const ang = (i / 16) * Math.PI * 2;
         const sx = Math.cos(ang) * SLAB_RADIUS;
@@ -1203,7 +1261,6 @@
         keyWorldSamples.push(new THREE.Vector3(sx, 0.35, sz));
         keyWorldSamples.push(new THREE.Vector3(sx * 0.96, -1.06, sz * 0.96));
       }
-      // Every cloud puff's outer extents in world space
       const cScaleX = cloudGroup.scale.x;
       const cScaleY = cloudGroup.scale.y;
       const cScaleZ = cloudGroup.scale.z;
@@ -1238,23 +1295,17 @@
       const usableH = Math.max(120, vh - safeTopPx - safeBotPx);
       const usableAspect = usableW / usableH;
 
-      // Portrait presence comes from holding the compact, wide-anvil cumulonimbus HIGH above the prairie,
-      // creating a dramatic vertical air gap for the translucent rain curtain & lightning bolt.
       const portraitness = THREE.MathUtils.clamp((1.05 - usableAspect) / 0.52, 0, 1);
 
-      // Keep the cloud compact vertically (~half the previous height) with a wide anvil top
       const cloudScaleX = THREE.MathUtils.lerp(1.04, 0.96, portraitness);
       const cloudScaleY = THREE.MathUtils.lerp(0.95, 1.08, portraitness);
       const cloudScaleZ = THREE.MathUtils.lerp(1.02, 0.96, portraitness);
       cloudGroup.scale.set(cloudScaleX, cloudScaleY, cloudScaleZ);
 
-      // Elevate the entire cloud high above the prairie so the open air gap between cloud base (y ~ 4.2..5.55)
-      // and the prairie (y ~ 0.25) is huge, clear, and never occludes the pond or bolt!
       currentCloudBaseWorldY = THREE.MathUtils.lerp(3.95, 5.55, portraitness);
       currentCloudCenterY = currentCloudBaseWorldY + 0.88 * cloudScaleY;
       cloudGroup.position.set(CLOUD_CENTER_X, currentCloudCenterY, CLOUD_CENTER_Z);
 
-      // Span the translucent dual-layer rain curtain through the open air gap from cloud base to prairie
       const shaftTopY = currentCloudBaseWorldY + 0.12;
       const shaftBotY = 0.15;
       const shaftHeight = shaftTopY - shaftBotY;
@@ -1265,7 +1316,6 @@
         CLOUD_CENTER_Z + 0.18
       );
 
-      // Update cloud raycast proxy to match elevated compact anvil cloud
       cloudProxy.scale.set(1.42 * cloudScaleX, 0.68 * cloudScaleY, 1.18 * cloudScaleZ);
       cloudProxy.position.set(CLOUD_CENTER_X + 0.25, currentCloudCenterY + 0.22 * cloudScaleY, CLOUD_CENTER_Z);
       cloudInternalLight.position.set(CLOUD_CENTER_X, currentCloudCenterY + 0.15, CLOUD_CENTER_Z);
@@ -1276,15 +1326,12 @@
       camera.fov = aspect < 1.0 ? 43 : 36;
       camera.aspect = aspect;
 
-      // Slightly elevated three-quarter view direction that looks down onto the foreground pond
-      // and straight through the open rain gap under the high anvil cloud
       const viewDir = new THREE.Vector3(0.50, 0.34, 0.795).normalize();
       const camForward = viewDir.clone().negate();
       const worldUp = new THREE.Vector3(0, 1, 0);
       const camRight = new THREE.Vector3().crossVectors(camForward, worldUp).normalize();
       const camUp = new THREE.Vector3().crossVectors(camRight, camForward).normalize();
 
-      // Find initial centroid in camera-plane coordinates
       let minU = Infinity, maxU = -Infinity;
       let minV = Infinity, maxV = -Infinity;
       for (let i = 0; i < keyWorldSamples.length; i++) {
@@ -1307,7 +1354,6 @@
       const tanHalfVFov = Math.tan(vFovRad * 0.5) * (usableH / vh) * 0.96;
       const tanHalfHFov = Math.tan(vFovRad * 0.5) * aspect * (usableW / vw) * 0.96;
 
-      // Perspective-exact distance required so every sample projects inside [usableW x usableH]
       let requiredDist = 6.0;
       for (let i = 0; i < keyWorldSamples.length; i++) {
         const rel = tempCorner.copy(keyWorldSamples[i]).sub(targetCenter);
@@ -1321,7 +1367,6 @@
         if (dV > requiredDist) requiredDist = dV;
       }
 
-      // Refine vertical & horizontal centering for perspective depth differences
       let topSlopeMax = -Infinity, botSlopeMin = Infinity;
       let rightSlopeMax = -Infinity, leftSlopeMin = Infinity;
       for (let i = 0; i < keyWorldSamples.length; i++) {
@@ -1339,7 +1384,6 @@
       targetCenter.addScaledVector(camRight, slopeMidOffsetX * 0.85);
       targetCenter.addScaledVector(camUp, slopeMidOffsetY * 0.85);
 
-      // Recompute exact tight distance around perspective-centered target
       requiredDist = 6.0;
       for (let i = 0; i < keyWorldSamples.length; i++) {
         const rel = tempCorner.copy(keyWorldSamples[i]).sub(targetCenter);
@@ -1355,7 +1399,6 @@
 
       const finalDist = requiredDist * 1.02;
 
-      // Shift target vertically so the usable viewport center sits exactly between header and footer
       const pixelOffsetY = (safeTopPx - safeBotPx) * 0.5;
       const worldPerPixel = (2 * finalDist * Math.tan(vFovRad * 0.5)) / vh;
       const shiftedTarget = targetCenter.clone().addScaledVector(camUp, pixelOffsetY * worldPerPixel);
@@ -1364,7 +1407,6 @@
       camera.position.copy(shiftedTarget).addScaledVector(viewDir, finalDist);
       camera.updateProjectionMatrix();
 
-      // Lock zoom range around the computed optimal distance
       controls.minDistance = finalDist * 0.88;
       controls.maxDistance = finalDist * 1.16;
       controls.update();
@@ -1401,7 +1443,6 @@
         cp.mesh.position.y = cp.baseY + Math.sin(t * 1.2 + cp.phase) * 0.032;
       }
 
-      // Faint periodic internal cloud glow in idle state
       const idlePulse = Math.pow(Math.max(0, Math.sin(t * 1.15) * Math.sin(t * 2.7 + 1.2)), 6.0);
 
       // 2. LIGHTNING STRIKE FLICKER, RAIN CURTAIN FLASH & SCENE ILLUMINATION
@@ -1437,7 +1478,6 @@
         }
       }
 
-      // Apply internal cloud pulse + scene flash + illuminated rain curtain during lightning
       const totalCloudGlow = idlePulse * 1.2 + strikeIntensity * 5.8;
       cloudInternalLight.intensity = 0.5 + totalCloudGlow * 2.4;
       strikeFlashLight.intensity = strikeIntensity * 15.0;
@@ -1445,7 +1485,6 @@
       matMidTower.emissiveIntensity = 0.25 + totalCloudGlow * 0.28;
       matRaggedBase.emissiveIntensity = 0.28 + totalCloudGlow * 0.44;
 
-      // Light up the rain curtain shaft & streaks when lightning flashes
       outerShaftMat.opacity = 0.18 + strikeIntensity * 0.34;
       innerShaftMat.opacity = 0.16 + strikeIntensity * 0.38;
       streakMat.opacity = 0.78 + strikeIntensity * 0.22;
@@ -1472,10 +1511,10 @@
 
       for (let i = 0; i < IDLE_RIPPLE_COUNT; i++) {
         const ir = idleRipples[i];
-        const prog = (t * 0.82 + ir.phase) % 1.0;
-        ir.mesh.position.set(ir.x, WATER_Y + 0.01, ir.z);
-        ir.mesh.scale.setScalar(0.45 + prog * 2.5);
-        ir.mat.opacity = Math.sin(prog * Math.PI) * 0.62;
+        const prog = (t * 0.78 + ir.phase) % 1.0;
+        ir.mesh.position.set(ir.x, WATER_Y + 0.011, ir.z);
+        ir.mesh.scale.setScalar(0.55 + prog * 3.1);
+        ir.mat.opacity = Math.sin(prog * Math.PI) * 0.78;
       }
 
       // 4. WIND-SWEPT GRASS WAVES & LIGHTNING STRIKE GRASS GLOW
@@ -1523,48 +1562,71 @@
       }
       flowerInst.instanceMatrix.needsUpdate = true;
 
-      // 6. POND SPLASH INTERACTION (Expanding Ripple Rings, Droplet Arc, Frog Hop & Fish Flash)
+      // 6. POND SURFACE GLINTS & SPLASH INTERACTION
       sheenMesh.scale.set(
-        POND_RX * (0.94 + 0.03 * Math.sin(t * 1.8)),
+        POND_RX * (0.95 + 0.04 * Math.sin(t * 1.8)),
         1,
-        POND_RZ * (0.94 + 0.03 * Math.cos(t * 1.5))
+        POND_RZ * (0.82 + 0.04 * Math.cos(t * 1.5))
       );
+      glintMesh.position.x = POND_X + 0.22 + Math.sin(t * 1.6) * 0.08;
+      glintMesh.position.z = POND_Z - 0.14 + Math.cos(t * 1.3) * 0.06;
       glintMesh.scale.set(
-        POND_RX * (0.90 + 0.05 * Math.cos(t * 2.2)),
+        POND_RX * (0.90 + 0.06 * Math.cos(t * 2.2)),
         1,
-        POND_RZ * (0.90 + 0.05 * Math.sin(t * 1.9))
+        POND_RZ * (0.65 + 0.05 * Math.sin(t * 1.9))
       );
+
+      // Gentle moving specular glint bars across the water surface
+      for (let i = 0; i < GLINT_BAR_COUNT; i++) {
+        const gb = glintBars[i];
+        const wave = Math.sin(t * 2.1 + gb.phase);
+        gb.mesh.position.x = POND_X + gb.ox + Math.sin(t * 1.4 + gb.phase) * 0.12;
+        gb.mesh.position.z = POND_Z + gb.oz + Math.cos(t * 1.1 + gb.phase) * 0.07;
+        gb.mesh.scale.set(gb.sx * (0.75 + 0.35 * (wave * 0.5 + 0.5)), 1, gb.sz);
+        gb.mat.opacity = 0.35 + 0.50 * (wave * 0.5 + 0.5);
+      }
 
       if (splashState.active) {
         const dt = nowMs - splashState.startTime;
         const sec = dt * 0.001;
 
-        if (dt < 1450) {
+        if (dt < 1500) {
+          // Central white-blue impact water crown flash
+          if (dt < 420) {
+            const cProg = dt / 420;
+            splashCrownMesh.scale.setScalar(0.5 + cProg * 2.8);
+            splashCrownMat.opacity = (1 - cProg) * 0.92;
+          } else {
+            splashCrownMat.opacity = 0;
+          }
+
+          // Strong, wide-expanding concentric ripple rings
           for (let i = 0; i < SPLASH_RINGS; i++) {
             const r = splashRings[i];
             const rTime = (dt - r.delay) * 0.001;
-            if (rTime > 0 && rTime < 1.05) {
-              const prog = rTime / 1.05;
-              const sc = 0.4 + prog * 8.4;
+            if (rTime > 0 && rTime < 1.15) {
+              const prog = rTime / 1.15;
+              const sc = 0.55 + prog * 10.6;
               r.mesh.scale.setScalar(sc);
-              r.mat.opacity = Math.sin(prog * Math.PI) * (1 - prog * 0.65) * 0.88;
+              r.mat.opacity = Math.sin(prog * Math.PI) * (1 - prog * 0.45) * 0.98;
             } else {
               r.mat.opacity = 0;
             }
           }
 
-          const gravity = 7.6;
+          // Bright white-blue water droplets arcing above the pond
+          const gravity = 7.4;
           for (let i = 0; i < DROPLET_COUNT; i++) {
             const dv = dropletVel[i];
             const dy = dv.vy * sec - 0.5 * gravity * sec * sec;
             if (dy >= -0.05) {
               tempPos.set(
                 splashState.originX + dv.vx * sec,
-                WATER_Y + 0.02 + dy,
+                WATER_Y + 0.03 + dy,
                 splashState.originZ + dv.vz * sec
               );
-              const shrink = Math.max(0.01, (1 - sec * 0.85) * dv.sc);
-              tempScale.setScalar(shrink);
+              const shrink = Math.max(0.01, (1 - sec * 0.78) * dv.sc);
+              tempScale.set(shrink * 0.9, shrink * 1.25, shrink * 0.9);
             } else {
               tempPos.set(0, -10, 0);
               tempScale.setScalar(0.001);
@@ -1579,7 +1641,7 @@
           const hopArc = Math.abs(Math.sin(hopCycle * Math.PI * 2));
           frogGroup.position.set(
             frogBaseX + Math.sin(hopCycle * Math.PI) * 0.24,
-            frogBaseY + hopArc * 0.36,
+            frogBaseY + hopArc * 0.38,
             frogBaseZ + Math.sin(hopCycle * Math.PI) * 0.16
           );
           frogGroup.rotation.x = -hopArc * 0.45;
@@ -1587,28 +1649,30 @@
           const fishAng = sec * 5.2;
           fishGroup.position.set(
             POND_X + Math.cos(fishAng) * 0.62,
-            WATER_Y - 0.03 + Math.sin(Math.min(1, sec * 1.4) * Math.PI) * 0.19,
+            WATER_Y - 0.02 + Math.sin(Math.min(1, sec * 1.4) * Math.PI) * 0.22,
             POND_Z + Math.sin(fishAng) * 0.48
           );
           fishGroup.rotation.y = -fishAng + Math.PI;
-          fishMat.emissiveIntensity = 0.90;
+          fishMat.emissiveIntensity = 0.95;
         } else {
           splashState.active = false;
           dropletInst.visible = false;
+          splashCrownMesh.visible = false;
+          splashCrownMat.opacity = 0;
           splashRings.forEach((r) => {
             r.mesh.visible = false;
             r.mat.opacity = 0;
           });
           frogGroup.position.set(frogBaseX, frogBaseY, frogBaseZ);
           frogGroup.rotation.x = 0;
-          fishMat.emissiveIntensity = 0.45;
+          fishMat.emissiveIntensity = 0.5;
         }
       } else {
         frogBody.scale.y = 0.78 + Math.sin(t * 3.5) * 0.04;
         const slowAng = t * 0.75;
         fishGroup.position.set(
           POND_X + Math.cos(slowAng) * 0.52,
-          WATER_Y - 0.04,
+          WATER_Y - 0.03,
           POND_Z + Math.sin(slowAng) * 0.40
         );
         fishGroup.rotation.y = -slowAng + Math.PI;
@@ -1622,3 +1686,4 @@
   </script>
 </body>
 </html>
+
