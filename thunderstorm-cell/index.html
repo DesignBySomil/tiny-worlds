@@ -1,580 +1,1451 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Thunderstorm Cell - a tiny world</title>
-<style>
-  html, body { margin:0; padding:0; height:100%; background:#2e3540; overflow:hidden;
-    font-family: Georgia, 'Times New Roman', serif; }
-  #app { position:fixed; inset:0; }
-  header { position:fixed; top:0; left:0; right:0; text-align:center; pointer-events:none;
-    padding: max(18px, env(safe-area-inset-top)) 16px 0; z-index:5; }
-  header h1 { margin:0; font-size:15px; letter-spacing:.42em; font-weight:400;
-    color:#cfd8e2; text-transform:uppercase; text-shadow:0 1px 8px rgba(10,14,20,.7); }
-  header .rule { width:44px; height:1px; background:rgba(207,216,226,.5); margin:9px auto; }
-  #hint { display:inline-block; font-size:11.5px; letter-spacing:.24em; text-transform:uppercase;
-    color:#dbe4ee; transition:opacity 1.2s ease; text-shadow:0 1px 2px rgba(10,14,20,1), 0 0 12px rgba(10,14,20,.85); }
-  #hint.faded { opacity:.42; }
-  footer { position:fixed; bottom:0; left:0; right:0; text-align:center; pointer-events:none;
-    padding:0 16px max(14px, env(safe-area-inset-bottom)); z-index:5;
-    font-size:10px; letter-spacing:.34em; text-transform:uppercase; color:rgba(159,176,192,.55); }
-  canvas { display:block; touch-action:none; }
-</style>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Thunderstorm cell — a tiny world</title>
+  <style>
+    :root {
+      --bg-top: #3e526a;
+      --bg-mid: #6d869e;
+      --bg-bot: #b8c9d4;
+      --text-main: #f7fafc;
+      --text-sub: #d7e3ec;
+      --accent: #ffe082;
+    }
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      user-select: none;
+      -webkit-user-select: none;
+      -webkit-touch-callout: none;
+    }
+    html, body {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: linear-gradient(180deg, var(--bg-top) 0%, var(--bg-mid) 52%, var(--bg-bot) 100%);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      color: var(--text-main);
+    }
+    #canvas-container {
+      position: fixed;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      touch-action: none;
+    }
+    canvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+      cursor: grab;
+    }
+    canvas:active {
+      cursor: grabbing;
+    }
+    canvas.pointer-hover {
+      cursor: pointer;
+    }
+    .hud-header {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      padding: 12px 16px 8px;
+      text-align: center;
+      pointer-events: none;
+      z-index: 10;
+      background: linear-gradient(180deg, rgba(24, 34, 46, 0.55) 0%, rgba(24, 34, 46, 0.22) 72%, rgba(24, 34, 46, 0) 100%);
+    }
+    .title {
+      font-size: clamp(1.1rem, 3.6vw, 1.45rem);
+      font-weight: 700;
+      letter-spacing: 0.02em;
+      line-height: 1.15;
+      color: #ffffff;
+      text-shadow: 0 2px 8px rgba(10, 18, 28, 0.55);
+    }
+    .subtitle {
+      font-size: clamp(0.75rem, 2.3vw, 0.88rem);
+      font-weight: 500;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--accent);
+      margin-top: 2px;
+      text-shadow: 0 1px 6px rgba(10, 18, 28, 0.6);
+    }
+    .hint {
+      display: inline-block;
+      margin-top: 5px;
+      padding: 3px 10px;
+      font-size: clamp(0.68rem, 2.1vw, 0.78rem);
+      font-weight: 500;
+      color: #eef5fa;
+      background: rgba(20, 32, 46, 0.48);
+      border: 1px solid rgba(255, 255, 255, 0.22);
+      border-radius: 999px;
+      backdrop-filter: blur(4px);
+      -webkit-backdrop-filter: blur(4px);
+      text-shadow: 0 1px 3px rgba(0, 0, 0, 0.45);
+    }
+    .hud-footer {
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      padding: 6px 16px 10px;
+      text-align: center;
+      pointer-events: none;
+      z-index: 10;
+      font-size: clamp(0.68rem, 2vw, 0.78rem);
+      font-weight: 600;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: rgba(245, 250, 255, 0.85);
+      text-shadow: 0 1px 4px rgba(15, 25, 36, 0.65);
+      background: linear-gradient(0deg, rgba(24, 34, 46, 0.4) 0%, rgba(24, 34, 46, 0) 100%);
+    }
+    #fallback {
+      display: none;
+      position: fixed;
+      inset: 20px;
+      z-index: 100;
+      background: rgba(22, 30, 40, 0.92);
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      border-radius: 12px;
+      padding: 24px;
+      color: #fff;
+      text-align: center;
+      align-items: center;
+      justify-content: center;
+      flex-direction: column;
+      gap: 10px;
+    }
+  </style>
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+        "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+      }
+    }
+  </script>
 </head>
 <body>
-<div id="app"></div>
-<header>
-  <h1>Thunderstorm Cell</h1>
-  <div class="rule"></div>
-  <span id="hint"></span>
-</header>
-<footer>A tiny world</footer>
-<script type="importmap">
-{ "imports": {
-  "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
-  "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
-} }
-</script>
-<script type="module">
-import * as THREE from 'three';
-import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+  <header class="hud-header" id="hud-header">
+    <h1 class="title">Thunderstorm cell</h1>
+    <div class="subtitle">a tiny world</div>
+    <div class="hint">tap the cloud for lightning - tap the pond to splash</div>
+  </header>
 
-// pass markers for deploy verification
-// pass 1: first thunderstorm-cell build - storm day palette, hero cumulonimbus, drag-to-steer, tap lightning, rain-fed pond
-// pass 2: legibility + form - lifted storm light, lighter greys, wider lower cloud, clearer header, lighter pond bed/canopy
-// pass 3: root form pass - cloud rebuilt as interpenetrating wide-base cumulonimbus (no coil stack), irregular mud-ring pond with visible water from start, hint contrast lifted
-// pass 4: coherent form - cloud is ONE sculpted lathe+value-noise volume with vertical vertex-color gradient (no ball seams), pond gets sandy mud shore + wider visible water, cloud shadow off (was blacking out the pond), lower cloud altitude, stronger hint contrast
-// pass 5: cloud billows - bigger low-frequency lumps (was a smooth cone/mound), composition lowered for header clearance
-// pass 6: cauliflower lobes - mid-frequency dominant displacement for real lobe shading separation, stronger base->top value contrast
-// pass 7: apex fix - radial displacement attenuated near the axis (pass 6 tore the top ring into an open cone)
-// pass 8: material change - solid mesh abandoned (read as rock); cloud is now a soft billboard-puff cluster (cumulonimbus layout, height-tinted), invisible sphere proxy for tap/drag raycast
-// pass 9: puff cluster scaled to hero size (pass 8 read tiny), deeper base tints
-// pass 10: crisper cores - denser texture falloff (was fog blob), extra mid puffs to close gaps
-// pass 11: portrait fit - wider bounds (cloud overhang at drag edges) + bigger fit margins (320px clipped slab left edge)
-// pass 12: drag clamp tightened to slab/2-2.5 so the whole cloud (incl. tower) stays in frame at 320px drag extremes
-// pass 13: exact corner-projection camera fit (pass 11 fitted box x-size only; diagonal view projects the slab wider and clipped at 320px)
-// pass 14: dynamic containment - frameBox never covered the cloud cluster at drag clamps (visual half-extent ~5.5 beyond center);
-//          per-frame required-distance fit against the live camera basis drives controls.minDistance
-// pass 15: fit TRUE physical boxes (slab + storm cluster, not inflated all-sky frameBox), responsive fov (38/46/58 by aspect)
-//          so portrait fit distance stays inside a usable range, fog far 120 and maxDistance 200 to match.
-// pass 19: QA hook stripped (probing complete: z-fight, resize, pond full-cycle all verified)
-// pass 18: z-fight root fix - plain top face was coplanar with strataTop top face (both y=0.0,
-//          whole-surface striping); decal stack raised with real separations + polygonOffset on patches
-// pass 17: cloud smoothing - position-keyed low-frequency noise (no shard cracks), detail-2 icosa,
-//          lifted three-tone palette, no per-lump random rotation (deterministic silhouette)
-// pass 16b: restore glowTexture for mists (deleted with the flicker sprite block)
-// pass 16: cloud root rebuild - billboard puffs replaced by faceted jittered-icosa cumulonimbus (flat deck,
-//          mid body, bright tower), internal flicker now a point light (lights inner facets + strike flash),
-//          portrait fit goes square-on (fitDir by aspect, no diagonal width waste).
+  <div id="canvas-container"></div>
 
-// ---------- palette (brooding storm day, distinct from volcano dusk / mushroom night) ----------
-const PAL = {
-  skyTop: 0x39404d, skyHorizon: 0x8d9b8a,
-  grassBase: 0x5d7048, grassDark: 0x46573a, grassBlade: 0x6d8053,
-  strataTop: 0x5a4f3d, strataMid: 0x4a3f33, strataRock: 0x3a3a40,
-  cloudDark: 0x4a515e, cloudMid: 0x646e7c, cloudRim: 0xa9b3c2,
-  pondBed: 0x8a7d63, pondWater: 0x6b8a99,
-  rain: 0xaab8c8, bolt: 0xeaf2ff, scorch: 0x141210
-};
+  <footer class="hud-footer" id="hud-footer">A tiny world</footer>
 
-// ---------- renderer / scene / camera ----------
-const app = document.getElementById('app');
-const renderer = new THREE.WebGLRenderer({ antialias:true });
-renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
-renderer.setSize(innerWidth, innerHeight);
-renderer.shadowMap.enabled = true;
-renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-renderer.toneMapping = THREE.ACESFilmicToneMapping;
-renderer.toneMappingExposure = 1.15;
-app.appendChild(renderer.domElement);
+  <div id="fallback">
+    <h2>WebGL Required</h2>
+    <p>Unable to initialize the 3D miniature view on this device or browser.</p>
+  </div>
 
-const scene = new THREE.Scene();
-scene.background = new THREE.Color(PAL.skyTop);
-scene.fog = new THREE.Fog(0x55606c, 30, 120);
+  <script type="module">
+    import * as THREE from 'three';
+    import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 
-// vertical sky gradient dome
-{
-  const c = document.createElement('canvas'); c.width = 2; c.height = 256;
-  const g = c.getContext('2d');
-  const grad = g.createLinearGradient(0,0,0,256);
-  grad.addColorStop(0, '#39404d'); grad.addColorStop(0.55, '#5d6874'); grad.addColorStop(1, '#8d9b8a');
-  g.fillStyle = grad; g.fillRect(0,0,2,256);
-  const tex = new THREE.CanvasTexture(c); tex.colorSpace = THREE.SRGBColorSpace;
-  const dome = new THREE.Mesh(
-    new THREE.SphereGeometry(90, 24, 16),
-    new THREE.MeshBasicMaterial({ map: tex, side: THREE.BackSide, fog: false })
-  );
-  scene.add(dome);
-}
+    // Deterministic PRNG: mulberry32(20261103)
+    function mulberry32(a) {
+      return function () {
+        let t = (a += 0x6d2b79f5);
+        t = Math.imul(t ^ (t >>> 15), t | 1);
+        t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+        return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+      };
+    }
+    const rand = mulberry32(20261103);
+    const randRange = (min, max) => min + (max - min) * rand();
 
-const camera = new THREE.PerspectiveCamera(38, innerWidth/innerHeight, 0.1, 200);
-function pickFov() {
-  const a = innerWidth / innerHeight;
-  camera.fov = a >= 0.9 ? 38 : (a >= 0.62 ? 46 : 58);
-  camera.updateProjectionMatrix();
-}
-pickFov();
-const controls = new OrbitControls(camera, renderer.domElement);
-controls.enableDamping = true; controls.dampingFactor = 0.08;
-controls.minDistance = 6; controls.maxDistance = 200;
-controls.maxPolarAngle = Math.PI * 0.52; controls.enablePan = false;
+    const container = document.getElementById('canvas-container');
+    const fallbackEl = document.getElementById('fallback');
+    const headerEl = document.getElementById('hud-header');
+    const footerEl = document.getElementById('hud-footer');
 
-// ---------- lights ----------
-const sun = new THREE.DirectionalLight(0xc4cfdb, 2.1);
-sun.position.set(-9, 14, 6);
-sun.castShadow = true;
-sun.shadow.mapSize.set(2048, 2048);
-sun.shadow.camera.left = -14; sun.shadow.camera.right = 14;
-sun.shadow.camera.top = 14; sun.shadow.camera.bottom = -14;
-sun.shadow.camera.far = 50; sun.shadow.bias = -0.0004;
-scene.add(sun);
-scene.add(new THREE.HemisphereLight(0x7d8899, 0x4a5545, 1.15));
-const flashLight = new THREE.PointLight(0xcfe0ff, 0, 40, 1.6);
-scene.add(flashLight);
+    let renderer;
+    try {
+      renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance', alpha: true });
+    } catch (err) {
+      fallbackEl.style.display = 'flex';
+      throw err;
+    }
 
-// ---------- slab ----------
-const SLAB = 16, SLAB_H = 3.2;
-const slabGroup = new THREE.Group(); scene.add(slabGroup);
-function strataLayer(h, y, color) {
-  const m = new THREE.Mesh(new THREE.BoxGeometry(SLAB, h, SLAB),
-    new THREE.MeshStandardMaterial({ color, roughness: 0.95 }));
-  m.position.y = y; m.castShadow = false; m.receiveShadow = true;
-  slabGroup.add(m); return m;
-}
-strataLayer(0.9, -SLAB_H + 0.45, PAL.strataRock);
-strataLayer(1.1, -SLAB_H + 0.9 + 0.55, PAL.strataMid);
-strataLayer(1.2, -SLAB_H + 2.0 + 0.6, PAL.strataTop);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.75));
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 1.18;
+    renderer.outputColorSpace = THREE.SRGBColorSpace;
+    container.appendChild(renderer.domElement);
 
-// plain top: subtle two-tone grass patches (hand-placed circles, not noise camo)
-const plainMat = new THREE.MeshStandardMaterial({ color: PAL.grassBase, roughness: 1 });
-const plain = new THREE.Mesh(new THREE.BoxGeometry(SLAB, 0.28, SLAB), plainMat);
-plain.position.y = -0.11; // top at 0.03 (was 0.0, coplanar with strata top face) plain.receiveShadow = true;
-slabGroup.add(plain);
+    const scene = new THREE.Scene();
+    scene.fog = new THREE.FogExp2(0x8ba2b8, 0.012);
 
-const patchMats = [PAL.grassDark, PAL.grassBlade].map(c =>
-  new THREE.MeshStandardMaterial({ color: c, roughness: 1,
-    polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -2 }));
-const patches = [
-  [-5.5,-4.5,2.6,0], [3.5,-6,2.2,1], [6,1.5,2.8,0], [-3,4.5,2.4,1],
-  [0.5,-1.5,3.0,1], [-6.5,2.5,1.8,0], [5.5,5.5,2.0,1]
-];
-for (const [x,z,r,mi] of patches) {
-  const p = new THREE.Mesh(new THREE.CircleGeometry(r, 20), patchMats[mi]);
-  p.rotation.x = -Math.PI/2; p.position.set(x, 0.05, z);
-  p.receiveShadow = true; slabGroup.add(p);
-}
+    const camera = new THREE.PerspectiveCamera(36, window.innerWidth / window.innerHeight, 0.5, 120);
+    const controls = new OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.065;
+    controls.enablePan = false;
+    controls.minPolarAngle = THREE.MathUtils.degToRad(34);
+    controls.maxPolarAngle = THREE.MathUtils.degToRad(74);
+    controls.minAzimuthAngle = THREE.MathUtils.degToRad(-55);
+    controls.maxAzimuthAngle = THREE.MathUtils.degToRad(55);
 
-// ---------- pond (off-center dip, fills with rain) ----------
-const POND = { x: 3.2, z: -2.6, maxR: 2.6, minR: 1.5, fill: 0.15 };
-// irregular muddy shore ring (hand-wobbled outline, not a perfect disc)
-const bedShape = new THREE.Shape();
-for (let i = 0; i <= 26; i++) {
-  const a = (i / 26) * Math.PI * 2;
-  const wob = 1 + 0.14 * Math.sin(a*3 + 1.2) + 0.09 * Math.sin(a*5 + 0.4);
-  const r = (POND.maxR + 0.55) * wob;
-  const px = Math.cos(a) * r, py = Math.sin(a) * r;
-  if (i === 0) bedShape.moveTo(px, py); else bedShape.lineTo(px, py);
-}
-const pondBed = new THREE.Mesh(new THREE.ShapeGeometry(bedShape),
-  new THREE.MeshStandardMaterial({ color: 0x6f6450, roughness: 1 }));
-pondBed.rotation.x = -Math.PI/2; pondBed.position.set(POND.x, 0.065, POND.z);
-pondBed.receiveShadow = true; slabGroup.add(pondBed);
-const pondWaterMat = new THREE.MeshStandardMaterial({
-  color: PAL.pondWater, roughness: 0.12, metalness: 0.05,
-  transparent: true, opacity: 0.92 });
-const pondWater = new THREE.Mesh(new THREE.CircleGeometry(1, 28), pondWaterMat);
-pondWater.rotation.x = -Math.PI/2; pondWater.position.set(POND.x, 0.08, POND.z);
-pondWater.scale.setScalar(POND.minR); slabGroup.add(pondWater);
+    const worldRoot = new THREE.Group();
+    scene.add(worldRoot);
 
-// ---------- hero cloud: layered cumulonimbus ----------
-const cloud = new THREE.Group(); scene.add(cloud);
-const CLOUD_Y = 6.1;
-// faceted cumulonimbus: low-poly jittered icosa lumps, three-tone flat shading
-function lumpGeo(r, seed) {
-  const g = new THREE.IcosahedronGeometry(r, 2);
-  const p = g.attributes.position;
-  // smooth position-keyed noise: shared corners displace identically (no cracks/shards)
-  for (let i = 0; i < p.count; i++) {
-    const vx = p.getX(i), vy = p.getY(i), vz = p.getZ(i);
-    const j = 1 + 0.16 * Math.sin(2.6 * vy / r + seed) * Math.sin(2.1 * vx / r + seed * 1.7)
-              + 0.10 * Math.sin(4.3 * vz / r + seed * 2.3) * Math.sin(3.9 * vx / r + seed);
-    p.setXYZ(i, vx * j, vy * j, vz * j);
-  }
-  g.computeVertexNormals();
-  return g;
-}
-const lumpMats = {
-  base: new THREE.MeshStandardMaterial({ color: 0x646c7c, roughness: 0.95, flatShading: true }),
-  mid:  new THREE.MeshStandardMaterial({ color: 0xa7b0bf, roughness: 0.92, flatShading: true }),
-  top:  new THREE.MeshStandardMaterial({ color: 0xdde4ec, roughness: 0.85, flatShading: true }),
-};
-// cumulonimbus layout: [x, y, z, size] - wide flat deck, mid cluster, billowing tower
-const CLOUD_LAYOUT = [
-  // flat dark base layer
-  [-2.4,-0.15,0.2, 4.37], [-1.1,-0.22,-0.8, 4.75],
-  [ 0.3,-0.18,0.3, 5.13], [ 1.9,-0.15,-0.3, 4.56],
-  [ 1.0,-0.2,1.2, 3.8], [-1.0,-0.2,1.1, 3.99],
-  [-2.0,-0.12,1.0, 3.42], [ 2.6,-0.18,0.8, 3.23],
-  // mid body
-  [-1.6,0.8,0.1, 4.18], [ 0.0,1.0,-0.4, 4.56],
-  [ 1.5,0.9,0.3, 3.99], [ 0.5,0.85,1.0, 3.61],
-  [-0.6,0.95,-1.0, 3.61],
-  // upper mass
-  [-0.8,1.9,0.1, 3.42], [ 0.7,2.0,-0.3, 3.23],
-  // tower, brightest tops
-  [-0.1,2.8,0.1, 2.66], [ 0.6,3.3,-0.2, 1.9],
-  [-0.5,3.6,0.3, 1.55], [ 0.2,4.05,0.0, 1.1],
-];
-const cloudLumps = [];
-CLOUD_LAYOUT.forEach(([x, y, z, s2], i) => {
-  const mat = i < 8 ? lumpMats.base : (i < 13 ? lumpMats.mid : lumpMats.top);
-  const m = new THREE.Mesh(lumpGeo(s2 * 0.52, i * 1.618), mat);
-  m.position.set(x, y, z);
-  if (i < 8) m.scale.y = 0.55; // squash deck lumps into a flat base
-  m.userData.phase = i * 1.31;
-  m.userData.baseY = y;
-  cloud.add(m); cloudLumps.push(m);
-});
-// invisible raycast proxy so tap/drag hit-testing stays cheap and generous
-const cloudProxy = new THREE.Mesh(new THREE.SphereGeometry(5.5, 8, 8),
-  new THREE.MeshBasicMaterial({ visible: false }));
-cloudProxy.position.y = 1.8; cloud.add(cloudProxy);
-cloud.position.set(-2.5, CLOUD_Y, 1.0);
+    // --- LIGHTING (Dramatic sun break + bright readable cloud + fill) ---
+    const hemiLight = new THREE.HemisphereLight(0xeef6ff, 0x627c54, 1.35);
+    scene.add(hemiLight);
 
-// internal flicker light: idle simmer + strike flash lighting inner facets
-const flickerLight = new THREE.PointLight(0xdce8ff, 0, 14, 2);
-flickerLight.position.set(0, 1.2, 0); cloud.add(flickerLight);
+    const sunBreakLight = new THREE.DirectionalLight(0xfff1d0, 2.75);
+    sunBreakLight.position.set(11.5, 15.0, 9.5);
+    sunBreakLight.castShadow = true;
+    sunBreakLight.shadow.mapSize.set(1024, 1024);
+    sunBreakLight.shadow.camera.near = 2;
+    sunBreakLight.shadow.camera.far = 36;
+    const sc = 7.2;
+    sunBreakLight.shadow.camera.left = -sc;
+    sunBreakLight.shadow.camera.right = sc;
+    sunBreakLight.shadow.camera.top = sc;
+    sunBreakLight.shadow.camera.bottom = -sc;
+    sunBreakLight.shadow.bias = -0.0008;
+    sunBreakLight.shadow.normalBias = 0.025;
+    scene.add(sunBreakLight);
 
-// ---------- rain shaft (follows cloud) ----------
-const RAIN_N = 900;
-const rainGeo = new THREE.BufferGeometry();
-const rainPos = new Float32Array(RAIN_N * 6);
-const rainSeed = [];
-for (let i = 0; i < RAIN_N; i++) {
-  rainSeed.push({ x: (Math.random()-0.5)*7, z: (Math.random()-0.5)*7, y: Math.random()*CLOUD_Y, v: 9 + Math.random()*5 });
-}
-rainGeo.setAttribute('position', new THREE.BufferAttribute(rainPos, 3));
-const rainMat = new THREE.LineBasicMaterial({ color: PAL.rain, transparent: true, opacity: 0.34 });
-const rain = new THREE.LineSegments(rainGeo, rainMat);
-rain.frustumCulled = false; scene.add(rain);
-const WIND = { x: 1.6, z: 0.4 };
+    // Silver-lining rim light from opposite upper side so cloud is sculpted & luminous
+    const rimLight = new THREE.DirectionalLight(0xcce6ff, 1.45);
+    rimLight.position.set(-10.0, 12.0, -8.5);
+    scene.add(rimLight);
 
-// mist where rain hits ground
-function glowTexture(inner, outer) {
-  const c = document.createElement('canvas'); c.width = c.height = 128;
-  const g = c.getContext('2d');
-  const grad = g.createRadialGradient(64,64,4, 64,64,64);
-  grad.addColorStop(0, inner); grad.addColorStop(1, outer);
-  g.fillStyle = grad; g.fillRect(0,0,128,128);
-  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t;
-}
-const mistTex = glowTexture('rgba(190,205,215,0.5)', 'rgba(190,205,215,0)');
-const mists = [];
-for (let i = 0; i < 3; i++) {
-  const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: mistTex, transparent: true,
-    opacity: 0.16, depthWrite: false }));
-  s.scale.setScalar(4 + i); s.position.y = 0.35; scene.add(s); mists.push(s);
-}
+    // Soft uplift bounce light so under-cloud is never a murky black blob
+    const bounceLight = new THREE.DirectionalLight(0x9cb8d4, 0.9);
+    bounceLight.position.set(0, -8, 4);
+    scene.add(bounceLight);
 
-// ---------- plain dressing: wind-bent grass tufts, fence posts, rocks, lone bent tree ----------
-const grassMat = new THREE.MeshStandardMaterial({ color: PAL.grassBlade, roughness: 1, side: THREE.DoubleSide });
-const grassTufts = [];
-function tuft(x, z, s) {
-  const g = new THREE.Group();
-  const blades = 4 + Math.floor(Math.random()*3);
-  for (let i = 0; i < blades; i++) {
-    const b = new THREE.Mesh(new THREE.PlaneGeometry(0.09, 0.55), grassMat);
-    b.position.set((Math.random()-0.5)*0.16, 0.27, (Math.random()-0.5)*0.16);
-    b.rotation.y = Math.random()*Math.PI;
-    b.rotation.z = 0.28 + Math.random()*0.2; // all lean with the wind (+x)
-    g.add(b);
-  }
-  g.position.set(x, 0, z); g.scale.setScalar(s);
-  slabGroup.add(g); grassTufts.push(g); return g;
-}
-const tuftSpots = [];
-for (let i = 0; i < 90; i++) {
-  const x = (Math.random()-0.5)*(SLAB-1.6), z = (Math.random()-0.5)*(SLAB-1.6);
-  if (Math.hypot(x-POND.x, z-POND.z) < POND.maxR + 0.6) continue;
-  tuftSpots.push([x, z, 0.7 + Math.random()*0.7]);
-}
-tuftSpots.forEach(([x,z,s]) => tuft(x,z,s));
+    // Internal cloud point light (idle rumble + strike burst)
+    const cloudInternalLight = new THREE.PointLight(0x9bd2ff, 0.5, 14, 1.4);
+    cloudInternalLight.position.set(-0.6, 5.2, -0.4);
+    worldRoot.add(cloudInternalLight);
 
-const postMat = new THREE.MeshStandardMaterial({ color: 0x4c4136, roughness: 1 });
-for (let i = 0; i < 6; i++) {
-  const post = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.85, 0.12), postMat);
-  post.position.set(-6.8 + i*1.15, 0.42, 5.6 - i*0.35);
-  post.rotation.z = (Math.random()-0.5)*0.12;
-  post.castShadow = true; slabGroup.add(post);
-  if (i > 0) {
-    const prev = new THREE.Vector3(-6.8 + (i-1)*1.15, 0.68, 5.6 - (i-1)*0.35);
-    const cur = new THREE.Vector3(-6.8 + i*1.15, 0.66, 5.6 - i*0.35);
-    const wire = new THREE.Line(new THREE.BufferGeometry().setFromPoints([prev, cur]),
-      new THREE.LineBasicMaterial({ color: 0x2c2620 }));
-    slabGroup.add(wire);
-  }
-}
-const rockMat = new THREE.MeshStandardMaterial({ color: 0x5c5a52, roughness: 0.95 });
-[[-4.2,-5.8,0.5],[6.4,-4.2,0.4],[1.8,6.2,0.6],[-6.2,0.8,0.35],[5.2,2.8,0.3]].forEach(([x,z,s]) => {
-  const r = new THREE.Mesh(new THREE.DodecahedronGeometry(s, 0), rockMat);
-  r.position.set(x, s*0.45, z); r.rotation.set(Math.random(), Math.random(), Math.random());
-  r.castShadow = true; r.receiveShadow = true; slabGroup.add(r);
-});
+    // Scene-wide lightning flash light
+    const strikeFlashLight = new THREE.PointLight(0xd8ecff, 0.0, 28, 1.1);
+    strikeFlashLight.position.set(-0.5, 3.8, 0.2);
+    worldRoot.add(strikeFlashLight);
 
-// lone bent tree (wind-shaped, leaning +x like the grass)
-const tree = new THREE.Group();
-const trunkMat = new THREE.MeshStandardMaterial({ color: 0x453a2e, roughness: 1 });
-const trunkCurve = new THREE.CatmullRomCurve3([
-  new THREE.Vector3(0,0,0), new THREE.Vector3(0.28,0.9,0),
-  new THREE.Vector3(0.8,1.7,0), new THREE.Vector3(1.5,2.2,0)
-]);
-tree.add(new THREE.Mesh(new THREE.TubeGeometry(trunkCurve, 12, 0.11, 6), trunkMat));
-const branchCurve = new THREE.CatmullRomCurve3([
-  new THREE.Vector3(0.5,1.25,0), new THREE.Vector3(1.0,1.9,0.3), new THREE.Vector3(1.6,2.2,0.5)
-]);
-tree.add(new THREE.Mesh(new THREE.TubeGeometry(branchCurve, 8, 0.06, 6), trunkMat));
-const canopyMat = new THREE.MeshStandardMaterial({ color: 0x6d7f52, roughness: 1 });
-[[1.75,2.35,0,0.75],[1.35,2.0,0.45,0.5],[2.05,2.1,-0.3,0.55]].forEach(([x,y,z,s]) => {
-  const c = new THREE.Mesh(new THREE.SphereGeometry(s, 12, 10), canopyMat);
-  c.position.set(x,y,z); c.scale.set(1.5, 0.75, 1.2); c.castShadow = true; tree.add(c);
-});
-tree.position.set(-5.6, 0, -3.4); tree.traverse(o => { if (o.isMesh) o.castShadow = true; });
-slabGroup.add(tree);
+    // --- TERRAIN HEIGHT FUNCTION ---
+    // Pond centered around (1.25, 0.95)
+    const POND_X = 1.25;
+    const POND_Z = 0.95;
+    const POND_RX = 1.55;
+    const POND_RZ = 1.22;
+    const WATER_Y = 0.05;
 
-// ---------- lightning ----------
-const boltMat = new THREE.LineBasicMaterial({ color: PAL.bolt, transparent: true, opacity: 0,
-  blending: THREE.AdditiveBlending });
-let bolt = null, boltLife = 0, scorch = null, scorchLife = 0;
-function strike() {
-  const from = new THREE.Vector3(cloud.position.x, CLOUD_Y - 1.2, cloud.position.z);
-  const to = new THREE.Vector3(cloud.position.x + (Math.random()-0.5)*1.2, 0.05,
-                               cloud.position.z + (Math.random()-0.5)*1.2);
-  const pts = [from.clone()];
-  const segs = 9;
-  for (let i = 1; i < segs; i++) {
-    const t = i / segs;
-    const p = from.clone().lerp(to, t);
-    p.x += (Math.random()-0.5) * 0.9 * (1-t);
-    p.z += (Math.random()-0.5) * 0.9 * (1-t);
-    pts.push(p);
-  }
-  pts.push(to.clone());
-  if (bolt) { scene.remove(bolt); bolt.geometry.dispose(); }
-  bolt = new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), boltMat.clone());
-  bolt.material.opacity = 1; scene.add(bolt); boltLife = 1;
-  flashLight.position.copy(to).y = 2.5; flashLight.intensity = 60; flickerLight.intensity = 42;
-  renderer.toneMappingExposure = 1.7;
-  camShake = 0.35;
-  if (scorch) { scene.remove(scorch); scorch.geometry.dispose(); }
-  scorch = new THREE.Mesh(new THREE.CircleGeometry(0.55, 14),
-    new THREE.MeshBasicMaterial({ color: PAL.scorch, transparent: true, opacity: 0.85 }));
-  scorch.rotation.x = -Math.PI/2; scorch.position.copy(to).y = 0.1;
-  scene.add(scorch); scorchLife = 1;
-}
+    function getPondFactor(x, z) {
+      const dx = (x - POND_X) / POND_RX;
+      const dz = (z - POND_Z) / POND_RZ;
+      return dx * dx + dz * dz;
+    }
 
-// ---------- camera framing (bounds-fit, portrait-aware) ----------
-const slabBox = new THREE.Box3(
-  new THREE.Vector3(-SLAB/2 - 0.8, -SLAB_H, -SLAB/2 - 0.8),
-  new THREE.Vector3(SLAB/2 + 0.8, 0.6, SLAB/2 + 0.8));
-// dynamic containment box: the slab + wherever the storm (cloud, tower, rain, mist) currently sits
-const dynBox = new THREE.Box3();
-function updateDynBox() {
-  dynBox.copy(slabBox);
-  dynBox.expandByPoint(new THREE.Vector3(cloud.position.x - 6.2, 0, cloud.position.z - 6.2));
-  dynBox.expandByPoint(new THREE.Vector3(cloud.position.x + 6.2, CLOUD_Y + 6.6, cloud.position.z + 6.2));
-  return dynBox;
-}
-const _rel = new THREE.Vector3();
-function requiredDistance(box, right, up, fwd, target) {
-  // smallest camera distance from target along -fwd so every box corner is inside both frustum half-angles
-  const fovV = THREE.MathUtils.degToRad(camera.fov);
-  const tanH = Math.tan(Math.atan(Math.tan(fovV/2) * camera.aspect));
-  const tanV = Math.tan(fovV/2);
-  let d = 4;
-  for (const bx of [box.min.x, box.max.x])
-    for (const by of [box.min.y, box.max.y])
-      for (const bz of [box.min.z, box.max.z]) {
-        _rel.set(bx, by, bz).sub(target);
-        const cf = _rel.dot(fwd);
-        d = Math.max(d,
-          Math.abs(_rel.dot(right)) / tanH - cf,
-          Math.abs(_rel.dot(up)) / tanV - cf);
+    function getTerrainHeight(x, z) {
+      // Rolling prairie waves
+      let h = 0.22
+        + 0.14 * Math.sin(x * 0.55 + 0.4) * Math.cos(z * 0.5 - 0.3)
+        + 0.08 * Math.cos((x - z) * 0.75);
+
+      // Distant low hills rising toward back-left and back-right slab edges
+      const distEdge = Math.sqrt(x * x + z * z);
+      const backHill = Math.max(0, -z + 0.6) * 0.16 + Math.max(0, -x - 0.8) * 0.1;
+      const hillBump = Math.exp(-((x + 1.8) * (x + 1.8) + (z + 2.1) * (z + 2.1)) * 0.28) * 0.62
+        + Math.exp(-((x - 2.1) * (x - 2.1) + (z + 2.0) * (z + 2.0)) * 0.32) * 0.48;
+
+      h += backHill * 0.35 + hillBump;
+
+      // Pond basin depression
+      const pf = getPondFactor(x, z);
+      if (pf < 2.2) {
+        const dip = Math.max(0, 1 - pf / 1.55);
+        const smoothDip = dip * dip * (3 - 2 * dip);
+        h = THREE.MathUtils.lerp(h, -0.34, smoothDip);
       }
-  return d;
-}
-const FIT_CENTER = new THREE.Vector3(0, 2.5, 0);
-function fitDir() {
-  const a = innerWidth / innerHeight;
-  if (a < 0.62) return new THREE.Vector3(0, 0.34, 1).normalize(); // square-on for portrait
-  if (a < 0.9) return new THREE.Vector3(0.4, 0.38, 1).normalize();
-  return new THREE.Vector3(0.62, 0.42, 1).normalize();
-}
-function frameInitialCamera() {
-  pickFov();
-  const box = updateDynBox();
-  const fd = fitDir();
-  const fwd = fd.clone().negate();
-  const right = new THREE.Vector3().crossVectors(fwd, new THREE.Vector3(0,1,0)).normalize();
-  const up = new THREE.Vector3().crossVectors(right, fwd).normalize();
-  const dist = requiredDistance(box, right, up, fwd, FIT_CENTER) * 1.05;
-  camera.position.copy(FIT_CENTER).addScaledVector(fd, dist);
-  controls.target.copy(FIT_CENTER);
-  camera.updateProjectionMatrix(); controls.update();
-}
-frameInitialCamera();
 
-// ---------- hints ----------
-const hintEl = document.getElementById('hint');
-const HINTS = {
-  idle: 'Drag the storm - tap the cloud for lightning',
-  steering: 'Steering the cell - rain follows',
-  struck: 'Struck - the plain smells of rain',
-  full: 'The pond brims over'
-};
-function setHint(s) {
-  hintEl.textContent = HINTS[s]; hintEl.classList.remove('faded');
-  clearTimeout(setHint._t);
-  setHint._t = setTimeout(() => hintEl.classList.add('faded'), 6000);
-}
-setHint('idle');
+      // Soft bevel near slab perimeter
+      const maxR = 4.35;
+      if (distEdge > maxR - 0.5) {
+        const t = Math.min(1, (distEdge - (maxR - 0.5)) / 0.5);
+        h = THREE.MathUtils.lerp(h, 0.02, t * t);
+      }
+      return h;
+    }
 
-// ---------- interaction: drag cloud / tap lightning / orbit otherwise ----------
-const ray = new THREE.Raycaster();
-const ndc = new THREE.Vector2();
-const dragPlane = new THREE.Plane(new THREE.Vector3(0,1,0), -CLOUD_Y);
-let dragging = false, downAt = 0, downXY = [0,0], camShake = 0;
-function toNDC(e) {
-  ndc.set((e.clientX/innerWidth)*2 - 1, -(e.clientY/innerHeight)*2 + 1);
-}
-function hitsCloud(e) {
-  toNDC(e); ray.setFromCamera(ndc, camera);
-  return ray.intersectObject(cloud, true).length > 0;
-}
-renderer.domElement.addEventListener('pointerdown', (e) => {
-  camera.updateMatrixWorld(true); cloud.updateMatrixWorld(true);
-  downAt = performance.now(); downXY = [e.clientX, e.clientY];
-  if (hitsCloud(e)) { dragging = true; controls.enabled = false; setHint('steering'); }
-});
-renderer.domElement.addEventListener('pointermove', (e) => {
-  if (!dragging) return;
-  toNDC(e); ray.setFromCamera(ndc, camera);
-  const p = new THREE.Vector3();
-  if (ray.ray.intersectPlane(dragPlane, p)) {
-    const lim = SLAB/2 - 2.5;
-    cloud.position.x = THREE.MathUtils.clamp(p.x, -lim, lim);
-    cloud.position.z = THREE.MathUtils.clamp(p.z, -lim, lim);
-  }
-});
-renderer.domElement.addEventListener('pointerup', (e) => {
-  const dt = performance.now() - downAt;
-  const moved = Math.hypot(e.clientX - downXY[0], e.clientY - downXY[1]);
-  if (dragging) {
-    dragging = false; controls.enabled = true;
-    if (moved < 7 && dt < 450) { strike(); setHint('struck'); }
-    else setHint('idle');
-  }
-});
+    // --- DIORAMA SLAB & TERRAIN ---
+    const SLAB_RADIUS = 4.35;
+    const slabGroup = new THREE.Group();
+    worldRoot.add(slabGroup);
 
-// ---------- animate ----------
-const clock = new THREE.Clock();
-let flickerTimer = 2 + Math.random()*4, driftT = 0;
-function animate() {
-  requestAnimationFrame(animate);
-  const dt = Math.min(clock.getDelta(), 0.05);
-  const t = clock.elapsedTime;
+    // Base soil/stone plinth with rich bevel look
+    const plinthGeo = new THREE.CylinderGeometry(SLAB_RADIUS, SLAB_RADIUS * 0.95, 0.9, 64, 1);
+    const plinthMat = new THREE.MeshStandardMaterial({
+      color: 0x52453b,
+      roughness: 0.85,
+      metalness: 0.05
+    });
+    const plinthMesh = new THREE.Mesh(plinthGeo, plinthMat);
+    plinthMesh.position.y = -0.45;
+    plinthMesh.receiveShadow = true;
+    plinthMesh.castShadow = true;
+    slabGroup.add(plinthMesh);
 
-  // cloud idle drift + bob
-  if (!dragging) {
-    driftT += dt;
-    cloud.position.x += Math.sin(driftT * 0.11) * dt * 0.35;
-    cloud.position.z += Math.cos(driftT * 0.09) * dt * 0.3;
-    const lim = SLAB/2 - 2.5;
-    cloud.position.x = THREE.MathUtils.clamp(cloud.position.x, -lim, lim);
-    cloud.position.z = THREE.MathUtils.clamp(cloud.position.z, -lim, lim);
-  }
-  cloud.position.y = CLOUD_Y + Math.sin(t * 0.5) * 0.12;
-  for (const l of cloudLumps) {
-    l.position.y = l.userData.baseY + Math.sin(t * 0.6 + l.userData.phase) * 0.09;
-    l.rotation.y += dt * 0.025;
-  }
+    // Darker bottom rim ring for miniature pedestal finish
+    const rimGeo = new THREE.CylinderGeometry(SLAB_RADIUS * 0.96, SLAB_RADIUS * 0.92, 0.22, 64);
+    const rimMat = new THREE.MeshStandardMaterial({
+      color: 0x362d26,
+      roughness: 0.75,
+      metalness: 0.1
+    });
+    const rimMesh = new THREE.Mesh(rimGeo, rimMat);
+    rimMesh.position.y = -0.88;
+    slabGroup.add(rimMesh);
 
-  // rain shaft follows cloud
-  for (let i = 0; i < RAIN_N; i++) {
-    const r = rainSeed[i];
-    r.y -= r.v * dt;
-    if (r.y < 0) { r.y = CLOUD_Y - 1.4; r.x = (Math.random()-0.5)*7; r.z = (Math.random()-0.5)*7; }
-    const j = i * 6;
-    const wx = cloud.position.x + r.x, wz = cloud.position.z + r.z;
-    rainPos[j]   = wx;                 rainPos[j+1] = r.y;        rainPos[j+2] = wz;
-    rainPos[j+3] = wx + WIND.x * 0.05; rainPos[j+4] = r.y - 0.42; rainPos[j+5] = wz + WIND.z * 0.05;
-  }
-  rainGeo.attributes.position.needsUpdate = true;
-  mists.forEach((m, i) => {
-    m.position.x = cloud.position.x + Math.sin(t*0.7 + i*2.1) * 1.2;
-    m.position.z = cloud.position.z + Math.cos(t*0.6 + i*1.7) * 1.2;
-    m.material.opacity = 0.12 + Math.sin(t*1.3 + i) * 0.05;
-  });
+    // Sculpted top prairie surface
+    const topGeo = new THREE.CylinderGeometry(SLAB_RADIUS, SLAB_RADIUS, 0.2, 72, 28);
+    const posAttr = topGeo.attributes.position;
+    const colorArr = new Float32Array(posAttr.count * 3);
 
-  // pond fill: rises when cloud is over/near pond, drains otherwise
-  const overPond = Math.hypot(cloud.position.x - POND.x, cloud.position.z - POND.z) < POND.maxR + 1.6;
-  POND.fill = THREE.MathUtils.clamp(POND.fill + (overPond ? dt/90 : -dt/240), 0, 1);
-  const r = THREE.MathUtils.lerp(POND.minR, POND.maxR, POND.fill);
-  pondWater.scale.setScalar(r);
-  pondWater.position.y = 0.08 + POND.fill * 0.045;
-  pondWaterMat.opacity = 0.85 + Math.sin(t*2.2) * 0.04 * POND.fill;
-  if (POND.fill >= 0.999 && hintEl.textContent !== HINTS.full) setHint('full');
+    const colHill = new THREE.Color(0x639a46);
+    const colMeadow = new THREE.Color(0x7cb855);
+    const colSunGrass = new THREE.Color(0x98cf63);
+    const colBank = new THREE.Color(0x5b6947);
+    const colMud = new THREE.Color(0x37473b);
+    const tempCol = new THREE.Color();
 
-  // grass sway (all lean +x, ripple phase by position)
-  for (const g of grassTufts) {
-    g.rotation.z = Math.sin(t * 1.8 + g.position.x * 0.5 + g.position.z * 0.3) * 0.09;
-  }
+    for (let i = 0; i < posAttr.count; i++) {
+      const vx = posAttr.getX(i);
+      const vy = posAttr.getY(i);
+      const vz = posAttr.getZ(i);
 
-  // idle internal flicker
-  flickerTimer -= dt;
-  if (flickerTimer < 0) { flickerTimer = 2 + Math.random()*5; flickerLight.intensity = 20 + Math.random()*10; }
-  flickerLight.intensity = Math.max(0, flickerLight.intensity - dt * 34);
+      if (vy > 0) {
+        const th = getTerrainHeight(vx, vz);
+        posAttr.setY(i, th);
 
-  // lightning decay
-  if (bolt && boltLife > 0) {
-    boltLife -= dt * 4.5;
-    bolt.material.opacity = Math.max(0, boltLife) * (0.7 + Math.random()*0.3);
-    if (boltLife <= 0) { scene.remove(bolt); bolt = null; }
-  }
-  flashLight.intensity = Math.max(0, flashLight.intensity - dt * 260);
-  renderer.toneMappingExposure += (1.15 - renderer.toneMappingExposure) * dt * 6;
-  if (scorch && scorchLife > 0) {
-    scorchLife -= dt / 30;
-    scorch.material.opacity = Math.max(0, scorchLife) * 0.85;
-    if (scorchLife <= 0) { scene.remove(scorch); scorch = null; }
-  }
-  if (camShake > 0) {
-    camShake -= dt * 1.4;
-    camera.position.x += (Math.random()-0.5) * camShake * 0.14;
-    camera.position.y += (Math.random()-0.5) * camShake * 0.1;
-  }
+        const pf = getPondFactor(vx, vz);
+        if (pf < 1.05) {
+          tempCol.copy(colMud).lerp(colBank, Math.min(1, pf));
+        } else if (pf < 1.45) {
+          tempCol.copy(colBank).lerp(colMeadow, (pf - 1.05) / 0.4);
+        } else {
+          const sunMix = THREE.MathUtils.clamp((vx + vz + 3.5) / 7.0, 0, 1);
+          tempCol.copy(colHill).lerp(colMeadow, 0.65).lerp(colSunGrass, sunMix * 0.55);
+        }
+      } else {
+        posAttr.setY(i, -0.04);
+        tempCol.setHex(0x5a4c40);
+      }
+      colorArr[i * 3] = tempCol.r;
+      colorArr[i * 3 + 1] = tempCol.g;
+      colorArr[i * 3 + 2] = tempCol.b;
+    }
+    topGeo.setAttribute('color', new THREE.BufferAttribute(colorArr, 3));
+    topGeo.computeVertexNormals();
 
-  // dynamic containment: the storm must stay in frame at any drag position or orbit angle
-  {
-    const box = updateDynBox();
-    const fwd = new THREE.Vector3(); camera.getWorldDirection(fwd);
-    const rgt = new THREE.Vector3().crossVectors(fwd, camera.up).normalize();
-    const up2 = new THREE.Vector3().crossVectors(rgt, fwd).normalize();
-    controls.minDistance = requiredDistance(box, rgt, up2, fwd, controls.target) * 1.04;
-  }
-  controls.update();
-  renderer.render(scene, camera);
-}
-animate();
+    const terrainMat = new THREE.MeshStandardMaterial({
+      vertexColors: true,
+      roughness: 0.82,
+      metalness: 0.02
+    });
+    const terrainMesh = new THREE.Mesh(topGeo, terrainMat);
+    terrainMesh.receiveShadow = true;
+    terrainMesh.castShadow = true;
+    slabGroup.add(terrainMesh);
 
+    // --- RAIN-FED POND ---
+    const pondGroup = new THREE.Group();
+    worldRoot.add(pondGroup);
 
-addEventListener('resize', () => {
-  camera.aspect = innerWidth/innerHeight;
-  renderer.setSize(innerWidth, innerHeight);
-  renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
-  frameInitialCamera();
-});
-setTimeout(() => hintEl.classList.add('faded'), 6000);
-</script>
+    const pondGeo = new THREE.CircleGeometry(1.0, 48);
+    pondGeo.rotateX(-Math.PI / 2);
+    pondGeo.scale(POND_RX * 0.96, 1, POND_RZ * 0.96);
+
+    const pondMat = new THREE.MeshStandardMaterial({
+      color: 0x1e4968,
+      emissive: 0x0d2538,
+      emissiveIntensity: 0.45,
+      roughness: 0.12,
+      metalness: 0.35,
+      transparent: true,
+      opacity: 0.92
+    });
+    const pondMesh = new THREE.Mesh(pondGeo, pondMat);
+    pondMesh.position.set(POND_X, WATER_Y, POND_Z);
+    pondMesh.receiveShadow = true;
+    pondGroup.add(pondMesh);
+
+    // Subtle specular sky-reflection sheen layer on pond
+    const sheenGeo = new THREE.CircleGeometry(0.82, 40);
+    sheenGeo.rotateX(-Math.PI / 2);
+    sheenGeo.scale(POND_RX * 0.88, 1, POND_RZ * 0.88);
+    const sheenMat = new THREE.MeshBasicMaterial({
+      color: 0x9ad0f5,
+      transparent: true,
+      opacity: 0.22
+    });
+    const sheenMesh = new THREE.Mesh(sheenGeo, sheenMat);
+    sheenMesh.position.set(POND_X - 0.08, WATER_Y + 0.004, POND_Z - 0.05);
+    pondGroup.add(sheenMesh);
+
+    // Little green frog sitting on a shoreline lily-pad / wet stone
+    const frogGroup = new THREE.Group();
+    const frogBaseX = POND_X - POND_RX * 0.72;
+    const frogBaseZ = POND_Z - POND_RZ * 0.42;
+    const frogBaseY = Math.max(WATER_Y + 0.02, getTerrainHeight(frogBaseX, frogBaseZ));
+    frogGroup.position.set(frogBaseX, frogBaseY, frogBaseZ);
+    frogGroup.rotation.y = 0.65;
+    worldRoot.add(frogGroup);
+
+    const frogMat = new THREE.MeshStandardMaterial({ color: 0x56b847, roughness: 0.45 });
+    const frogBellyMat = new THREE.MeshStandardMaterial({ color: 0xd8f088, roughness: 0.55 });
+    const frogEyeMat = new THREE.MeshStandardMaterial({ color: 0x151a12, roughness: 0.2 });
+
+    const frogBody = new THREE.Mesh(new THREE.SphereGeometry(0.11, 14, 12), frogMat);
+    frogBody.scale.set(1.0, 0.78, 1.25);
+    frogBody.position.y = 0.07;
+    frogBody.castShadow = true;
+    frogGroup.add(frogBody);
+
+    const frogBelly = new THREE.Mesh(new THREE.SphereGeometry(0.095, 12, 10), frogBellyMat);
+    frogBelly.scale.set(0.9, 0.65, 1.1);
+    frogBelly.position.set(0, 0.055, 0.02);
+    frogGroup.add(frogBelly);
+
+    [-0.045, 0.045].forEach((ex) => {
+      const eyeBump = new THREE.Mesh(new THREE.SphereGeometry(0.032, 10, 10), frogMat);
+      eyeBump.position.set(ex, 0.145, 0.075);
+      frogGroup.add(eyeBump);
+      const pupil = new THREE.Mesh(new THREE.SphereGeometry(0.018, 8, 8), frogEyeMat);
+      pupil.position.set(ex, 0.152, 0.098);
+      frogGroup.add(pupil);
+    });
+
+    // Golden-orange koi/minnow fish under pond surface that flashes when pond is tapped
+    const fishGroup = new THREE.Group();
+    fishGroup.position.set(POND_X + 0.15, WATER_Y - 0.06, POND_Z + 0.1);
+    worldRoot.add(fishGroup);
+
+    const fishMat = new THREE.MeshStandardMaterial({
+      color: 0xff9d3b,
+      emissive: 0xff6f1a,
+      emissiveIntensity: 0.35,
+      roughness: 0.25
+    });
+    const fishBody = new THREE.Mesh(new THREE.ConeGeometry(0.065, 0.26, 12), fishMat);
+    fishBody.rotation.x = Math.PI / 2;
+    fishGroup.add(fishBody);
+    const fishTail = new THREE.Mesh(new THREE.ConeGeometry(0.055, 0.11, 4), fishMat);
+    fishTail.rotation.x = -Math.PI / 2;
+    fishTail.position.z = -0.15;
+    fishGroup.add(fishTail);
+
+    // --- SCATTERED ROCKS & LONELY FENCE POSTS ---
+    const rockGeo = new THREE.DodecahedronGeometry(0.18, 1);
+    const rockMat = new THREE.MeshStandardMaterial({
+      color: 0x7b848c,
+      roughness: 0.78,
+      metalness: 0.08
+    });
+
+    const rockPlacements = [
+      // Pond border stones
+      [POND_X - 1.48, POND_Z - 0.3, 0.9, 0.55, 0.8],
+      [POND_X - 1.32, POND_Z - 0.62, 0.6, 0.45, 0.55],
+      [POND_X + 1.38, POND_Z - 0.48, 0.85, 0.5, 0.75],
+      [POND_X + 0.75, POND_Z + 1.08, 0.7, 0.42, 0.65],
+      // Prairie field boulders
+      [-2.35, 1.35, 1.25, 0.78, 1.1],
+      [-2.05, 1.62, 0.72, 0.52, 0.68],
+      [-2.75, -1.25, 1.35, 0.85, 1.15],
+      [2.55, -1.65, 1.1, 0.68, 0.95],
+      [0.35, -2.85, 1.4, 0.8, 1.2]
+    ];
+
+    rockPlacements.forEach(([rx, rz, sx, sy, sz]) => {
+      const m = new THREE.Mesh(rockGeo, rockMat);
+      const ry = getTerrainHeight(rx, rz);
+      m.position.set(rx, ry + sy * 0.06, rz);
+      m.scale.set(sx, sy, sz);
+      m.rotation.set(rand() * 2, rand() * 3, rand() * 2);
+      m.castShadow = true;
+      m.receiveShadow = true;
+      worldRoot.add(m);
+    });
+
+    // Lonely wooden fence posts & weathered rails along a curved prairie path
+    const fenceGroup = new THREE.Group();
+    worldRoot.add(fenceGroup);
+
+    const woodMat = new THREE.MeshStandardMaterial({
+      color: 0x7d583a,
+      roughness: 0.86,
+      metalness: 0.04
+    });
+    const postGeo = new THREE.CylinderGeometry(0.068, 0.078, 0.78, 10);
+    const capGeo = new THREE.ConeGeometry(0.072, 0.09, 10);
+
+    const postCoords = [
+      { x: -2.85, z: 0.55, tiltX: 0.06, tiltZ: -0.08, rotY: 0.2 },
+      { x: -1.95, z: 0.05, tiltX: -0.04, tiltZ: 0.05, rotY: 0.8 },
+      { x: -1.05, z: -0.42, tiltX: 0.09, tiltZ: 0.11, rotY: 1.4 },
+      { x: -0.12, z: -0.88, tiltX: -0.05, tiltZ: -0.04, rotY: 2.1 },
+      { x: 1.65, z: -1.45, tiltX: 0.12, tiltZ: -0.09, rotY: 0.5 }
+    ];
+
+    const postTops = [];
+    postCoords.forEach((p) => {
+      const pGroup = new THREE.Group();
+      const gy = getTerrainHeight(p.x, p.z);
+      pGroup.position.set(p.x, gy, p.z);
+      pGroup.rotation.set(p.tiltX, p.rotY, p.tiltZ);
+
+      const post = new THREE.Mesh(postGeo, woodMat);
+      post.position.y = 0.36;
+      post.castShadow = true;
+      post.receiveShadow = true;
+      pGroup.add(post);
+
+      const cap = new THREE.Mesh(capGeo, woodMat);
+      cap.position.y = 0.79;
+      cap.castShadow = true;
+      pGroup.add(cap);
+
+      fenceGroup.add(pGroup);
+      postTops.push(new THREE.Vector3(p.x, gy + 0.52, p.z));
+    });
+
+    // Connect first three posts with rustic wooden rails
+    for (let i = 0; i < 3; i++) {
+      const a = postTops[i];
+      const b = postTops[i + 1];
+      [0, -0.22].forEach((offsetY, rIdx) => {
+        if (i === 2 && rIdx === 1) return; // broken missing lower rail for character
+        const start = a.clone().add(new THREE.Vector3(0, offsetY, 0));
+        const end = b.clone().add(new THREE.Vector3(0, offsetY, 0));
+        const dist = start.distanceTo(end);
+        const railGeo = new THREE.CylinderGeometry(0.028, 0.028, dist, 8);
+        railGeo.rotateX(Math.PI / 2);
+        const rail = new THREE.Mesh(railGeo, woodMat);
+        rail.position.copy(start).lerp(end, 0.5);
+        rail.lookAt(end);
+        rail.castShadow = true;
+        fenceGroup.add(rail);
+      });
+    }
+
+    // --- INSTANCED WIND-BENT GRASS TUFTS (Hundreds of blades) ---
+    const GRASS_COUNT = 820;
+    const bladeGeo = new THREE.ConeGeometry(0.048, 0.42, 4, 4);
+    bladeGeo.translate(0, 0.21, 0);
+    // Pre-bend blade geometry slightly for natural wind-swept look
+    const bPos = bladeGeo.attributes.position;
+    for (let i = 0; i < bPos.count; i++) {
+      const y = bPos.getY(i);
+      const t = y / 0.42;
+      bPos.setX(i, bPos.getX(i) + t * t * 0.08);
+    }
+    bladeGeo.computeVertexNormals();
+
+    const grassMat = new THREE.MeshStandardMaterial({
+      color: 0xffffff,
+      roughness: 0.68,
+      metalness: 0.02
+    });
+
+    const grassInst = new THREE.InstancedMesh(bladeGeo, grassMat, GRASS_COUNT);
+    grassInst.castShadow = true;
+    grassInst.receiveShadow = true;
+    worldRoot.add(grassInst);
+
+    const grassData = [];
+    const dummy = new THREE.Object3D();
+    const baseGrassCol1 = new THREE.Color(0x63a644);
+    const baseGrassCol2 = new THREE.Color(0x8fd158);
+    const baseGrassCol3 = new THREE.Color(0x4e8c3c);
+    const glowGrassCol = new THREE.Color(0xd8ff9c);
+
+    let gIdx = 0;
+    while (gIdx < GRASS_COUNT) {
+      const r = Math.sqrt(rand()) * (SLAB_RADIUS - 0.32);
+      const theta = rand() * Math.PI * 2;
+      const gx = Math.cos(theta) * r;
+      const gz = Math.sin(theta) * r;
+      const pf = getPondFactor(gx, gz);
+      if (pf < 1.08) continue; // Keep out of pond water
+
+      const gy = getTerrainHeight(gx, gz);
+      const scaleY = randRange(0.65, 1.45) * (pf < 1.38 ? 1.25 : 1.0); // Taller reeds by pond
+      const scaleXZ = randRange(0.75, 1.25);
+      const rotY = randRange(-0.45, 0.45) + 0.35; // Prevailing wind angle
+      const baseTilt = randRange(0.18, 0.42);
+      const phase = rand() * Math.PI * 2;
+
+      const cMix = rand();
+      const baseCol = new THREE.Color().copy(baseGrassCol1)
+        .lerp(baseGrassCol2, cMix)
+        .lerp(baseGrassCol3, rand() * 0.35);
+
+      grassData.push({
+        x: gx,
+        y: gy - 0.02,
+        z: gz,
+        scaleY,
+        scaleXZ,
+        rotY,
+        baseTilt,
+        phase,
+        baseCol,
+        curCol: baseCol.clone()
+      });
+
+      dummy.position.set(gx, gy - 0.02, gz);
+      dummy.rotation.set(0, rotY, -baseTilt);
+      dummy.scale.set(scaleXZ, scaleY, scaleXZ);
+      dummy.updateMatrix();
+      grassInst.setMatrixAt(gIdx, dummy.matrix);
+      grassInst.setColorAt(gIdx, baseCol);
+      gIdx++;
+    }
+    grassInst.instanceMatrix.needsUpdate = true;
+    grassInst.instanceColor.needsUpdate = true;
+
+    // --- SCATTERED WILDFLOWERS (Warm Yellow & Violet Accents) ---
+    const FLOWER_COUNT = 110;
+    const flowerGeo = new THREE.DodecahedronGeometry(0.068, 0);
+    flowerGeo.translate(0, 0.28, 0);
+    const flowerMat = new THREE.MeshStandardMaterial({
+      color: 0xffffff,
+      roughness: 0.45,
+      metalness: 0.05
+    });
+    const flowerInst = new THREE.InstancedMesh(flowerGeo, flowerMat, FLOWER_COUNT);
+    flowerInst.castShadow = true;
+    worldRoot.add(flowerInst);
+
+    const flowerData = [];
+    const colYellow = new THREE.Color(0xffd53d);
+    const colGold = new THREE.Color(0xffae2b);
+    const colViolet = new THREE.Color(0xa66cff);
+    const colLavender = new THREE.Color(0xc996ff);
+
+    let fIdx = 0;
+    while (fIdx < FLOWER_COUNT) {
+      const r = Math.sqrt(rand()) * (SLAB_RADIUS - 0.48);
+      const theta = rand() * Math.PI * 2;
+      const fx = Math.cos(theta) * r;
+      const fz = Math.sin(theta) * r;
+      if (getPondFactor(fx, fz) < 1.22) continue;
+
+      const fy = getTerrainHeight(fx, fz);
+      const sc = randRange(0.75, 1.3);
+      const phase = rand() * Math.PI * 2;
+      const isYellow = rand() > 0.42;
+      const fCol = isYellow
+        ? new THREE.Color().copy(colYellow).lerp(colGold, rand())
+        : new THREE.Color().copy(colViolet).lerp(colLavender, rand());
+
+      flowerData.push({ x: fx, y: fy, z: fz, sc, phase });
+      dummy.position.set(fx, fy, fz);
+      dummy.rotation.set(0, rand() * Math.PI * 2, 0);
+      dummy.scale.setScalar(sc);
+      dummy.updateMatrix();
+      flowerInst.setMatrixAt(fIdx, dummy.matrix);
+      flowerInst.setColorAt(fIdx, fCol);
+      fIdx++;
+    }
+    flowerInst.instanceMatrix.needsUpdate = true;
+    flowerInst.instanceColor.needsUpdate = true;
+
+    // --- CUMULONIMBUS STORM CELL (Towering Anvil Top, Sculpted Puff Cluster, Ragged Base) ---
+    const cloudGroup = new THREE.Group();
+    const CLOUD_CENTER_X = -0.55;
+    const CLOUD_CENTER_Y = 5.15;
+    const CLOUD_CENTER_Z = -0.35;
+    cloudGroup.position.set(CLOUD_CENTER_X, CLOUD_CENTER_Y, CLOUD_CENTER_Z);
+    worldRoot.add(cloudGroup);
+
+    // Three cohesive tonal materials so the cloud reads as sculpted silver-gray & slate-blue (never a black blob)
+    const matAnvilCrown = new THREE.MeshStandardMaterial({
+      color: 0xe9f2fa,
+      emissive: 0x354d66,
+      emissiveIntensity: 0.22,
+      roughness: 0.65,
+      metalness: 0.03
+    });
+    const matMidTower = new THREE.MeshStandardMaterial({
+      color: 0xb6c8da,
+      emissive: 0x2a3f57,
+      emissiveIntensity: 0.25,
+      roughness: 0.7,
+      metalness: 0.04
+    });
+    const matRaggedBase = new THREE.MeshStandardMaterial({
+      color: 0x6d8299,
+      emissive: 0x1e3148,
+      emissiveIntensity: 0.28,
+      roughness: 0.76,
+      metalness: 0.05
+    });
+    const cloudMaterials = [matAnvilCrown, matMidTower, matRaggedBase];
+
+    // Sculpted low-poly beveled puff geometry
+    const puffGeo = new THREE.IcosahedronGeometry(1.0, 2);
+    // Subtle organic facet displacement on puff template
+    const pAttr = puffGeo.attributes.position;
+    for (let i = 0; i < pAttr.count; i++) {
+      const vx = pAttr.getX(i);
+      const vy = pAttr.getY(i);
+      const vz = pAttr.getZ(i);
+      const n = 1.0 + 0.06 * Math.sin(vx * 4.0) * Math.cos(vy * 4.0) * Math.sin(vz * 4.0);
+      pAttr.setXYZ(i, vx * n, vy * n, vz * n);
+    }
+    puffGeo.computeVertexNormals();
+
+    // Spec: [x, y, z, sx, sy, sz, tier (0=crown/anvil, 1=mid, 2=base)]
+    const puffSpecs = [
+      // Wide Flat Anvil Crown & Overshooting Top (y: +1.3 to +2.2)
+      [0.0, 1.95, 0.0, 1.35, 0.62, 1.25, 0],
+      [0.35, 1.65, 0.1, 2.45, 0.52, 1.95, 0],
+      [-1.25, 1.58, -0.15, 1.75, 0.48, 1.55, 0],
+      [1.75, 1.62, 0.28, 1.85, 0.45, 1.5, 0], // Forward anvil shelf
+      [2.65, 1.66, 0.42, 1.25, 0.36, 1.15, 0], // Anvil tip
+      [0.15, 1.55, 1.22, 1.55, 0.45, 1.15, 0],
+      [-0.25, 1.55, -1.18, 1.6, 0.46, 1.15, 0],
+      [-2.1, 1.52, 0.1, 1.15, 0.38, 1.05, 0],
+
+      // Sculpted Boiling Mid-Tower Billows (y: +0.1 to +1.15)
+      [-0.55, 0.95, 0.25, 1.45, 1.05, 1.35, 1],
+      [0.68, 0.98, -0.22, 1.42, 1.02, 1.3, 1],
+      [0.05, 0.72, 0.85, 1.28, 0.92, 1.15, 1],
+      [-0.2, 0.78, -0.82, 1.32, 0.95, 1.18, 1],
+      [-1.35, 0.58, -0.1, 1.15, 0.82, 1.08, 1],
+      [1.28, 0.65, 0.35, 1.18, 0.85, 1.05, 1],
+      [0.42, 0.32, 0.95, 1.1, 0.75, 0.95, 1],
+      [-0.85, 0.28, 0.72, 1.08, 0.72, 0.95, 1],
+
+      // Darker Ragged Rain Base & Mammatus Under-puffs (y: -0.95 to -0.25)
+      [0.0, -0.45, 0.0, 2.05, 0.52, 1.72, 2],
+      [-1.18, -0.58, 0.22, 1.35, 0.46, 1.22, 2],
+      [1.12, -0.55, -0.18, 1.35, 0.46, 1.2, 2],
+      [0.25, -0.62, 0.88, 1.22, 0.42, 1.08, 2],
+      [-0.35, -0.6, -0.82, 1.25, 0.44, 1.08, 2],
+      [-0.65, -0.82, -0.15, 0.95, 0.36, 0.9, 2],
+      [0.62, -0.84, 0.25, 0.92, 0.35, 0.88, 2],
+      [0.0, -0.88, 0.42, 0.82, 0.32, 0.78, 2]
+    ];
+
+    const cloudPuffs = [];
+    puffSpecs.forEach((spec, idx) => {
+      const [px, py, pz, sx, sy, sz, tier] = spec;
+      const mesh = new THREE.Mesh(puffGeo, cloudMaterials[tier]);
+      mesh.position.set(px, py, pz);
+      mesh.scale.set(sx, sy, sz);
+      mesh.rotation.set(rand() * 0.5, rand() * Math.PI * 2, rand() * 0.5);
+      mesh.castShadow = true;
+      mesh.receiveShadow = true;
+      cloudGroup.add(mesh);
+      cloudPuffs.push({
+        mesh,
+        baseX: px,
+        baseY: py,
+        baseZ: pz,
+        sx,
+        sy,
+        sz,
+        phase: idx * 0.75 + rand() * 2.0
+      });
+    });
+
+    // --- RAIN CURTAIN & FALLING RAIN STREAKS (Instanced) ---
+    // Soft translucent rain shaft column under the cloud base
+    const shaftGeo = new THREE.CylinderGeometry(1.55, 1.95, 4.35, 28, 1, true);
+    const shaftMat = new THREE.MeshBasicMaterial({
+      color: 0xc8e2f8,
+      transparent: true,
+      opacity: 0.11,
+      side: THREE.DoubleSide,
+      depthWrite: false
+    });
+    const rainShaftMesh = new THREE.Mesh(shaftGeo, shaftMat);
+    rainShaftMesh.position.set(CLOUD_CENTER_X + 0.25, 2.25, CLOUD_CENTER_Z + 0.2);
+    rainShaftMesh.rotation.z = -0.11; // Wind slant toward the pond
+    worldRoot.add(rainShaftMesh);
+
+    // Instanced falling rain streaks
+    const RAIN_COUNT = 340;
+    const streakGeo = new THREE.CylinderGeometry(0.011, 0.011, 0.52, 5);
+    const streakMat = new THREE.MeshBasicMaterial({
+      color: 0xdff0ff,
+      transparent: true,
+      opacity: 0.68,
+      depthWrite: false
+    });
+    const rainInst = new THREE.InstancedMesh(streakGeo, streakMat, RAIN_COUNT);
+    worldRoot.add(rainInst);
+
+    const rainDrops = [];
+    for (let i = 0; i < RAIN_COUNT; i++) {
+      const r = Math.sqrt(rand()) * 1.85;
+      const a = rand() * Math.PI * 2;
+      rainDrops.push({
+        ox: Math.cos(a) * r,
+        oz: Math.sin(a) * r,
+        y: randRange(0.1, 4.35),
+        speed: randRange(6.2, 8.8),
+        len: randRange(0.75, 1.35)
+      });
+    }
+
+    // Idle rain micro-ripples on pond surface when rain drifts over pond edge
+    const IDLE_RIPPLE_COUNT = 6;
+    const ringGeo = new THREE.RingGeometry(0.08, 0.115, 28);
+    ringGeo.rotateX(-Math.PI / 2);
+    const idleRipples = [];
+    for (let i = 0; i < IDLE_RIPPLE_COUNT; i++) {
+      const rMat = new THREE.MeshBasicMaterial({
+        color: 0xdaf0ff,
+        transparent: true,
+        opacity: 0,
+        side: THREE.DoubleSide,
+        depthWrite: false
+      });
+      const rMesh = new THREE.Mesh(ringGeo, rMat);
+      worldRoot.add(rMesh);
+      idleRipples.push({
+        mesh: rMesh,
+        mat: rMat,
+        phase: i / IDLE_RIPPLE_COUNT,
+        x: POND_X + randRange(-0.85, 0.45),
+        z: POND_Z + randRange(-0.65, 0.45)
+      });
+    }
+
+    // --- INTERACTION 1: LIGHTNING STRIKE SYSTEM ---
+    const lightningGroup = new THREE.Group();
+    worldRoot.add(lightningGroup);
+
+    const boltCoreMat = new THREE.MeshBasicMaterial({
+      color: 0xffffff,
+      transparent: true,
+      opacity: 0
+    });
+    const boltHaloMat = new THREE.MeshBasicMaterial({
+      color: 0x7bc8ff,
+      transparent: true,
+      opacity: 0,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false
+    });
+
+    // Ground impact glow disc
+    const impactDiscGeo = new THREE.CircleGeometry(1.15, 32);
+    impactDiscGeo.rotateX(-Math.PI / 2);
+    const impactDiscMat = new THREE.MeshBasicMaterial({
+      color: 0x9ce0ff,
+      transparent: true,
+      opacity: 0,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false
+    });
+    const impactDiscMesh = new THREE.Mesh(impactDiscGeo, impactDiscMat);
+    worldRoot.add(impactDiscMesh);
+
+    // Pre-build reusable segment meshes for main bolt + 2 forks
+    const MAX_BOLT_SEGS = 18;
+    const boltSegments = [];
+    const segCylinderGeo = new THREE.CylinderGeometry(1, 1, 1, 8);
+    segCylinderGeo.translate(0, 0.5, 0);
+    segCylinderGeo.rotateX(Math.PI / 2);
+
+    for (let i = 0; i < MAX_BOLT_SEGS; i++) {
+      const core = new THREE.Mesh(segCylinderGeo, boltCoreMat);
+      const halo = new THREE.Mesh(segCylinderGeo, boltHaloMat);
+      core.visible = false;
+      halo.visible = false;
+      lightningGroup.add(core);
+      lightningGroup.add(halo);
+      boltSegments.push({ core, halo });
+    }
+
+    const strikeTargets = [
+      { x: -0.95, z: -0.15 },
+      { x: -1.45, z: 0.48 },
+      { x: -0.25, z: -0.65 },
+      { x: -0.65, z: 0.55 }
+    ];
+    let strikeCounter = 0;
+    let strikeState = {
+      active: false,
+      startTime: -99999,
+      targetX: -0.95,
+      targetY: 0.2,
+      targetZ: -0.15
+    };
+
+    function placeSegment(seg, pA, pB, radius) {
+      const dist = pA.distanceTo(pB);
+      seg.core.position.copy(pA);
+      seg.core.lookAt(pB);
+      seg.core.scale.set(radius, radius, dist);
+      seg.core.visible = true;
+
+      seg.halo.position.copy(pA);
+      seg.halo.lookAt(pB);
+      seg.halo.scale.set(radius * 2.8, radius * 2.8, dist);
+      seg.halo.visible = true;
+    }
+
+    function triggerLightning(now) {
+      const target = strikeTargets[strikeCounter % strikeTargets.length];
+      strikeCounter++;
+      const gy = getTerrainHeight(target.x, target.z);
+
+      strikeState.active = true;
+      strikeState.startTime = now;
+      strikeState.targetX = target.x;
+      strikeState.targetY = gy;
+      strikeState.targetZ = target.z;
+
+      impactDiscMesh.position.set(target.x, gy + 0.04, target.z);
+      strikeFlashLight.position.set(target.x, 2.8, target.z);
+
+      // Build jagged bolt path from cloud base down to ground target
+      const startPt = new THREE.Vector3(
+        CLOUD_CENTER_X + randRange(-0.4, 0.4),
+        CLOUD_CENTER_Y - 0.65,
+        CLOUD_CENTER_Z + randRange(-0.4, 0.4)
+      );
+      const endPt = new THREE.Vector3(target.x, gy + 0.02, target.z);
+
+      const mainSteps = 10;
+      const mainPts = [startPt];
+      for (let i = 1; i < mainSteps; i++) {
+        const t = i / mainSteps;
+        const p = new THREE.Vector3().lerpVectors(startPt, endPt, t);
+        const spread = (1 - Math.abs(t - 0.5) * 1.6) * 0.42;
+        p.x += randRange(-spread, spread);
+        p.z += randRange(-spread, spread);
+        mainPts.push(p);
+      }
+      mainPts.push(endPt);
+
+      let sIdx = 0;
+      for (let i = 0; i < mainSteps; i++) {
+        const thick = THREE.MathUtils.lerp(0.068, 0.038, i / mainSteps);
+        placeSegment(boltSegments[sIdx++], mainPts[i], mainPts[i + 1], thick);
+      }
+
+      // Branch fork 1
+      const fork1Start = mainPts[3].clone();
+      let f1Prev = fork1Start;
+      for (let i = 0; i < 4; i++) {
+        const fNext = f1Prev.clone().add(new THREE.Vector3(
+          randRange(-0.45, -0.15),
+          randRange(-0.55, -0.35),
+          randRange(-0.35, 0.35)
+        ));
+        placeSegment(boltSegments[sIdx++], f1Prev, fNext, 0.026 * (1 - i * 0.2));
+        f1Prev = fNext;
+      }
+
+      // Branch fork 2
+      const fork2Start = mainPts[6].clone();
+      let f2Prev = fork2Start;
+      for (let i = 0; i < 4; i++) {
+        const fNext = f2Prev.clone().add(new THREE.Vector3(
+          randRange(0.15, 0.45),
+          randRange(-0.5, -0.3),
+          randRange(-0.35, 0.35)
+        ));
+        placeSegment(boltSegments[sIdx++], f2Prev, fNext, 0.024 * (1 - i * 0.2));
+        f2Prev = fNext;
+      }
+    }
+
+    // --- INTERACTION 2: POND SPLASH, EXPANDING RIPPLES, DROPLETS & FROG HOP ---
+    const SPLASH_RINGS = 4;
+    const splashRings = [];
+    const splashRingGeo = new THREE.RingGeometry(0.1, 0.145, 36);
+    splashRingGeo.rotateX(-Math.PI / 2);
+
+    for (let i = 0; i < SPLASH_RINGS; i++) {
+      const mat = new THREE.MeshBasicMaterial({
+        color: 0xffffff,
+        transparent: true,
+        opacity: 0,
+        side: THREE.DoubleSide,
+        depthWrite: false
+      });
+      const mesh = new THREE.Mesh(splashRingGeo, mat);
+      mesh.visible = false;
+      worldRoot.add(mesh);
+      splashRings.push({ mesh, mat, delay: i * 115 });
+    }
+
+    // Instanced splash water droplets
+    const DROPLET_COUNT = 64;
+    const dropletGeo = new THREE.SphereGeometry(0.042, 8, 8);
+    const dropletMat = new THREE.MeshStandardMaterial({
+      color: 0xe6f6ff,
+      emissive: 0x6cb8ff,
+      emissiveIntensity: 0.4,
+      roughness: 0.15
+    });
+    const dropletInst = new THREE.InstancedMesh(dropletGeo, dropletMat, DROPLET_COUNT);
+    dropletInst.visible = false;
+    worldRoot.add(dropletInst);
+
+    const dropletVel = [];
+    for (let i = 0; i < DROPLET_COUNT; i++) {
+      dropletVel.push({ vx: 0, vy: 0, vz: 0, sc: 1 });
+    }
+
+    let splashState = {
+      active: false,
+      startTime: -99999,
+      originX: POND_X,
+      originZ: POND_Z
+    };
+
+    function triggerPondSplash(now, hitPoint) {
+      let sx = POND_X;
+      let sz = POND_Z;
+      if (hitPoint) {
+        const dx = hitPoint.x - POND_X;
+        const dz = hitPoint.z - POND_Z;
+        const maxD = 0.65;
+        const d = Math.sqrt(dx * dx + dz * dz);
+        if (d > maxD) {
+          sx = POND_X + (dx / d) * maxD;
+          sz = POND_Z + (dz / d) * maxD;
+        } else {
+          sx = hitPoint.x;
+          sz = hitPoint.z;
+        }
+      }
+
+      splashState.active = true;
+      splashState.startTime = now;
+      splashState.originX = sx;
+      splashState.originZ = sz;
+
+      dropletInst.visible = true;
+      for (let i = 0; i < DROPLET_COUNT; i++) {
+        const ang = (i / DROPLET_COUNT) * Math.PI * 2 + randRange(-0.15, 0.15);
+        const spd = randRange(0.55, 1.85);
+        dropletVel[i].vx = Math.cos(ang) * spd;
+        dropletVel[i].vz = Math.sin(ang) * spd;
+        dropletVel[i].vy = randRange(2.1, 3.8);
+        dropletVel[i].sc = randRange(0.65, 1.35);
+      }
+
+      splashRings.forEach((r) => {
+        r.mesh.position.set(sx, WATER_Y + 0.012, sz);
+        r.mesh.visible = true;
+      });
+    }
+
+    // --- GENEROUS INVISIBLE PROXY TARGETS FOR RAYCASTING (Easy tapping at 320px) ---
+    const proxyMat = new THREE.MeshBasicMaterial({ visible: false });
+
+    const cloudProxy = new THREE.Mesh(new THREE.SphereGeometry(2.85, 16, 12), proxyMat);
+    cloudProxy.scale.set(1.35, 0.88, 1.15);
+    cloudProxy.position.set(CLOUD_CENTER_X + 0.2, CLOUD_CENTER_Y + 0.45, CLOUD_CENTER_Z);
+    cloudProxy.userData.targetType = 'cloud';
+    worldRoot.add(cloudProxy);
+
+    const pondProxy = new THREE.Mesh(new THREE.CylinderGeometry(2.05, 2.05, 0.9, 24), proxyMat);
+    pondProxy.position.set(POND_X, WATER_Y + 0.15, POND_Z);
+    pondProxy.userData.targetType = 'pond';
+    worldRoot.add(pondProxy);
+
+    const interactProxies = [cloudProxy, pondProxy];
+
+    // --- POINTER / TOUCH RAYCASTING (Distinguish tap vs orbit drag) ---
+    const raycaster = new THREE.Raycaster();
+    const pointerNDC = new THREE.Vector2();
+    let downX = 0;
+    let downY = 0;
+    let downTime = 0;
+
+    function updatePointerNDC(clientX, clientY) {
+      const rect = renderer.domElement.getBoundingClientRect();
+      pointerNDC.x = ((clientX - rect.left) / rect.width) * 2 - 1;
+      pointerNDC.y = -((clientY - rect.top) / rect.height) * 2 + 1;
+    }
+
+    renderer.domElement.addEventListener('pointerdown', (e) => {
+      downX = e.clientX;
+      downY = e.clientY;
+      downTime = performance.now();
+    });
+
+    renderer.domElement.addEventListener('pointermove', (e) => {
+      if (e.pointerType === 'touch') return;
+      updatePointerNDC(e.clientX, e.clientY);
+      raycaster.setFromCamera(pointerNDC, camera);
+      const hits = raycaster.intersectObjects(interactProxies, false);
+      renderer.domElement.classList.toggle('pointer-hover', hits.length > 0);
+    });
+
+    renderer.domElement.addEventListener('pointerup', (e) => {
+      const moveDist = Math.hypot(e.clientX - downX, e.clientY - downY);
+      const elapsed = performance.now() - downTime;
+      if (moveDist > 12 || elapsed > 600) return; // Dragged orbit, not a tap
+
+      updatePointerNDC(e.clientX, e.clientY);
+      raycaster.setFromCamera(pointerNDC, camera);
+      const hits = raycaster.intersectObjects(interactProxies, false);
+      if (hits.length > 0) {
+        const hit = hits[0];
+        const now = performance.now();
+        if (hit.object.userData.targetType === 'cloud') {
+          triggerLightning(now);
+        } else if (hit.object.userData.targetType === 'pond') {
+          triggerPondSplash(now, hit.point);
+        }
+      }
+    });
+
+    // --- RESPONSIVE CAMERA FRAMING WITH SAFE HEADER/FOOTER CLEARANCE ---
+    // Bounding envelope of all important geometry (slab plinth, full cloud anvil top, rain curtain, splash height)
+    const BOUNDS_MIN = new THREE.Vector3(-4.55, -1.05, -4.55);
+    const BOUNDS_MAX = new THREE.Vector3(4.55, 7.65, 4.55);
+    const boundsCorners = [];
+    for (let ix = 0; ix <= 1; ix++) {
+      for (let iy = 0; iy <= 1; iy++) {
+        for (let iz = 0; iz <= 1; iz++) {
+          boundsCorners.push(new THREE.Vector3(
+            ix ? BOUNDS_MAX.x : BOUNDS_MIN.x,
+            iy ? BOUNDS_MAX.y : BOUNDS_MIN.y,
+            iz ? BOUNDS_MAX.z : BOUNDS_MIN.z
+          ));
+        }
+      }
+    }
+
+    function fitCameraToScene() {
+      const vw = window.innerWidth;
+      const vh = window.innerHeight;
+      renderer.setSize(vw, vh);
+
+      const aspect = vw / Math.max(1, vh);
+      // Aspect-aware FOV (wider on portrait so towering cloud + slab fit comfortably)
+      camera.fov = aspect < 1.0 ? 42 : 35;
+      camera.aspect = aspect;
+
+      // Measure actual header and footer DOM heights
+      const headerH = headerEl ? headerEl.getBoundingClientRect().height : 68;
+      const footerH = footerEl ? footerEl.getBoundingClientRect().height : 32;
+
+      const safeTopPx = headerH + 10;
+      const safeBotPx = footerH + 10;
+      const usableHeightFrac = Math.max(0.45, (vh - safeTopPx - safeBotPx) / vh);
+      const usableWidthFrac = 0.90;
+
+      // Slightly elevated three-quarter view direction
+      const viewDir = new THREE.Vector3(0.56, 0.34, 0.75).normalize();
+      const targetCenter = new THREE.Vector3(0.0, 3.25, 0.0);
+
+      // Compute camera distance from projected bounding box of all key geometry
+      const vFovRad = THREE.MathUtils.degToRad(camera.fov);
+      const tanHalfVFov = Math.tan(vFovRad * 0.5) * usableHeightFrac;
+      const tanHalfHFov = Math.tan(vFovRad * 0.5) * aspect * usableWidthFrac;
+
+      // Build camera basis at unit distance
+      const camForward = viewDir.clone().negate();
+      const worldUp = new THREE.Vector3(0, 1, 0);
+      const camRight = new THREE.Vector3().crossVectors(camForward, worldUp).normalize();
+      const camUp = new THREE.Vector3().crossVectors(camRight, camForward).normalize();
+
+      let requiredDist = 8.0;
+      for (let i = 0; i < boundsCorners.length; i++) {
+        const rel = boundsCorners[i].clone().sub(targetCenter);
+        const zProj = rel.dot( viewDir );
+        const xProj = Math.abs(rel.dot(camRight));
+        const yProj = Math.abs(rel.dot(camUp));
+
+        const dH = xProj / tanHalfHFov + zProj;
+        const dV = yProj / tanHalfVFov + zProj;
+        requiredDist = Math.max(requiredDist, dH, dV);
+      }
+
+      const finalDist = requiredDist * 1.05;
+
+      // Vertical screen-space offset so center sits halfway between header and footer
+      const pixelOffsetY = (safeTopPx - safeBotPx) * 0.5;
+      const worldPerPixel = (2 * finalDist * Math.tan(vFovRad * 0.5)) / vh;
+      const shiftedTarget = targetCenter.clone().addScaledVector(camUp, pixelOffsetY * worldPerPixel);
+
+      controls.target.copy(shiftedTarget);
+      camera.position.copy(shiftedTarget).addScaledVector(viewDir, finalDist);
+      camera.updateProjectionMatrix();
+
+      // Lock zoom range around the computed optimal distance
+      controls.minDistance = finalDist * 0.86;
+      controls.maxDistance = finalDist * 1.18;
+      controls.update();
+    }
+
+    fitCameraToScene();
+    window.addEventListener('resize', fitCameraToScene);
+
+    // --- ANIMATION LOOP (All motion driven by performance.now()) ---
+    const tempMat = new THREE.Matrix4();
+    const tempPos = new THREE.Vector3();
+    const tempQuat = new THREE.Quaternion();
+    const tempScale = new THREE.Vector3();
+    const tempEuler = new THREE.Euler();
+
+    function animate(nowMs) {
+      requestAnimationFrame(animate);
+      const t = nowMs * 0.001;
+
+      // 1. CLOUD IDLE BOIL, DRIFT & OCCASIONAL INTERNAL RUMBLE GLOW
+      const driftX = Math.sin(t * 0.45) * 0.14;
+      const driftY = Math.cos(t * 0.6) * 0.07;
+      cloudGroup.position.set(
+        CLOUD_CENTER_X + driftX,
+        CLOUD_CENTER_Y + driftY,
+        CLOUD_CENTER_Z + Math.sin(t * 0.35) * 0.08
+      );
+      rainShaftMesh.position.x = CLOUD_CENTER_X + 0.25 + driftX * 0.8;
+
+      for (let i = 0; i < cloudPuffs.length; i++) {
+        const cp = cloudPuffs[i];
+        const boil = 1.0 + 0.042 * Math.sin(t * 1.55 + cp.phase);
+        cp.mesh.scale.set(cp.sx * boil, cp.sy * (2.0 - boil * 0.96), cp.sz * boil);
+        cp.mesh.position.y = cp.baseY + Math.sin(t * 1.2 + cp.phase) * 0.045;
+      }
+
+      // Faint periodic internal cloud glow in idle state
+      const idlePulse = Math.pow(Math.max(0, Math.sin(t * 1.15) * Math.sin(t * 2.7 + 1.2)), 6.0);
+
+      // 2. LIGHTNING STRIKE FLICKER & SCENE FLASH SEQUENCE
+      let strikeIntensity = 0;
+      let groundGlow = 0;
+      if (strikeState.active) {
+        const dt = nowMs - strikeState.startTime;
+        if (dt < 850) {
+          // Multi-pulse realistic lightning flicker envelope
+          let boltAlpha = 0;
+          if (dt < 65) boltAlpha = 1.0;
+          else if (dt < 110) boltAlpha = 0.18;
+          else if (dt < 185) boltAlpha = 0.95;
+          else if (dt < 240) boltAlpha = 0.12;
+          else if (dt < 310) boltAlpha = 0.75;
+          else if (dt < 480) boltAlpha = Math.max(0, 1 - (dt - 310) / 170) * 0.45;
+
+          boltCoreMat.opacity = boltAlpha;
+          boltHaloMat.opacity = boltAlpha * 0.85;
+          strikeIntensity = boltAlpha;
+          groundGlow = Math.max(0, 1 - dt / 780);
+          impactDiscMat.opacity = groundGlow * 0.72;
+          const discScale = 0.65 + 0.75 * Math.sin(Math.min(1, dt / 380) * Math.PI * 0.5);
+          impactDiscMesh.scale.setScalar(discScale);
+        } else {
+          strikeState.active = false;
+          boltCoreMat.opacity = 0;
+          boltHaloMat.opacity = 0;
+          impactDiscMat.opacity = 0;
+          for (let i = 0; i < MAX_BOLT_SEGS; i++) {
+            boltSegments[i].core.visible = false;
+            boltSegments[i].halo.visible = false;
+          }
+        }
+      }
+
+      // Apply internal cloud pulse + scene flash
+      const totalCloudGlow = idlePulse * 1.2 + strikeIntensity * 5.5;
+      cloudInternalLight.intensity = 0.5 + totalCloudGlow * 2.4;
+      strikeFlashLight.intensity = strikeIntensity * 14.0;
+      matAnvilCrown.emissiveIntensity = 0.22 + totalCloudGlow * 0.18;
+      matMidTower.emissiveIntensity = 0.25 + totalCloudGlow * 0.28;
+      matRaggedBase.emissiveIntensity = 0.28 + totalCloudGlow * 0.42;
+
+      // 3. FALLING RAIN STREAKS & IDLE POND RAIN RINGS
+      tempEuler.set(0, 0, -0.11);
+      tempQuat.setFromEuler(tempEuler);
+      for (let i = 0; i < RAIN_COUNT; i++) {
+        const rd = rainDrops[i];
+        const curY = 4.35 - ((t * rd.speed + rd.y) % 4.25);
+        const slantOffset = (4.35 - curY) * 0.11;
+        tempPos.set(
+          CLOUD_CENTER_X + 0.15 + driftX * 0.7 + rd.ox + slantOffset,
+          curY,
+          CLOUD_CENTER_Z + 0.15 + rd.oz
+        );
+        tempScale.set(1, rd.len, 1);
+        tempMat.compose(tempPos, tempQuat, tempScale);
+        rainInst.setMatrixAt(i, tempMat);
+      }
+      rainInst.instanceMatrix.needsUpdate = true;
+
+      for (let i = 0; i < IDLE_RIPPLE_COUNT; i++) {
+        const ir = idleRipples[i];
+        const prog = (t * 0.85 + ir.phase) % 1.0;
+        ir.mesh.position.set(ir.x, WATER_Y + 0.008, ir.z);
+        ir.mesh.scale.setScalar(0.35 + prog * 2.2);
+        ir.mat.opacity = (1.0 - prog) * 0.36;
+      }
+
+      // 4. WIND-SWEPT GRASS WAVES & LIGHTNING STRIKE GRASS GLOW
+      let needsColorUpdate = false;
+      for (let i = 0; i < GRASS_COUNT; i++) {
+        const gd = grassData[i];
+        const windWave = Math.sin(t * 2.85 + gd.x * 0.95 + gd.z * 0.65 + gd.phase) * 0.19
+          + Math.sin(t * 5.2 + gd.x * 1.4) * 0.05;
+        tempPos.set(gd.x, gd.y, gd.z);
+        tempEuler.set(windWave * 0.3, gd.rotY, -(gd.baseTilt + windWave));
+        tempQuat.setFromEuler(tempEuler);
+        tempScale.set(gd.scaleXZ, gd.scaleY, gd.scaleXZ);
+        tempMat.compose(tempPos, tempQuat, tempScale);
+        grassInst.setMatrixAt(i, tempMat);
+
+        if (groundGlow > 0.005) {
+          const dx = gd.x - strikeState.targetX;
+          const dz = gd.z - strikeState.targetZ;
+          const distSq = dx * dx + dz * dz;
+          if (distSq < 2.25) {
+            const prox = (1.0 - distSq / 2.25) * groundGlow;
+            gd.curCol.copy(gd.baseCol).lerp(glowGrassCol, prox * 0.92);
+            grassInst.setColorAt(i, gd.curCol);
+            needsColorUpdate = true;
+          }
+        } else if (!gd.curCol.equals(gd.baseCol)) {
+          gd.curCol.copy(gd.baseCol);
+          grassInst.setColorAt(i, gd.curCol);
+          needsColorUpdate = true;
+        }
+      }
+      grassInst.instanceMatrix.needsUpdate = true;
+      if (needsColorUpdate) grassInst.instanceColor.needsUpdate = true;
+
+      // 5. WILDFLOWERS TREMBLING IN THE WIND
+      for (let i = 0; i < FLOWER_COUNT; i++) {
+        const fd = flowerData[i];
+        const tremor = Math.sin(t * 4.2 + fd.x * 1.2 + fd.phase) * 0.16;
+        tempPos.set(fd.x, fd.y, fd.z);
+        tempEuler.set(tremor * 0.5, fd.phase, -0.15 - tremor);
+        tempQuat.setFromEuler(tempEuler);
+        tempScale.setScalar(fd.sc);
+        tempMat.compose(tempPos, tempQuat, tempScale);
+        flowerInst.setMatrixAt(i, tempMat);
+      }
+      flowerInst.instanceMatrix.needsUpdate = true;
+
+      // 6. POND SPLASH INTERACTION (Expanding Ripple Rings, Droplet Arc, Frog Hop & Fish Flash)
+      // Gentle idle breathing of pond sheen & fish
+      sheenMesh.scale.set(
+        POND_RX * (0.88 + 0.03 * Math.sin(t * 1.8)),
+        1,
+        POND_RZ * (0.88 + 0.03 * Math.cos(t * 1.5))
+      );
+
+      if (splashState.active) {
+        const dt = nowMs - splashState.startTime;
+        const sec = dt * 0.001;
+
+        if (dt < 1450) {
+          // Expanding concentric ripple rings
+          for (let i = 0; i < SPLASH_RINGS; i++) {
+            const r = splashRings[i];
+            const rTime = (dt - r.delay) * 0.001;
+            if (rTime > 0 && rTime < 1.05) {
+              const prog = rTime / 1.05;
+              const sc = 0.4 + prog * 8.2;
+              r.mesh.scale.setScalar(sc);
+              r.mat.opacity = Math.sin(prog * Math.PI) * (1 - prog * 0.65) * 0.85;
+            } else {
+              r.mat.opacity = 0;
+            }
+          }
+
+          // Parabolic water droplet scatter
+          const gravity = 7.6;
+          for (let i = 0; i < DROPLET_COUNT; i++) {
+            const dv = dropletVel[i];
+            const dy = dv.vy * sec - 0.5 * gravity * sec * sec;
+            if (dy >= -0.05) {
+              tempPos.set(
+                splashState.originX + dv.vx * sec,
+                WATER_Y + 0.02 + dy,
+                splashState.originZ + dv.vz * sec
+              );
+              const shrink = Math.max(0.01, (1 - sec * 0.85) * dv.sc);
+              tempScale.setScalar(shrink);
+            } else {
+              tempPos.set(0, -10, 0);
+              tempScale.setScalar(0.001);
+            }
+            tempQuat.identity();
+            tempMat.compose(tempPos, tempQuat, tempScale);
+            dropletInst.setMatrixAt(i, tempMat);
+          }
+          dropletInst.instanceMatrix.needsUpdate = true;
+
+          // Shore frog celebratory double hop
+          const hopCycle = Math.min(1, dt / 950);
+          const hopArc = Math.abs(Math.sin(hopCycle * Math.PI * 2));
+          frogGroup.position.set(
+            frogBaseX + Math.sin(hopCycle * Math.PI) * 0.22,
+            frogBaseY + hopArc * 0.34,
+            frogBaseZ + Math.sin(hopCycle * Math.PI) * 0.14
+          );
+          frogGroup.rotation.x = -hopArc * 0.45;
+
+          // Bright fish darting arc just under/through water surface
+          const fishAng = sec * 5.2;
+          fishGroup.position.set(
+            POND_X + Math.cos(fishAng) * 0.55,
+            WATER_Y - 0.04 + Math.sin(Math.min(1, sec * 1.4) * Math.PI) * 0.18,
+            POND_Z + Math.sin(fishAng) * 0.42
+          );
+          fishGroup.rotation.y = -fishAng + Math.PI;
+          fishMat.emissiveIntensity = 0.85;
+        } else {
+          splashState.active = false;
+          dropletInst.visible = false;
+          splashRings.forEach((r) => {
+            r.mesh.visible = false;
+            r.mat.opacity = 0;
+          });
+          frogGroup.position.set(frogBaseX, frogBaseY, frogBaseZ);
+          frogGroup.rotation.x = 0;
+          fishMat.emissiveIntensity = 0.35;
+        }
+      } else {
+        // Gentle idle frog throat/breathing & slow fish swim
+        frogBody.scale.y = 0.78 + Math.sin(t * 3.5) * 0.04;
+        const slowAng = t * 0.75;
+        fishGroup.position.set(
+          POND_X + Math.cos(slowAng) * 0.48,
+          WATER_Y - 0.06,
+          POND_Z + Math.sin(slowAng) * 0.36
+        );
+        fishGroup.rotation.y = -slowAng + Math.PI;
+      }
+
+      controls.update();
+      renderer.render(scene, camera);
+    }
+
+    requestAnimationFrame(animate);
+  </script>
 </body>
 </html>
