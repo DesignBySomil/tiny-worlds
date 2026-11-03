@@ -1,521 +1,1723 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Tornado Prairie - a tiny world</title>
-<style>
-  html, body { margin:0; padding:0; height:100%; background:#6b7a63; overflow:hidden;
-    font-family: Georgia, 'Times New Roman', serif; }
-  #app { position:fixed; inset:0; }
-  header { position:fixed; top:0; left:0; right:0; text-align:center; pointer-events:none;
-    padding: max(18px, env(safe-area-inset-top)) 16px 18px; z-index:5;
-    background: linear-gradient(rgba(30,36,28,.55), rgba(30,36,28,0)); }
-  header h1 { margin:0; font-size:15px; letter-spacing:.42em; font-weight:400;
-    color:#f2f0e4; text-transform:uppercase; text-shadow:0 1px 8px rgba(25,30,22,.8); }
-  header .rule { width:44px; height:1px; background:rgba(242,240,228,.5); margin:9px auto; }
-  #hint { display:inline-block; font-size:11.5px; letter-spacing:.24em; text-transform:uppercase;
-    color:#faf8ec; transition:opacity 1.2s ease; text-shadow:0 1px 2px rgba(25,30,22,.9), 0 0 12px rgba(25,30,22,.7); }
-  #hint.faded { opacity:.45; }
-  footer { position:fixed; bottom:0; left:0; right:0; text-align:center; pointer-events:none;
-    padding:0 16px max(14px, env(safe-area-inset-bottom)); z-index:5;
-    font-size:10px; letter-spacing:.34em; text-transform:uppercase; color:rgba(242,240,228,.5); }
-  canvas { display:block; touch-action:none; }
-</style>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Tornado prairie — a tiny world</title>
+  <style>
+    :root {
+      --bg-top: #374a49;
+      --bg-mid: #5e726b;
+      --bg-bot: #cbb994;
+      --ink: #f7f3e8;
+      --ink-sub: #dfd8c4;
+      --accent: #f3b853;
+    }
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      user-select: none;
+      -webkit-user-select: none;
+      -webkit-touch-callout: none;
+    }
+    html, body {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: linear-gradient(180deg, var(--bg-top) 0%, var(--bg-mid) 52%, var(--bg-bot) 100%);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      color: var(--ink);
+    }
+    #canvas-wrap {
+      position: fixed;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      touch-action: none;
+    }
+    canvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+      cursor: grab;
+    }
+    canvas:active {
+      cursor: grabbing;
+    }
+    #ui-header {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      padding: 12px 14px 8px;
+      text-align: center;
+      pointer-events: none;
+      z-index: 10;
+      background: linear-gradient(180deg, rgba(31, 43, 43, 0.68) 0%, rgba(31, 43, 43, 0.25) 72%, rgba(31, 43, 43, 0) 100%);
+    }
+    #ui-header h1 {
+      font-size: clamp(1.15rem, 3.6vw, 1.52rem);
+      font-weight: 800;
+      letter-spacing: 0.02em;
+      line-height: 1.1;
+      color: #fffaf0;
+      text-shadow: 0 2px 8px rgba(0, 0, 0, 0.45);
+    }
+    #ui-header .subtitle {
+      font-size: clamp(0.72rem, 2.2vw, 0.86rem);
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.14em;
+      color: var(--accent);
+      margin-top: 2px;
+      text-shadow: 0 1px 5px rgba(0, 0, 0, 0.5);
+    }
+    #ui-header .hint {
+      display: inline-block;
+      margin-top: 5px;
+      padding: 3px 11px;
+      border-radius: 999px;
+      font-size: clamp(0.68rem, 2.1vw, 0.78rem);
+      font-weight: 500;
+      color: #f9f5eb;
+      background: rgba(25, 35, 34, 0.58);
+      border: 1px solid rgba(255, 245, 220, 0.22);
+      backdrop-filter: blur(4px);
+      -webkit-backdrop-filter: blur(4px);
+      text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+    }
+    #ui-footer {
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      padding: 7px 14px 10px;
+      text-align: center;
+      pointer-events: none;
+      z-index: 10;
+      font-size: clamp(0.68rem, 2vw, 0.78rem);
+      font-weight: 600;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: #2f281d;
+      text-shadow: 0 1px 0 rgba(255, 255, 255, 0.45);
+      background: linear-gradient(0deg, rgba(190, 170, 132, 0.65) 0%, rgba(190, 170, 132, 0) 100%);
+    }
+    #fallback {
+      display: none;
+      position: fixed;
+      inset: 0;
+      z-index: 100;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+      text-align: center;
+      background: #2b3837;
+      color: #f7f3e8;
+    }
+    #fallback .card {
+      max-width: 360px;
+      padding: 20px;
+      border-radius: 12px;
+      background: rgba(0, 0, 0, 0.35);
+      border: 1px solid rgba(255, 255, 255, 0.18);
+    }
+  </style>
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+        "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+      }
+    }
+  </script>
 </head>
 <body>
-<div id="app"></div>
-<header>
-  <h1>Tornado Prairie</h1>
-  <div class="rule"></div>
-  <span id="hint"></span>
-</header>
-<footer>A tiny world</footer>
-<script type="importmap">
-{ "imports": {
-  "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
-  "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
-} }
-</script>
-<script type="module">
-import * as THREE from 'three';
-import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+  <header id="ui-header">
+    <h1>Tornado prairie</h1>
+    <div class="subtitle">a tiny world</div>
+    <div class="hint">tap the twister to touch down - tap the barn</div>
+  </header>
 
-const container = document.getElementById('app');
-const hintEl = document.getElementById('hint');
-const scene = new THREE.Scene();
-const SKY_CALM = new THREE.Color(0x6b7a63), SKY_ANGRY = new THREE.Color(0x4c5847);
-scene.background = SKY_CALM.clone();
-scene.fog = new THREE.Fog(SKY_CALM.getHex(), 55, 130);
+  <div id="canvas-wrap"></div>
 
-const camera = new THREE.PerspectiveCamera(38, innerWidth/innerHeight, 0.1, 240);
-function pickFov() {
-  const a = innerWidth / innerHeight;
-  camera.fov = a >= 0.9 ? 38 : (a >= 0.62 ? 46 : 58);
-  camera.updateProjectionMatrix();
-}
-pickFov();
-const renderer = new THREE.WebGLRenderer({ antialias: true });
-renderer.setSize(innerWidth, innerHeight);
-renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
-renderer.shadowMap.enabled = true;
-renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-renderer.toneMapping = THREE.ACESFilmicToneMapping;
-renderer.toneMappingExposure = 1.12;
-container.appendChild(renderer.domElement);
-const controls = new OrbitControls(camera, renderer.domElement);
-controls.enableDamping = true; controls.dampingFactor = 0.08;
-controls.minDistance = 6; controls.maxDistance = 220;
-controls.maxPolarAngle = Math.PI * 0.52; controls.enablePan = false;
+  <footer id="ui-footer">A tiny world</footer>
 
-// ---------- lights (storm-filtered daylight) ----------
-const sun = new THREE.DirectionalLight(0xf0ead0, 1.9);
-sun.position.set(12, 20, 10); sun.castShadow = true;
-sun.shadow.mapSize.set(2048, 2048);
-sun.shadow.camera.left = -13; sun.shadow.camera.right = 13;
-sun.shadow.camera.top = 13; sun.shadow.camera.bottom = -13;
-sun.shadow.camera.near = 4; sun.shadow.camera.far = 60;
-sun.shadow.bias = -0.0012;
-scene.add(sun);
-scene.add(new THREE.HemisphereLight(0x9aa88e, 0x5a4c36, 1.05));
-const lightning = new THREE.PointLight(0xcfe0ff, 0, 60, 1.6);
-lightning.position.set(0, 9, -3); scene.add(lightning);
+  <div id="fallback">
+    <div class="card">
+      <h2>WebGL Required</h2>
+      <p style="margin-top:8px;font-size:0.9rem;line-height:1.4;">
+        Unable to initialize the 3D miniature renderer. Please ensure hardware acceleration and WebGL are enabled in your browser.
+      </p>
+    </div>
+  </div>
 
-// ---------- seeded rng + noise ----------
-function mulberry32(a) {
-  return function() {
-    a |= 0; a = a + 0x6D2B79F5 | 0;
-    let t = Math.imul(a ^ a >>> 15, 1 | a);
-    t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
-    return ((t ^ t >>> 14) >>> 0) / 4294967296;
-  };
-}
-const rng = mulberry32(20261101);
-const rand = (a, b) => a + rng() * (b - a);
-function n2(x, z, s) {
-  return Math.sin(x * 1.9 + s) * Math.sin(z * 2.2 + s * 0.4)
-       + 0.5 * Math.sin(x * 4.3 + z * 2.8 + s + 2.2)
-       + 0.25 * Math.sin(x * 7.1 - z * 5.9 + s + 4.1);
-}
+  <script type="module">
+    import * as THREE from 'three';
+    import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 
-// ---------- palette ----------
-const PAL = {
-  wheat: 0xb99a45, wheatLight: 0xd0b45e, dirt: 0x6e5638, strata1: 0x7a6240,
-  strata2: 0x5e4a30, strata3: 0x42341f, funnel: 0x6a6156, cloud: 0x3d434c,
-  cloudLight: 0x565e68, house: 0xe8e2d2, roof: 0x5a4a42, barn: 0x9c3d32,
-  silo: 0xb8bcc0, fence: 0x6b5638, bale: 0xc8a94e
-};
-
-const SLAB_HALF = 7.5, SLAB_H = 1.5;
-const slabGroup = new THREE.Group(); scene.add(slabGroup);
-
-// ---------- strata ----------
-{
-  const layers = [[PAL.strata1, 0.42, -0.21], [PAL.strata2, 0.52, -0.68], [PAL.strata3, 0.56, -1.22]];
-  for (const [color, h, cy] of layers) {
-    const m = new THREE.Mesh(new THREE.BoxGeometry(SLAB_HALF*2, h, SLAB_HALF*2),
-      new THREE.MeshStandardMaterial({ color, roughness: 0.95, flatShading: true }));
-    m.position.y = cy; m.receiveShadow = true; slabGroup.add(m);
-  }
-}
-
-// ---------- wheat ground (low-freq grain, lifted) ----------
-{
-  const g = new THREE.PlaneGeometry(SLAB_HALF*2 - 0.24, SLAB_HALF*2 - 0.24, 52, 52);
-  g.rotateX(-Math.PI/2);
-  const p = g.attributes.position;
-  for (let i = 0; i < p.count; i++) {
-    const x = p.getX(i), z = p.getZ(i);
-    const edge = Math.max(Math.abs(x), Math.abs(z)) / (SLAB_HALF - 0.12);
-    let y = 0.10 + 0.05 * n2(x * 0.5, z * 0.5, 5.1);
-    y -= Math.max(0, edge - 0.86) * 1.4;
-    p.setY(i, y);
-  }
-  g.computeVertexNormals();
-  const ground = new THREE.Mesh(g, new THREE.MeshStandardMaterial({
-    color: PAL.wheat, roughness: 0.92, flatShading: true }));
-  ground.receiveShadow = true; slabGroup.add(ground);
-}
-
-// ---------- wheat tufts (instanced, wind-swayed) ----------
-let wheatMesh; const wheatData = [];
-{
-  const tg = new THREE.ConeGeometry(0.09, 0.52, 4);
-  tg.translate(0, 0.26, 0);
-  wheatMesh = new THREE.InstancedMesh(tg,
-    new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.9, flatShading: true }), 720);
-  const dummy = new THREE.Object3D(); const col = new THREE.Color();
-  for (let i = 0; i < 720; i++) {
-    const a = rng() * Math.PI * 2, d = Math.sqrt(rng()) * 7.1;
-    const x = Math.cos(a) * d, z = Math.sin(a) * d;
-    const s = rand(0.8, 1.7);
-    dummy.position.set(x, 0.1, z);
-    dummy.scale.setScalar(s);
-    dummy.rotation.set(0, rng() * 3, 0);
-    dummy.updateMatrix();
-    wheatMesh.setMatrixAt(i, dummy.matrix);
-    wheatMesh.setColorAt(i, col.setHex(rng() < 0.5 ? PAL.wheatLight : PAL.wheat).offsetHSL(0, 0, rand(-0.04, 0.04)));
-    wheatData.push({ x, z, s, ph: rng() * 6.28 });
-  }
-  wheatMesh.castShadow = true; slabGroup.add(wheatMesh);
-}
-const _dummy = new THREE.Object3D();
-let windK = 1;
-function wheatStep(t) {
-  for (let i = 0; i < wheatData.length; i++) {
-    const w = wheatData[i];
-    const lean = (0.10 + 0.13 * windK) * Math.sin(t * (1.6 + windK) + w.ph + (w.x + w.z) * 0.35);
-    _dummy.position.set(w.x, 0.1, w.z);
-    _dummy.scale.setScalar(w.s);
-    _dummy.rotation.set(lean, w.ph, lean * 0.6);
-    _dummy.updateMatrix();
-    wheatMesh.setMatrixAt(i, _dummy.matrix);
-  }
-  wheatMesh.instanceMatrix.needsUpdate = true;
-}
-
-// ---------- farm cluster: house, barn, silo, windmill, fence, bales ----------
-const farmWindows = [];
-{
-  const houseMat = new THREE.MeshStandardMaterial({ color: PAL.house, roughness: 0.9, flatShading: true });
-  const roofMat = new THREE.MeshStandardMaterial({ color: PAL.roof, roughness: 0.92, flatShading: true });
-  // farmhouse
-  const house = new THREE.Group(); house.position.set(-4.3, 0.08, -3.4); house.rotation.y = 0.35;
-  const hb = new THREE.Mesh(new THREE.BoxGeometry(2.4, 1.5, 1.9), houseMat);
-  hb.position.y = 0.75; hb.castShadow = hb.receiveShadow = true; house.add(hb);
-  const tri = new THREE.Shape(); tri.moveTo(-1.45, 0); tri.lineTo(1.45, 0); tri.lineTo(0, 0.95); tri.closePath();
-  const hr = new THREE.Mesh(new THREE.ExtrudeGeometry(tri, { depth: 2.1, bevelEnabled: false }), roofMat);
-  hr.geometry.translate(0, 0, -1.05); hr.position.y = 1.5; hr.castShadow = true; house.add(hr);
-  const winMat = new THREE.MeshStandardMaterial({ color: 0x403828, emissive: 0xffc878, emissiveIntensity: 0.9 });
-  farmWindows.push(winMat);
-  for (const wx of [-0.7, 0.7]) {
-    const w = new THREE.Mesh(new THREE.PlaneGeometry(0.34, 0.4), winMat);
-    w.position.set(wx, 0.85, 0.96); house.add(w);
-  }
-  const door = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.85, 0.06), roofMat);
-  door.position.set(0, 0.43, 0.96); house.add(door);
-  slabGroup.add(house);
-  // barn
-  const barn = new THREE.Group(); barn.position.set(-5.6, 0.08, 0.6); barn.rotation.y = -0.2;
-  const bb = new THREE.Mesh(new THREE.BoxGeometry(2.0, 1.4, 2.4),
-    new THREE.MeshStandardMaterial({ color: PAL.barn, roughness: 0.92, flatShading: true }));
-  bb.position.y = 0.7; bb.castShadow = bb.receiveShadow = true; barn.add(bb);
-  const btri = new THREE.Shape(); btri.moveTo(-1.2, 0); btri.lineTo(1.2, 0); btri.lineTo(0, 0.85); btri.closePath();
-  const br = new THREE.Mesh(new THREE.ExtrudeGeometry(btri, { depth: 2.5, bevelEnabled: false }), roofMat);
-  br.geometry.translate(0, 0, -1.25); br.position.y = 1.4; br.castShadow = true; barn.add(br);
-  const bdoor = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.9, 0.06),
-    new THREE.MeshStandardMaterial({ color: 0x4a2a24, roughness: 0.95, flatShading: true }));
-  bdoor.position.set(0, 0.45, 1.21); barn.add(bdoor);
-  slabGroup.add(barn);
-  // silo
-  const silo = new THREE.Group(); silo.position.set(-2.3, 0.08, -4.6);
-  const sc = new THREE.Mesh(new THREE.CylinderGeometry(0.55, 0.55, 2.6, 10),
-    new THREE.MeshStandardMaterial({ color: PAL.silo, roughness: 0.55, metalness: 0.35, flatShading: true }));
-  sc.position.y = 1.3; sc.castShadow = sc.receiveShadow = true; silo.add(sc);
-  const scap = new THREE.Mesh(new THREE.SphereGeometry(0.55, 10, 6, 0, Math.PI*2, 0, Math.PI/2),
-    sc.material);
-  scap.position.y = 2.6; scap.castShadow = true; silo.add(scap);
-  slabGroup.add(silo);
-  // fence line along the front
-  const fenceMat = new THREE.MeshStandardMaterial({ color: PAL.fence, roughness: 0.95, flatShading: true });
-  for (let i = 0; i < 9; i++) {
-    const post = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.06, 0.62, 5), fenceMat);
-    post.position.set(-6.2 + i * 1.1, 0.38, 4.1 + Math.sin(i * 0.8) * 0.3);
-    post.castShadow = true; slabGroup.add(post);
-  }
-  for (const ry of [0.3, 0.52]) {
-    const rail = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.035, 9.6, 5), fenceMat);
-    rail.rotation.z = Math.PI/2; rail.rotation.y = 0.03;
-    rail.position.set(-1.8, ry + 0.08, 4.1); slabGroup.add(rail);
-  }
-  // hay bales
-  for (let i = 0; i < 7; i++) {
-    const bale = new THREE.Mesh(new THREE.CylinderGeometry(0.34, 0.34, 0.55, 9),
-      new THREE.MeshStandardMaterial({ color: PAL.bale, roughness: 0.92, flatShading: true }));
-    bale.rotation.z = Math.PI/2; bale.rotation.y = rng() * 3;
-    const a = rng() * 6.28, d = rand(2.5, 6.4);
-    bale.position.set(Math.cos(a) * d + 1.5, 0.42, Math.sin(a) * d + 1.2);
-    bale.castShadow = bale.receiveShadow = true; slabGroup.add(bale);
-  }
-}
-// windmill (animated rotor)
-const rotor = new THREE.Group();
-{
-  const wmMat = new THREE.MeshStandardMaterial({ color: 0x8a8f96, roughness: 0.6, metalness: 0.4, flatShading: true });
-  const wm = new THREE.Group(); wm.position.set(5.4, 0.08, -4.2);
-  const tower = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.22, 3.1, 4), wmMat);
-  tower.position.y = 1.55; tower.castShadow = true; wm.add(tower);
-  for (let i = 0; i < 4; i++) {
-    const blade = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.95, 0.03), wmMat);
-    blade.position.y = 0.55;
-    const pivot = new THREE.Group(); pivot.rotation.z = i * Math.PI / 2;
-    pivot.add(blade); rotor.add(pivot);
-  }
-  rotor.position.set(0, 3.15, 0.18); wm.add(rotor);
-  slabGroup.add(wm);
-}
-
-// ---------- storm: cloud deck + funnel + dust + debris ----------
-const storm = new THREE.Group(); scene.add(storm);
-const tapTargets = [];
-let funnelMesh, funnelState = 'aloft', funnelT = 0, bottomY = 4.6;
-{
-  // rotating cloud deck
-  const deck = new THREE.Group(); deck.position.set(0, 9.1, -1); storm.add(deck);
-  {
-    const core = new THREE.Mesh(new THREE.IcosahedronGeometry(4.2, 1),
-      new THREE.MeshStandardMaterial({ color: PAL.cloud, roughness: 1, flatShading: true }));
-    core.scale.y = 0.5; core.position.y = 0.1; deck.add(core);
-  }
-  for (let i = 0; i < 24; i++) {
-    const a = rng() * Math.PI * 2, d = rand(1.8, 6.6);
-    const r = rand(1.7, 3.2);
-    const blob = new THREE.Mesh(new THREE.IcosahedronGeometry(r, 1),
-      new THREE.MeshStandardMaterial({ color: rng() < 0.6 ? PAL.cloud : PAL.cloudLight,
-        roughness: 1, flatShading: true }));
-    blob.position.set(Math.cos(a) * d, rand(-0.5, 0.7), Math.sin(a) * d * 0.75);
-    blob.scale.y = 0.42; blob.castShadow = false; deck.add(blob);
-  }
-  const tapCloud = new THREE.Mesh(new THREE.CylinderGeometry(6.8, 6.8, 2.6, 12),
-    new THREE.MeshBasicMaterial({ visible: false }));
-  tapCloud.position.copy(deck.position); tapCloud.userData.storm = true;
-  storm.add(tapCloud); tapTargets.push(tapCloud);
-  storm.userData.deck = deck;
-  // funnel: lathe with noise, hangs from deck
-  const prof = [];
-  for (let i = 0; i <= 16; i++) {
-    const k = i / 16;                       // 0 top .. 1 bottom
-    let r = 0.34 + 0.28 * Math.pow(1 - k, 1.4);
-    if (k < 0.18) r += (0.18 - k) / 0.18 * 1.1;   // flare into the deck
-    prof.push(new THREE.Vector2(r, k));
-  }
-  const fg = new THREE.LatheGeometry(prof, 18);
-  const fp = fg.attributes.position;
-  for (let i = 0; i < fp.count; i++) {
-    const x = fp.getX(i), y = fp.getY(i), z = fp.getZ(i);
-    const n = 0.22 * n2(x * 2.8 + y * 6, z * 2.8, 9.7);
-    const tw = y * 0.9;                      // spiral twist
-    const c = Math.cos(tw), sn = Math.sin(tw);
-    const nx = (x * c - z * sn) * (1 + n), nz = (x * sn + z * c) * (1 + n);
-    fp.setX(i, nx); fp.setZ(i, nz);
-  }
-  fg.computeVertexNormals();
-  funnelMesh = new THREE.Mesh(fg, new THREE.MeshStandardMaterial({
-    color: PAL.funnel, roughness: 1, flatShading: true, side: THREE.DoubleSide,
-    transparent: true, opacity: 0.93 }));
-  funnelMesh.userData.storm = true;
-  storm.add(funnelMesh); tapTargets.push(funnelMesh);
-  const tapFunnel = new THREE.Mesh(new THREE.CylinderGeometry(1.25, 0.9, 1, 8),
-    new THREE.MeshBasicMaterial({ visible: false }));
-  tapFunnel.userData.storm = true; storm.add(tapFunnel); tapTargets.push(tapFunnel);
-  storm.userData.tapFunnel = tapFunnel;
-}
-// dust skirt + debris (live only at touchdown)
-const dustSprites = [];
-{
-  const cv = document.createElement('canvas'); cv.width = cv.height = 64;
-  const cx = cv.getContext('2d');
-  const grad = cx.createRadialGradient(32, 32, 2, 32, 32, 30);
-  grad.addColorStop(0, 'rgba(206,186,148,0.95)'); grad.addColorStop(1, 'rgba(206,186,148,0)');
-  cx.fillStyle = grad; cx.fillRect(0, 0, 64, 64);
-  const tex = new THREE.CanvasTexture(cv);
-  for (let i = 0; i < 42; i++) {
-    const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true, opacity: 0, depthWrite: false }));
-    sp.userData = { a: rand(0, 6.28), r: rand(0.5, 3.2), h: rand(0, 2.2), spd: rand(2.2, 4.2), s: rand(1.1, 2.4) };
-    scene.add(sp); dustSprites.push(sp);
-  }
-}
-const debris = [];
-{
-  const dMat = new THREE.MeshStandardMaterial({ color: 0x7a6240, roughness: 0.95, flatShading: true });
-  const dMat2 = new THREE.MeshStandardMaterial({ color: PAL.bale, roughness: 0.95, flatShading: true });
-  for (let i = 0; i < 14; i++) {
-    const m = new THREE.Mesh(new THREE.BoxGeometry(rand(0.14, 0.38), rand(0.07, 0.16), rand(0.4, 0.8)),
-      i % 3 ? dMat : dMat2);
-    m.userData = { a: rand(0, 6.28), r: rand(0.8, 2.4), h: rand(0.2, 2.8), spd: rand(3, 5.5), spin: rand(2, 6) };
-    m.visible = false; scene.add(m); debris.push(m);
-  }
-}
-function stormStep(dt, t) {
-  const deck = storm.userData.deck;
-  deck.rotation.y = t * 0.09;
-  // funnel sway + spin
-  storm.position.x = Math.sin(t * 0.21) * 1.4;
-  storm.position.z = Math.cos(t * 0.16) * 1.1 - 0.5;
-  funnelMesh.rotation.y = t * 3.1;
-  // touchdown lifecycle
-  if (funnelState === 'dropping') {
-    funnelT += dt; bottomY = Math.max(0.12, 4.6 - funnelT * 3.6);
-    if (bottomY <= 0.13) { funnelState = 'down'; funnelT = 0; }
-  } else if (funnelState === 'down') {
-    funnelT += dt;
-    if (funnelT > 7) { funnelState = 'lifting'; funnelT = 0; }
-  } else if (funnelState === 'lifting') {
-    funnelT += dt; bottomY = Math.min(4.6, 0.12 + funnelT * 3.0);
-    if (bottomY >= 4.6) { funnelState = 'aloft'; setHint('idle'); windK = 1; skyK = 0; }
-  }
-  // funnel geometry spans from deck base down to bottomY
-  const topY = 8.6;
-  funnelMesh.scale.y = topY - bottomY;
-  funnelMesh.position.y = bottomY;
-  funnelMesh.position.x = Math.sin(t * 0.8) * 0.35;
-  const tp = storm.userData.tapFunnel;
-  tp.scale.y = topY - bottomY + 1.2; tp.position.set(funnelMesh.position.x, (topY + bottomY) / 2, 0);
-  // dust + debris while down
-  const active = funnelState === 'down' || funnelState === 'dropping';
-  const fx = storm.position.x + funnelMesh.position.x, fz = storm.position.z;
-  for (const sp of dustSprites) {
-    const u = sp.userData;
-    if (active) {
-      const a = u.a + t * u.spd;
-      sp.position.set(fx + Math.cos(a) * u.r, 0.12 + u.h * (0.5 + 0.5 * Math.sin(t * 2 + u.a)), fz + Math.sin(a) * u.r);
-      const sc = u.s * (funnelState === 'down' ? 1 : 0.6); sp.scale.set(sc, sc, 1);
-      sp.material.opacity = funnelState === 'down' ? 0.78 : 0.4;
-    } else sp.material.opacity = Math.max(0, sp.material.opacity - dt * 1.5);
-  }
-  for (const m of debris) {
-    const u = m.userData;
-    m.visible = funnelState === 'down';
-    if (m.visible) {
-      const a = u.a + t * u.spd;
-      m.position.set(fx + Math.cos(a) * u.r, 0.3 + u.h * (0.5 + 0.5 * Math.sin(t * 1.7 + u.a)), fz + Math.sin(a) * u.r);
-      m.rotation.set(t * u.spin, t * u.spin * 0.7, 0);
+    // Deterministic PRNG: mulberry32(20261103)
+    function mulberry32(a) {
+      return function() {
+        let t = a += 0x6D2B79F5;
+        t = Math.imul(t ^ (t >>> 15), t | 1);
+        t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+        return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+      };
     }
-  }
-}
-// lightning flashes
-let nextFlash = rand(5, 9), flashT = -1;
-function flashStep(dt) {
-  nextFlash -= dt;
-  if (nextFlash <= 0) { nextFlash = rand(5, 12); flashT = 0; }
-  if (flashT >= 0) {
-    flashT += dt;
-    const k = flashT;
-    lightning.intensity = (k < 0.09 || (k > 0.16 && k < 0.24)) ? 26 : 0;
-    if (k > 0.3) { flashT = -1; lightning.intensity = 0; }
-  }
-}
+    const rand = mulberry32(20261103);
+    const randRange = (min, max) => min + (max - min) * rand();
 
-// ---------- hints ----------
-const HINTS = {
-  idle: 'Tap the storm to touch down',
-  drop: 'The twister touches down - hold on',
-  angry: 'The sky grows angry'
-};
-function setHint(s) {
-  hintEl.textContent = HINTS[s]; hintEl.classList.remove('faded');
-  clearTimeout(setHint._t);
-  setHint._t = setTimeout(() => hintEl.classList.add('faded'), 6000);
-}
-setHint('idle');
+    const wrap = document.getElementById('canvas-wrap');
+    const headerEl = document.getElementById('ui-header');
+    const footerEl = document.getElementById('ui-footer');
+    const fallbackEl = document.getElementById('fallback');
 
-// ---------- camera framing ----------
-const FIT_CENTER = new THREE.Vector3(0, 2.6, 0);
-const FIT_PTS = [];
-for (const x of [-7.5, 7.5]) for (const y of [-SLAB_H, 0.6]) for (const z of [-7.5, 7.5])
-  FIT_PTS.push(new THREE.Vector3(x, y, z));
-FIT_PTS.push(new THREE.Vector3(0, 10.1, -1));              // deck top
-for (const sx of [-1, 1]) FIT_PTS.push(new THREE.Vector3(sx * 6.2, 9.2, -1));  // deck width
-FIT_PTS.push(new THREE.Vector3(5.4, 4.2, -4.2));           // windmill rotor
-FIT_PTS.push(new THREE.Vector3(-2.3, 3.4, -4.6));          // silo cap
-function fitDir() {
-  const a = innerWidth / innerHeight;
-  if (a < 0.62) return new THREE.Vector3(0.1, 0.42, 1).normalize();
-  if (a < 0.9) return new THREE.Vector3(0.42, 0.4, 1).normalize();
-  return new THREE.Vector3(0.62, 0.42, 1).normalize();
-}
-const _rel = new THREE.Vector3();
-function requiredDistance(right, up, fwd, target) {
-  const fovV = THREE.MathUtils.degToRad(camera.fov);
-  const tanH = Math.tan(Math.atan(Math.tan(fovV/2) * camera.aspect));
-  const tanV = Math.tan(fovV/2);
-  let d = 4;
-  for (const c of FIT_PTS) {
-    _rel.copy(c).sub(target);
-    const cf = _rel.dot(fwd);
-    d = Math.max(d, Math.abs(_rel.dot(right)) / tanH - cf, Math.abs(_rel.dot(up)) / tanV - cf);
-  }
-  return d;
-}
-function frameInitialCamera() {
-  pickFov();
-  const fd = fitDir();
-  const fwd = fd.clone().negate();
-  const right = new THREE.Vector3().crossVectors(fwd, new THREE.Vector3(0,1,0)).normalize();
-  const up = new THREE.Vector3().crossVectors(right, fwd).normalize();
-  const dist = requiredDistance(right, up, fwd, FIT_CENTER) * 1.06;
-  camera.position.copy(FIT_CENTER).addScaledVector(fd, dist);
-  controls.target.copy(FIT_CENTER);
-  camera.updateProjectionMatrix(); controls.update();
-}
-frameInitialCamera();
+    let renderer;
+    try {
+      renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: 'high-performance' });
+    } catch (err) {
+      fallbackEl.style.display = 'flex';
+      throw err;
+    }
+    if (!renderer || !renderer.getContext()) {
+      fallbackEl.style.display = 'flex';
+      throw new Error('WebGL context creation failed');
+    }
 
-// ---------- tap ----------
-const ray = new THREE.Raycaster(); const ndc = new THREE.Vector2();
-let downX = 0, downY = 0, downT = 0;
-renderer.domElement.addEventListener('pointerdown', e => { downX = e.clientX; downY = e.clientY; downT = performance.now(); });
-renderer.domElement.addEventListener('pointerup', e => {
-  if (Math.hypot(e.clientX - downX, e.clientY - downY) > 7 || performance.now() - downT > 450) return;
-  ndc.set((e.clientX / innerWidth) * 2 - 1, -(e.clientY / innerHeight) * 2 + 1);
-  ray.setFromCamera(ndc, camera);
-  const hits = ray.intersectObjects(tapTargets, false);
-  if (!hits.length) return;
-  if (funnelState === 'aloft') {
-    funnelState = 'dropping'; funnelT = 0;
-    windK = 2.2; skyK = 1;
-    setHint('drop');
-  }
-});
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.75));
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 1.18;
+    renderer.outputColorSpace = THREE.SRGBColorSpace;
+    wrap.appendChild(renderer.domElement);
 
-addEventListener('resize', () => {
-  camera.aspect = innerWidth/innerHeight;
-  renderer.setSize(innerWidth, innerHeight);
-  renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
-  frameInitialCamera();
-});
+    const scene = new THREE.Scene();
 
-// ---------- animate ----------
-const clock = new THREE.Clock();
-let skyK = 0, nextAngry = rand(14, 20);
-const _sky = new THREE.Color();
-function animate() {
-  requestAnimationFrame(animate);
-  const dt = Math.min(clock.getDelta(), 0.05);
-  const t = clock.elapsedTime;
+    const camera = new THREE.PerspectiveCamera(38, window.innerWidth / window.innerHeight, 0.5, 140);
+    const controls = new OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.07;
+    controls.enablePan = false;
+    controls.minPolarAngle = THREE.MathUtils.degToRad(40);
+    controls.maxPolarAngle = THREE.MathUtils.degToRad(74);
+    controls.minAzimuthAngle = THREE.MathUtils.degToRad(-38);
+    controls.maxAzimuthAngle = THREE.MathUtils.degToRad(38);
+    controls.rotateSpeed = 0.75;
+    controls.zoomSpeed = 0.7;
 
-  nextAngry -= dt;
-  if (nextAngry <= 0) {
-    nextAngry = rand(16, 26);
-    if (funnelState === 'aloft') { setHint('angry'); flashT = 0; windK = 1.6; setTimeout(() => { if (funnelState === 'aloft') windK = 1; }, 6000); }
-  }
+    // Root diorama group
+    const world = new THREE.Group();
+    scene.add(world);
 
-  const targetSky = (funnelState === 'aloft' && windK <= 1) ? 0 : 1;
-  skyK += (targetSky - skyK) * Math.min(1, dt * 1.1);
-  _sky.copy(SKY_CALM).lerp(SKY_ANGRY, skyK * 0.85);
-  scene.background.copy(_sky); scene.fog.color.copy(_sky);
+    // Compact horizontal footprint + tall vertical cloud/funnel stack so tall portrait viewports
+    // fill 75-84% of the safe vertical height while still fitting 100% horizontally at 320px and 616x562
+    const SLAB_W = 7.4;
+    const SLAB_D = 6.0;
+    const SLAB_H = 0.9;
 
-  wheatStep(t);
-  stormStep(dt, t);
-  flashStep(dt);
-  rotor.rotation.z = t * (1.2 + windK * 1.6);
-  for (const w of farmWindows) w.emissiveIntensity = 0.9 + 0.25 * Math.sin(t * 3.1);
+    // Terrain height function for rolling prairie
+    function prairieHeight(x, z) {
+      const d2 = (x * x + z * z) / 16.5;
+      const edgeTaper = Math.max(0, 1 - Math.pow(d2, 2.2) * 0.12);
+      const wave =
+        Math.sin(x * 0.46 + 0.5) * 0.22 +
+        Math.cos(z * 0.52 - 0.3) * 0.18 +
+        Math.sin((x - z) * 0.32) * 0.12;
+      const farmDist = Math.hypot(x - 1.18, z - 0.3);
+      const farmFlat = THREE.MathUtils.smoothstep(farmDist, 0.55, 2.25);
+      const baseH = 0.2 + wave * (0.35 + 0.65 * farmFlat);
+      return baseH * edgeTaper;
+    }
 
-  const fwd = new THREE.Vector3(); camera.getWorldDirection(fwd);
-  const right = new THREE.Vector3().crossVectors(fwd, new THREE.Vector3(0,1,0)).normalize();
-  const up2 = new THREE.Vector3().crossVectors(right, fwd).normalize();
-  controls.minDistance = Math.min(requiredDistance(right, up2, fwd, controls.target) * 1.04, 30);
+    // Shared materials (luminous, high-contrast storm + golden sun-break palette)
+    const mats = {
+      soilSide: new THREE.MeshStandardMaterial({ color: 0x5c4430, roughness: 0.88, metalness: 0.05 }),
+      soilBottom: new THREE.MeshStandardMaterial({ color: 0x3b2b1e, roughness: 0.92, metalness: 0.02 }),
+      prairieTop: new THREE.MeshStandardMaterial({ color: 0xd9a84e, roughness: 0.8, metalness: 0.04, flatShading: true }),
+      dirtRoad: new THREE.MeshStandardMaterial({ color: 0xa47c52, roughness: 0.88, metalness: 0.02, flatShading: true }),
+      barnRed: new THREE.MeshStandardMaterial({ color: 0xc9382b, roughness: 0.58, metalness: 0.06 }),
+      barnTrim: new THREE.MeshStandardMaterial({ color: 0xf6f1e3, roughness: 0.5, metalness: 0.05 }),
+      barnRoof: new THREE.MeshStandardMaterial({ color: 0x424a4f, roughness: 0.55, metalness: 0.25 }),
+      barnInterior: new THREE.MeshBasicMaterial({ color: 0x261610 }),
+      siloSilver: new THREE.MeshStandardMaterial({ color: 0xd8e0e5, roughness: 0.26, metalness: 0.72 }),
+      siloDome: new THREE.MeshStandardMaterial({ color: 0xeaf0f4, roughness: 0.2, metalness: 0.8 }),
+      houseWall: new THREE.MeshStandardMaterial({ color: 0xf4ead2, roughness: 0.62, metalness: 0.05 }),
+      houseRoof: new THREE.MeshStandardMaterial({ color: 0x6f5542, roughness: 0.68, metalness: 0.1 }),
+      windowGlow: new THREE.MeshStandardMaterial({ color: 0xffdf80, emissive: 0xffb838, emissiveIntensity: 0.85, roughness: 0.2 }),
+      fenceWood: new THREE.MeshStandardMaterial({ color: 0x855c3a, roughness: 0.82, metalness: 0.05 }),
+      hayGold: new THREE.MeshStandardMaterial({ color: 0xe6b84c, roughness: 0.78, metalness: 0.04 }),
+      hayBand: new THREE.MeshStandardMaterial({ color: 0x6e4b2a, roughness: 0.7, metalness: 0.1 }),
+      trunkWood: new THREE.MeshStandardMaterial({ color: 0x5c3e26, roughness: 0.85, metalness: 0.04 }),
+      foliage1: new THREE.MeshStandardMaterial({ color: 0x6b8c42, roughness: 0.7, metalness: 0.04, flatShading: true }),
+      foliage2: new THREE.MeshStandardMaterial({ color: 0x86a34b, roughness: 0.7, metalness: 0.04, flatShading: true }),
+      metalFrame: new THREE.MeshStandardMaterial({ color: 0x9aa6ad, roughness: 0.38, metalness: 0.62 }),
+      vaneRed: new THREE.MeshStandardMaterial({ color: 0xd13b2e, roughness: 0.5, metalness: 0.2 }),
+      cloudDark: new THREE.MeshStandardMaterial({
+        color: 0x556868,
+        emissive: 0x1e2c2e,
+        emissiveIntensity: 0.45,
+        roughness: 0.72,
+        metalness: 0.06,
+        flatShading: true
+      }),
+      cloudUpper: new THREE.MeshStandardMaterial({
+        color: 0x738784,
+        emissive: 0x263536,
+        emissiveIntensity: 0.42,
+        roughness: 0.68,
+        metalness: 0.05,
+        flatShading: true
+      }),
+      cloudSilver: new THREE.MeshStandardMaterial({
+        color: 0x97ada8,
+        emissive: 0x354746,
+        emissiveIntensity: 0.44,
+        roughness: 0.58,
+        metalness: 0.12,
+        flatShading: true
+      }),
+      funnelMain: new THREE.MeshStandardMaterial({
+        color: 0x5e696e,
+        emissive: 0x263035,
+        emissiveIntensity: 0.55,
+        roughness: 0.48,
+        metalness: 0.2,
+        flatShading: true
+      }),
+      funnelRim: new THREE.MeshStandardMaterial({
+        color: 0xaab8be,
+        emissive: 0x425057,
+        emissiveIntensity: 0.62,
+        roughness: 0.38,
+        metalness: 0.28,
+        flatShading: true
+      }),
+      dustSkirt: new THREE.MeshStandardMaterial({
+        color: 0xbe935f,
+        emissive: 0x4c361c,
+        emissiveIntensity: 0.46,
+        roughness: 0.74,
+        metalness: 0.06,
+        flatShading: true
+      }),
+      chickenWhite: new THREE.MeshStandardMaterial({ color: 0xfaf6eb, roughness: 0.55, metalness: 0.04 }),
+      chickenComb: new THREE.MeshStandardMaterial({ color: 0xde3526, roughness: 0.5, metalness: 0.08 }),
+      chickenBeak: new THREE.MeshStandardMaterial({ color: 0xf4a825, roughness: 0.45, metalness: 0.08 }),
+      stone: new THREE.MeshStandardMaterial({ color: 0x8d887d, roughness: 0.75, metalness: 0.08, flatShading: true })
+    };
 
-  controls.update();
-  renderer.render(scene, camera);
-}
-animate();
-// pass 4: readable dust skirt + bigger debris
-// pass 3: wide funnel tap proxy tracking sway, deck uncrowded from header, softened funnel
-// pass 2: ropey twisted funnel, solid cloud deck, 720 wheat tufts
-// pass 1: tornado-prairie initial build - wheat field + 260 swaying tufts, farm
-// cluster (house/barn/silo/windmill/fence/bales), rotating cloud deck, noise lathe
-// funnel (tap to touch down: dust skirt + debris + wind surge + darkening sky),
-// lightning flashes, auto 'sky grows angry', seeded mulberry32(20261101)
-</script>
+    // LIGHTING: Bright dramatic sun-break + strong silver rim light + storm sky fill
+    const hemiLight = new THREE.HemisphereLight(0xc8dad4, 0x9c7b4c, 1.38);
+    scene.add(hemiLight);
+
+    const sunLight = new THREE.DirectionalLight(0xffe6b0, 2.8);
+    sunLight.position.set(8.5, 11.5, 7.5);
+    sunLight.castShadow = true;
+    sunLight.shadow.mapSize.set(1024, 1024);
+    sunLight.shadow.camera.near = 2;
+    sunLight.shadow.camera.far = 28;
+    const sCam = 6.4;
+    sunLight.shadow.camera.left = -sCam;
+    sunLight.shadow.camera.right = sCam;
+    sunLight.shadow.camera.top = sCam + 2.0;
+    sunLight.shadow.camera.bottom = -sCam;
+    sunLight.shadow.bias = -0.0008;
+    scene.add(sunLight);
+
+    // Silver storm rim light from back-left to sculpt the charcoal funnel & cloud band
+    const rimLight = new THREE.DirectionalLight(0xe0f6ff, 2.35);
+    rimLight.position.set(-8.5, 9.5, -5.5);
+    scene.add(rimLight);
+
+    // Warm bounce fill from front-left so no dark/murky shadows dominate
+    const fillLight = new THREE.DirectionalLight(0xffd79e, 0.95);
+    fillLight.position.set(-5.5, 4.5, 7.5);
+    scene.add(fillLight);
+
+    // 1. SCULPTURAL DIORAMA SLAB
+    const slabGroup = new THREE.Group();
+    world.add(slabGroup);
+
+    function buildPrairieSlab() {
+      const segX = 40;
+      const segZ = 34;
+      const topGeo = new THREE.PlaneGeometry(SLAB_W, SLAB_D, segX, segZ);
+      topGeo.rotateX(-Math.PI / 2);
+      const pos = topGeo.attributes.position;
+      const colors = [];
+      const cGold = new THREE.Color(0xdca94b);
+      const cGreen = new THREE.Color(0x9da34c);
+      const cWarm = new THREE.Color(0xe6ba60);
+      const cPath = new THREE.Color(0xa67c50);
+      const tmpColor = new THREE.Color();
+
+      for (let i = 0; i < pos.count; i++) {
+        let vx = pos.getX(i);
+        let vz = pos.getZ(i);
+        const nx = vx / (SLAB_W * 0.5);
+        const nz = vz / (SLAB_D * 0.5);
+        const r = Math.hypot(nx, nz);
+        if (r > 1.0) {
+          const scale = 1.0 + (r - 1.0) * 0.28;
+          vx /= scale;
+          vz /= scale;
+          pos.setX(i, vx);
+          pos.setZ(i, vz);
+        }
+        const edgeDist = Math.max(Math.abs(vx) / (SLAB_W * 0.5), Math.abs(vz) / (SLAB_D * 0.5));
+        const bevel = edgeDist > 0.88 ? Math.pow((edgeDist - 0.88) / 0.12, 1.6) * 0.18 : 0;
+        const h = prairieHeight(vx, vz) - bevel;
+        pos.setY(i, h);
+
+        const mixVal = (Math.sin(vx * 0.68 + vz * 0.44) + 1) * 0.5;
+        tmpColor.copy(cGold).lerp(cGreen, mixVal * 0.42);
+        if (h > 0.25) tmpColor.lerp(cWarm, 0.35);
+
+        const laneZ = 0.5 + (1.15 - vx) * 0.35 + Math.sin(vx * 1.15) * 0.14;
+        const laneDist = Math.abs(vz - laneZ);
+        if (vx > -1.65 && vx < 1.95 && laneDist < 0.52) {
+          const pathFactor = 1.0 - THREE.MathUtils.smoothstep(laneDist, 0.14, 0.52);
+          tmpColor.lerp(cPath, pathFactor * 0.78);
+        }
+        colors.push(tmpColor.r, tmpColor.g, tmpColor.b);
+      }
+      topGeo.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
+      topGeo.computeVertexNormals();
+
+      const topMat = mats.prairieTop.clone();
+      topMat.vertexColors = true;
+      const topMesh = new THREE.Mesh(topGeo, topMat);
+      topMesh.receiveShadow = true;
+      slabGroup.add(topMesh);
+
+      const shape = new THREE.Shape();
+      const hw = SLAB_W * 0.485;
+      const hd = SLAB_D * 0.485;
+      const cr = 0.68;
+      shape.moveTo(-hw + cr, -hd);
+      shape.lineTo(hw - cr, -hd);
+      shape.quadraticCurveTo(hw, -hd, hw, -hd + cr);
+      shape.lineTo(hw, hd - cr);
+      shape.quadraticCurveTo(hw, hd, hw - cr, hd);
+      shape.lineTo(-hw + cr, hd);
+      shape.quadraticCurveTo(-hw, hd, -hw, hd - cr);
+      shape.lineTo(-hw, -hd + cr);
+      shape.quadraticCurveTo(-hw, -hd, -hw + cr, -hd);
+
+      const extrudeGeo = new THREE.ExtrudeGeometry(shape, {
+        depth: SLAB_H,
+        bevelEnabled: true,
+        bevelSegments: 3,
+        steps: 1,
+        bevelSize: 0.13,
+        bevelThickness: 0.13
+      });
+      extrudeGeo.rotateX(Math.PI / 2);
+      extrudeGeo.translate(0, 0.08, 0);
+      const baseMesh = new THREE.Mesh(extrudeGeo, mats.soilSide);
+      baseMesh.castShadow = true;
+      baseMesh.receiveShadow = true;
+      slabGroup.add(baseMesh);
+
+      const plinthGeo = new THREE.ExtrudeGeometry(shape, {
+        depth: 0.22,
+        bevelEnabled: true,
+        bevelSegments: 2,
+        steps: 1,
+        bevelSize: 0.06,
+        bevelThickness: 0.06
+      });
+      plinthGeo.rotateX(Math.PI / 2);
+      plinthGeo.translate(0, -SLAB_H + 0.06, 0);
+      plinthGeo.scale(0.96, 1, 0.96);
+      const plinthMesh = new THREE.Mesh(plinthGeo, mats.soilBottom);
+      slabGroup.add(plinthMesh);
+    }
+    buildPrairieSlab();
+
+    // Shared basic geometries
+    const boxGeo = new THREE.BoxGeometry(1, 1, 1);
+    const cylGeo = new THREE.CylinderGeometry(1, 1, 1, 16);
+    const coneGeo = new THREE.ConeGeometry(1, 1, 12);
+    const icoGeo = new THREE.IcosahedronGeometry(1, 1);
+    const dodecaGeo = new THREE.DodecahedronGeometry(1, 1);
+
+    // 2. RED BARN + ANIMATED DOORS + SILVER SILO + SMALL FARMHOUSE
+    const farmGroup = new THREE.Group();
+    world.add(farmGroup);
+
+    const barnX = 1.18;
+    const barnZ = -0.32;
+    const barnY = prairieHeight(barnX, barnZ);
+    const barnGroup = new THREE.Group();
+    barnGroup.position.set(barnX, barnY, barnZ);
+    barnGroup.rotation.y = -0.28;
+    farmGroup.add(barnGroup);
+
+    let barnDoorLeftPivot, barnDoorRightPivot;
+
+    function buildBarn() {
+      const bw = 1.45;
+      const bh = 1.05;
+      const bd = 1.72;
+
+      const found = new THREE.Mesh(boxGeo, mats.stone);
+      found.scale.set(bw + 0.08, 0.18, bd + 0.08);
+      found.position.y = 0.05;
+      found.receiveShadow = true;
+      barnGroup.add(found);
+
+      const body = new THREE.Mesh(boxGeo, mats.barnRed);
+      body.scale.set(bw, bh, bd);
+      body.position.y = 0.12 + bh * 0.5;
+      body.castShadow = true;
+      body.receiveShadow = true;
+      barnGroup.add(body);
+
+      const recess = new THREE.Mesh(boxGeo, mats.barnInterior);
+      recess.scale.set(0.76, 0.68, 0.06);
+      recess.position.set(0, 0.12 + 0.34, bd * 0.5 - 0.01);
+      barnGroup.add(recess);
+
+      const roofShape = new THREE.Shape();
+      const rw = bw * 0.56;
+      roofShape.moveTo(-rw, 0);
+      roofShape.lineTo(-rw * 0.62, 0.48);
+      roofShape.lineTo(0, 0.74);
+      roofShape.lineTo(rw * 0.62, 0.48);
+      roofShape.lineTo(rw, 0);
+      roofShape.closePath();
+
+      const roofGeo = new THREE.ExtrudeGeometry(roofShape, {
+        depth: bd + 0.16,
+        bevelEnabled: true,
+        bevelSegments: 2,
+        steps: 1,
+        bevelSize: 0.025,
+        bevelThickness: 0.025
+      });
+      roofGeo.translate(0, 0, -(bd + 0.16) * 0.5);
+      const roofMesh = new THREE.Mesh(roofGeo, mats.barnRoof);
+      roofMesh.position.y = 0.12 + bh;
+      roofMesh.castShadow = true;
+      roofMesh.receiveShadow = true;
+      barnGroup.add(roofMesh);
+
+      const gableGeo = new THREE.ExtrudeGeometry(roofShape, { depth: bd, bevelEnabled: false });
+      gableGeo.translate(0, 0, -bd * 0.5);
+      gableGeo.scale(0.92, 0.92, 1.0);
+      const gableMesh = new THREE.Mesh(gableGeo, mats.barnRed);
+      gableMesh.position.y = 0.11 + bh;
+      gableMesh.castShadow = true;
+      barnGroup.add(gableMesh);
+
+      for (const sx of [-1, 1]) {
+        for (const sz of [-1, 1]) {
+          const trim = new THREE.Mesh(boxGeo, mats.barnTrim);
+          trim.scale.set(0.07, bh + 0.02, 0.07);
+          trim.position.set(sx * (bw * 0.5 - 0.02), 0.12 + bh * 0.5, sz * (bd * 0.5 - 0.02));
+          barnGroup.add(trim);
+        }
+      }
+
+      const loftFrame = new THREE.Mesh(boxGeo, mats.barnTrim);
+      loftFrame.scale.set(0.42, 0.36, 0.06);
+      loftFrame.position.set(0, 0.12 + bh + 0.25, bd * 0.5 + 0.01);
+      barnGroup.add(loftFrame);
+
+      const loftInner = new THREE.Mesh(boxGeo, mats.barnInterior);
+      loftInner.scale.set(0.32, 0.28, 0.07);
+      loftInner.position.set(0, 0.12 + bh + 0.25, bd * 0.5 + 0.015);
+      barnGroup.add(loftInner);
+
+      const hayBeam = new THREE.Mesh(boxGeo, mats.barnTrim);
+      hayBeam.scale.set(0.06, 0.06, 0.28);
+      hayBeam.position.set(0, 0.12 + bh + 0.58, bd * 0.5 + 0.12);
+      barnGroup.add(hayBeam);
+
+      for (const sx of [-1, 1]) {
+        for (const wz of [-0.45, 0.45]) {
+          const wFrame = new THREE.Mesh(boxGeo, mats.barnTrim);
+          wFrame.scale.set(0.06, 0.3, 0.28);
+          wFrame.position.set(sx * (bw * 0.5 + 0.01), 0.12 + 0.58, wz);
+          barnGroup.add(wFrame);
+
+          const wPane = new THREE.Mesh(boxGeo, mats.windowGlow);
+          wPane.scale.set(0.07, 0.22, 0.2);
+          wPane.position.set(sx * (bw * 0.5 + 0.01), 0.12 + 0.58, wz);
+          barnGroup.add(wPane);
+        }
+      }
+
+      const cupBase = new THREE.Mesh(boxGeo, mats.barnRed);
+      cupBase.scale.set(0.34, 0.28, 0.34);
+      cupBase.position.set(0, 0.12 + bh + 0.78, 0);
+      cupBase.castShadow = true;
+      barnGroup.add(cupBase);
+
+      const cupRoof = new THREE.Mesh(coneGeo, mats.barnRoof);
+      cupRoof.scale.set(0.3, 0.22, 0.3);
+      cupRoof.rotation.y = Math.PI * 0.25;
+      cupRoof.position.set(0, 0.12 + bh + 1.02, 0);
+      barnGroup.add(cupRoof);
+
+      const doorW = 0.38;
+      const doorH = 0.68;
+      const doorD = 0.045;
+
+      function createDoorLeaf(side) {
+        const pivot = new THREE.Group();
+        pivot.position.set(side * doorW, 0.12 + doorH * 0.5, bd * 0.5 + 0.025);
+
+        const leaf = new THREE.Mesh(boxGeo, mats.barnRed);
+        leaf.scale.set(doorW, doorH, doorD);
+        leaf.position.x = -side * (doorW * 0.5);
+        leaf.castShadow = true;
+        pivot.add(leaf);
+
+        const topB = new THREE.Mesh(boxGeo, mats.barnTrim);
+        topB.scale.set(doorW, 0.045, doorD + 0.012);
+        topB.position.set(-side * (doorW * 0.5), doorH * 0.5 - 0.022, 0);
+        pivot.add(topB);
+
+        const botB = topB.clone();
+        botB.position.y = -doorH * 0.5 + 0.022;
+        pivot.add(botB);
+
+        const diag1 = new THREE.Mesh(boxGeo, mats.barnTrim);
+        diag1.scale.set(0.042, 0.74, doorD + 0.012);
+        diag1.position.set(-side * (doorW * 0.5), 0, 0);
+        diag1.rotation.z = 0.48;
+        pivot.add(diag1);
+
+        const diag2 = diag1.clone();
+        diag2.rotation.z = -0.48;
+        pivot.add(diag2);
+
+        return pivot;
+      }
+
+      barnDoorLeftPivot = createDoorLeaf(-1);
+      barnDoorRightPivot = createDoorLeaf(1);
+      barnGroup.add(barnDoorLeftPivot, barnDoorRightPivot);
+    }
+    buildBarn();
+
+    // SILVER SILO next to barn
+    function buildSilo() {
+      const siloGroup = new THREE.Group();
+      const sx = 2.18;
+      const sz = -0.88;
+      const sy = prairieHeight(sx, sz);
+      siloGroup.position.set(sx, sy, sz);
+      farmGroup.add(siloGroup);
+
+      const r = 0.41;
+      const h = 2.22;
+
+      const base = new THREE.Mesh(cylGeo, mats.stone);
+      base.scale.set(r + 0.05, 0.2, r + 0.05);
+      base.position.y = 0.05;
+      siloGroup.add(base);
+
+      const tower = new THREE.Mesh(cylGeo, mats.siloSilver);
+      tower.scale.set(r, h, r);
+      tower.position.y = 0.1 + h * 0.5;
+      tower.castShadow = true;
+      tower.receiveShadow = true;
+      siloGroup.add(tower);
+
+      for (let i = 1; i <= 5; i++) {
+        const hoop = new THREE.Mesh(cylGeo, mats.metalFrame);
+        hoop.scale.set(r + 0.018, 0.03, r + 0.018);
+        hoop.position.y = 0.1 + (h / 6) * i;
+        siloGroup.add(hoop);
+      }
+
+      const domeGeo = new THREE.SphereGeometry(r, 20, 12, 0, Math.PI * 2, 0, Math.PI * 0.5);
+      const dome = new THREE.Mesh(domeGeo, mats.siloDome);
+      dome.position.y = 0.1 + h;
+      dome.castShadow = true;
+      siloGroup.add(dome);
+
+      const chute = new THREE.Mesh(boxGeo, mats.siloSilver);
+      chute.scale.set(0.14, h * 0.88, 0.14);
+      chute.position.set(-r + 0.02, 0.1 + h * 0.46, 0.18);
+      chute.castShadow = true;
+      siloGroup.add(chute);
+    }
+    buildSilo();
+
+    // SMALL PRAIRIE FARMHOUSE
+    function buildFarmhouse() {
+      const houseGroup = new THREE.Group();
+      const hx = 2.28;
+      const hz = 0.92;
+      const hy = prairieHeight(hx, hz);
+      houseGroup.position.set(hx, hy, hz);
+      houseGroup.rotation.y = -0.45;
+      farmGroup.add(houseGroup);
+
+      const w = 0.9;
+      const h = 0.68;
+      const d = 1.08;
+
+      const body = new THREE.Mesh(boxGeo, mats.houseWall);
+      body.scale.set(w, h, d);
+      body.position.y = h * 0.5;
+      body.castShadow = true;
+      body.receiveShadow = true;
+      houseGroup.add(body);
+
+      const rShape = new THREE.Shape();
+      rShape.moveTo(-w * 0.58, 0);
+      rShape.lineTo(0, 0.46);
+      rShape.lineTo(w * 0.58, 0);
+      rShape.closePath();
+      const rGeo = new THREE.ExtrudeGeometry(rShape, {
+        depth: d + 0.14,
+        bevelEnabled: true,
+        bevelSegments: 2,
+        steps: 1,
+        bevelSize: 0.02,
+        bevelThickness: 0.02
+      });
+      rGeo.translate(0, 0, -(d + 0.14) * 0.5);
+      const roof = new THREE.Mesh(rGeo, mats.houseRoof);
+      roof.position.y = h;
+      roof.castShadow = true;
+      houseGroup.add(roof);
+
+      const porchFloor = new THREE.Mesh(boxGeo, mats.fenceWood);
+      porchFloor.scale.set(0.32, 0.08, d * 0.82);
+      porchFloor.position.set(-w * 0.5 - 0.14, 0.04, 0);
+      houseGroup.add(porchFloor);
+
+      const porchRoof = new THREE.Mesh(boxGeo, mats.houseRoof);
+      porchRoof.scale.set(0.38, 0.05, d * 0.86);
+      porchRoof.position.set(-w * 0.5 - 0.15, h * 0.68, 0);
+      porchRoof.rotation.z = 0.22;
+      porchRoof.castShadow = true;
+      houseGroup.add(porchRoof);
+
+      for (const pz of [-0.35, 0.35]) {
+        const post = new THREE.Mesh(boxGeo, mats.barnTrim);
+        post.scale.set(0.04, h * 0.62, 0.04);
+        post.position.set(-w * 0.5 - 0.26, h * 0.33, pz);
+        houseGroup.add(post);
+      }
+
+      for (const wz of [-0.25, 0.25]) {
+        const win = new THREE.Mesh(boxGeo, mats.windowGlow);
+        win.scale.set(0.05, 0.22, 0.18);
+        win.position.set(-w * 0.5 - 0.01, h * 0.5, wz);
+        houseGroup.add(win);
+      }
+
+      const chimney = new THREE.Mesh(boxGeo, mats.barnRed);
+      chimney.scale.set(0.16, 0.55, 0.16);
+      chimney.position.set(0.18, h + 0.3, -0.25);
+      chimney.castShadow = true;
+      houseGroup.add(chimney);
+    }
+    buildFarmhouse();
+
+    // 3. PRAIRIE WINDMILL
+    let windmillWheel, windmillHead;
+    function buildWindmill() {
+      const wmGroup = new THREE.Group();
+      const wx = 0.02;
+      const wz = -1.48;
+      const wy = prairieHeight(wx, wz);
+      wmGroup.position.set(wx, wy, wz);
+      farmGroup.add(wmGroup);
+
+      const towerH = 2.4;
+      const baseSpread = 0.38;
+      const topSpread = 0.1;
+
+      for (const sx of [-1, 1]) {
+        for (const sz of [-1, 1]) {
+          const leg = new THREE.Mesh(boxGeo, mats.metalFrame);
+          leg.scale.set(0.045, towerH, 0.045);
+          leg.position.set(sx * (baseSpread + topSpread) * 0.5, towerH * 0.5, sz * (baseSpread + topSpread) * 0.5);
+          leg.rotation.z = sx * 0.115;
+          leg.rotation.x = -sz * 0.115;
+          leg.castShadow = true;
+          wmGroup.add(leg);
+        }
+      }
+
+      for (let i = 1; i <= 3; i++) {
+        const f = i / 4;
+        const w = THREE.MathUtils.lerp(baseSpread * 2, topSpread * 2, f);
+        const y = towerH * f;
+        for (const s of [-1, 1]) {
+          const b1 = new THREE.Mesh(boxGeo, mats.metalFrame);
+          b1.scale.set(w, 0.03, 0.03);
+          b1.position.set(0, y, s * w * 0.5);
+          wmGroup.add(b1);
+
+          const b2 = new THREE.Mesh(boxGeo, mats.metalFrame);
+          b2.scale.set(0.03, 0.03, w);
+          b2.position.set(s * w * 0.5, y, 0);
+          wmGroup.add(b2);
+        }
+      }
+
+      windmillHead = new THREE.Group();
+      windmillHead.position.y = towerH + 0.05;
+      windmillHead.rotation.y = 0.35;
+      wmGroup.add(windmillHead);
+
+      const tailArm = new THREE.Mesh(boxGeo, mats.metalFrame);
+      tailArm.scale.set(0.03, 0.03, 0.52);
+      tailArm.position.set(0, 0.04, -0.26);
+      windmillHead.add(tailArm);
+
+      const tailFin = new THREE.Mesh(boxGeo, mats.vaneRed);
+      tailFin.scale.set(0.03, 0.26, 0.28);
+      tailFin.position.set(0, 0.08, -0.52);
+      tailFin.castShadow = true;
+      windmillHead.add(tailFin);
+
+      windmillWheel = new THREE.Group();
+      windmillWheel.position.set(0, 0.04, 0.16);
+      windmillHead.add(windmillWheel);
+
+      const hub = new THREE.Mesh(cylGeo, mats.vaneRed);
+      hub.scale.set(0.08, 0.08, 0.08);
+      hub.rotation.x = Math.PI * 0.5;
+      windmillWheel.add(hub);
+
+      const ringGeo = new THREE.TorusGeometry(0.46, 0.02, 8, 24);
+      const ring = new THREE.Mesh(ringGeo, mats.metalFrame);
+      windmillWheel.add(ring);
+
+      const bladeCount = 12;
+      for (let i = 0; i < bladeCount; i++) {
+        const angle = (i / bladeCount) * Math.PI * 2;
+        const bPivot = new THREE.Group();
+        bPivot.rotation.z = angle;
+
+        const blade = new THREE.Mesh(boxGeo, i % 3 === 0 ? mats.vaneRed : mats.siloSilver);
+        blade.scale.set(0.11, 0.36, 0.015);
+        blade.position.y = 0.29;
+        blade.rotation.y = 0.42;
+        blade.castShadow = true;
+        bPivot.add(blade);
+        windmillWheel.add(bPivot);
+      }
+    }
+    buildWindmill();
+
+    // 4. FENCE LINES & HAY BALES
+    function buildFencesAndHay() {
+      const fencePosts = [
+        [-1.0, 1.62], [-0.4, 1.68], [0.2, 1.72], [0.78, 1.68],
+        [1.48, 1.62], [2.05, 1.55], [2.62, 1.44],
+        [-0.48, 1.08], [-0.52, 0.5], [-0.48, -0.05]
+      ];
+
+      function addPost(x, z) {
+        const y = prairieHeight(x, z);
+        const post = new THREE.Mesh(boxGeo, mats.fenceWood);
+        post.scale.set(0.065, 0.36, 0.065);
+        post.position.set(x, y + 0.16, z);
+        post.rotation.z = randRange(-0.06, 0.06);
+        post.castShadow = true;
+        post.receiveShadow = true;
+        farmGroup.add(post);
+      }
+
+      function addRail(x1, z1, x2, z2, hOffset) {
+        const y1 = prairieHeight(x1, z1) + hOffset;
+        const y2 = prairieHeight(x2, z2) + hOffset;
+        const dx = x2 - x1;
+        const dy = y2 - y1;
+        const dz = z2 - z1;
+        const len = Math.hypot(dx, dy, dz);
+        const rail = new THREE.Mesh(boxGeo, mats.fenceWood);
+        rail.scale.set(0.03, 0.04, len);
+        rail.position.set((x1 + x2) * 0.5, (y1 + y2) * 0.5, (z1 + z2) * 0.5);
+        rail.lookAt(x2, y2, z2);
+        rail.castShadow = true;
+        farmGroup.add(rail);
+      }
+
+      fencePosts.forEach(([x, z]) => addPost(x, z));
+
+      const railPairs = [
+        [0, 1], [1, 2], [2, 3],
+        [4, 5], [5, 6],
+        [1, 7], [7, 8], [8, 9]
+      ];
+      railPairs.forEach(([a, b]) => {
+        const [x1, z1] = fencePosts[a];
+        const [x2, z2] = fencePosts[b];
+        addRail(x1, z1, x2, z2, 0.25);
+        addRail(x1, z1, x2, z2, 0.13);
+      });
+
+      const hayConfigs = [
+        { x: 0.12, z: 0.85, rot: 0.4, round: true },
+        { x: -0.22, z: 0.55, rot: -0.5, round: true },
+        { x: 1.85, z: 0.22, rot: 0.2, round: false },
+        { x: -0.82, z: -1.02, rot: 1.1, round: true }
+      ];
+
+      hayConfigs.forEach((cfg) => {
+        const hy = prairieHeight(cfg.x, cfg.z);
+        const hGroup = new THREE.Group();
+        hGroup.position.set(cfg.x, hy, cfg.z);
+        hGroup.rotation.y = cfg.rot;
+
+        if (cfg.round) {
+          const bale = new THREE.Mesh(cylGeo, mats.hayGold);
+          bale.scale.set(0.22, 0.38, 0.22);
+          bale.rotation.z = Math.PI * 0.5;
+          bale.position.y = 0.21;
+          bale.castShadow = true;
+          bale.receiveShadow = true;
+          hGroup.add(bale);
+
+          for (const bx of [-0.1, 0.1]) {
+            const band = new THREE.Mesh(cylGeo, mats.hayBand);
+            band.scale.set(0.226, 0.025, 0.226);
+            band.rotation.z = Math.PI * 0.5;
+            band.position.set(bx, 0.21, 0);
+            hGroup.add(band);
+          }
+        } else {
+          const bale = new THREE.Mesh(boxGeo, mats.hayGold);
+          bale.scale.set(0.38, 0.22, 0.24);
+          bale.position.y = 0.11;
+          bale.castShadow = true;
+          bale.receiveShadow = true;
+          hGroup.add(bale);
+        }
+        farmGroup.add(hGroup);
+      });
+    }
+    buildFencesAndHay();
+
+    // 5. SCATTERED PRAIRIE TREES LEANING IN THE WIND
+    const trees = [];
+    function buildTrees() {
+      const treeSpecs = [
+        { x: -0.78, z: -1.62, s: 1.05, phase: 0.0 },
+        { x: -2.45, z: -1.35, s: 0.92, phase: 1.2 },
+        { x: -2.35, z: 1.35, s: 0.88, phase: 2.3 },
+        { x: 0.58, z: -1.88, s: 0.82, phase: 3.1 },
+        { x: 2.65, z: -0.15, s: 0.95, phase: 4.2 },
+        { x: 1.65, z: 1.88, s: 0.78, phase: 5.0 }
+      ];
+
+      treeSpecs.forEach((sp) => {
+        const ty = prairieHeight(sp.x, sp.z);
+        const root = new THREE.Group();
+        root.position.set(sp.x, ty, sp.z);
+        root.scale.setScalar(sp.s);
+        world.add(root);
+
+        const bendPivot = new THREE.Group();
+        root.add(bendPivot);
+
+        const trunk = new THREE.Mesh(cylGeo, mats.trunkWood);
+        trunk.scale.set(0.065, 0.62, 0.09);
+        trunk.position.y = 0.28;
+        trunk.rotation.z = -0.18;
+        trunk.castShadow = true;
+        bendPivot.add(trunk);
+
+        const crownGroup = new THREE.Group();
+        crownGroup.position.set(0.08, 0.58, 0);
+        bendPivot.add(crownGroup);
+
+        const puffs = [
+          { x: 0, y: 0.12, z: 0, sx: 0.38, sy: 0.32, sz: 0.35, m: mats.foliage1 },
+          { x: 0.2, y: 0.24, z: 0.08, sx: 0.32, sy: 0.26, sz: 0.28, m: mats.foliage2 },
+          { x: -0.16, y: 0.22, z: -0.08, sx: 0.28, sy: 0.24, sz: 0.26, m: mats.foliage1 },
+          { x: 0.1, y: 0.38, z: -0.04, sx: 0.25, sy: 0.22, sz: 0.24, m: mats.foliage2 }
+        ];
+        puffs.forEach((pf) => {
+          const m = new THREE.Mesh(icoGeo, pf.m);
+          m.scale.set(pf.sx, pf.sy, pf.sz);
+          m.position.set(pf.x, pf.y, pf.z);
+          m.castShadow = true;
+          m.receiveShadow = true;
+          crownGroup.add(m);
+        });
+
+        trees.push({
+          bendPivot,
+          crownGroup,
+          phase: sp.phase,
+          baseLeanZ: -0.16,
+          baseLeanX: 0.05
+        });
+      });
+    }
+    buildTrees();
+
+    // 6. INSTANCED WIND-BENT PRAIRIE GRASS (750 blades)
+    const GRASS_COUNT = 750;
+    const grassBladeGeo = new THREE.ConeGeometry(0.036, 0.34, 4);
+    grassBladeGeo.translate(0, 0.17, 0);
+    const grassMat = new THREE.MeshStandardMaterial({
+      color: 0xe2b34c,
+      roughness: 0.72,
+      metalness: 0.04,
+      flatShading: true
+    });
+    const grassMesh = new THREE.InstancedMesh(grassBladeGeo, grassMat, GRASS_COUNT);
+    grassMesh.castShadow = false;
+    grassMesh.receiveShadow = true;
+    world.add(grassMesh);
+
+    const grassData = [];
+    const cG1 = new THREE.Color(0xe6b84e);
+    const cG2 = new THREE.Color(0xc49c3d);
+    const cG3 = new THREE.Color(0x8fa344);
+    const tmpGrassColor = new THREE.Color();
+
+    for (let i = 0; i < GRASS_COUNT; i++) {
+      let gx = 0, gz = 0;
+      for (let attempt = 0; attempt < 10; attempt++) {
+        gx = randRange(-SLAB_W * 0.44, SLAB_W * 0.44);
+        gz = randRange(-SLAB_D * 0.44, SLAB_D * 0.44);
+        const dBarn = Math.hypot(gx - barnX, gz - barnZ);
+        const dHouse = Math.hypot(gx - 2.28, gz - 0.92);
+        if (dBarn > 1.12 && dHouse > 0.75) break;
+      }
+      const gy = prairieHeight(gx, gz);
+      const scaleH = randRange(0.7, 1.45);
+      const scaleW = randRange(0.85, 1.35);
+      const yaw = randRange(-0.45, 0.45);
+      const phase = gx * 0.85 + gz * 0.55 + randRange(0, 1.2);
+
+      grassData.push({ x: gx, y: gy - 0.02, z: gz, scaleH, scaleW, yaw, phase });
+
+      const t = rand();
+      if (t < 0.45) tmpGrassColor.copy(cG1).lerp(cG2, rand());
+      else tmpGrassColor.copy(cG1).lerp(cG3, rand() * 0.65);
+      grassMesh.setColorAt(i, tmpGrassColor);
+    }
+    grassMesh.instanceColor.needsUpdate = true;
+
+    // 7. TALL STORM CLOUD BAND + PROMINENT SCULPTED FUNNEL CLOUD + VISIBLE DUST SKIRT
+    const TORNADO_BASE_X = -1.52;
+    const TORNADO_BASE_Z = 0.14;
+    const CLOUD_Y = 6.15;
+
+    const stormGroup = new THREE.Group();
+    stormGroup.position.set(0, CLOUD_Y, 0);
+    world.add(stormGroup);
+
+    const cloudPuffs = [];
+    function buildStormCloudBand() {
+      const puffSpecs = [
+        // Heavy supercell mesocyclone core above funnel
+        { x: -1.52, y: 0.05, z: 0.14, sx: 1.72, sy: 0.68, sz: 1.5, mat: mats.cloudDark },
+        { x: -2.35, y: 0.22, z: -0.22, sx: 1.32, sy: 0.58, sz: 1.18, mat: mats.cloudUpper },
+        { x: -0.65, y: 0.2, z: 0.32, sx: 1.42, sy: 0.6, sz: 1.25, mat: mats.cloudUpper },
+        { x: -1.62, y: 0.65, z: 0.05, sx: 1.55, sy: 0.66, sz: 1.32, mat: mats.cloudSilver },
+        // Deep sculpted wall-cloud collar right above funnel mouth
+        { x: -1.52, y: -0.38, z: 0.14, sx: 1.28, sy: 0.38, sz: 1.18, mat: mats.cloudDark },
+        // Trailing storm band extending across sky
+        { x: 0.45, y: 0.28, z: -0.18, sx: 1.42, sy: 0.56, sz: 1.18, mat: mats.cloudDark },
+        { x: 1.55, y: 0.42, z: -0.32, sx: 1.32, sy: 0.52, sz: 1.08, mat: mats.cloudUpper },
+        { x: 2.38, y: 0.48, z: -0.1, sx: 1.05, sy: 0.45, sz: 0.92, mat: mats.cloudSilver },
+        { x: 0.85, y: 0.72, z: -0.22, sx: 1.28, sy: 0.54, sz: 1.05, mat: mats.cloudSilver },
+        // Left flank anvil puff
+        { x: -2.85, y: 0.34, z: 0.22, sx: 1.02, sy: 0.48, sz: 0.92, mat: mats.cloudSilver }
+      ];
+
+      puffSpecs.forEach((p, idx) => {
+        const mesh = new THREE.Mesh(dodecaGeo, p.mat);
+        mesh.scale.set(p.sx, p.sy, p.sz);
+        mesh.position.set(p.x, p.y, p.z);
+        mesh.rotation.set(randRange(-0.2, 0.2), randRange(0, Math.PI), randRange(-0.2, 0.2));
+        mesh.castShadow = true;
+        mesh.receiveShadow = true;
+        stormGroup.add(mesh);
+        cloudPuffs.push({
+          mesh,
+          baseX: p.x,
+          baseY: p.y,
+          baseZ: p.z,
+          baseSx: p.sx,
+          baseSy: p.sy,
+          baseSz: p.sz,
+          phase: idx * 0.9
+        });
+      });
+    }
+    buildStormCloudBand();
+
+    // SCULPTED FUNNEL RINGS (28 stacked high-contrast charcoal & silver-rimmed rings + lower dust rings)
+    const funnelGroup = new THREE.Group();
+    world.add(funnelGroup);
+
+    const FUNNEL_SEGS = 28;
+    const funnelRings = [];
+
+    function buildFunnel() {
+      for (let i = 0; i < FUNNEL_SEGS; i++) {
+        const t = i / (FUNNEL_SEGS - 1); // 0 at cloud collar, 1 at lower tip
+        const rTop = THREE.MathUtils.lerp(1.12, 0.17, Math.pow(t, 0.58));
+        const rBot = THREE.MathUtils.lerp(1.02, 0.12, Math.pow(t, 0.62));
+        const segGeo = new THREE.CylinderGeometry(rTop, rBot, 0.31, 12, 1, false);
+
+        const pos = segGeo.attributes.position;
+        for (let v = 0; v < pos.count; v++) {
+          const vx = pos.getX(v);
+          const vz = pos.getZ(v);
+          const ang = Math.atan2(vz, vx);
+          const wobble = 1.0 + Math.sin(ang * 3 + i * 1.1) * 0.1 + Math.cos(ang * 2 - i) * 0.07;
+          pos.setX(v, vx * wobble);
+          pos.setZ(v, vz * wobble);
+        }
+        segGeo.computeVertexNormals();
+
+        // Alternate silver rim-lit bands and deep charcoal bands, with dust-brown skirt bands at the lower cone
+        let mat = mats.funnelMain;
+        if (t > 0.78) {
+          mat = i % 2 === 0 ? mats.dustSkirt : mats.funnelRim;
+        } else if (i % 2 === 0) {
+          mat = mats.funnelRim;
+        }
+
+        const mesh = new THREE.Mesh(segGeo, mat);
+        mesh.castShadow = true;
+        mesh.receiveShadow = true;
+        funnelGroup.add(mesh);
+        funnelRings.push({ mesh, t, phase: i * 0.52 });
+      }
+    }
+    buildFunnel();
+
+    // Dust-brown base skirt clearly visible on the prairie below the funnel even in idle,
+    // and erupting larger when the twister touches down
+    const dustSkirtGroup = new THREE.Group();
+    world.add(dustSkirtGroup);
+    const dustPuffs = [];
+
+    function buildDustSkirt() {
+      const count = 18;
+      for (let i = 0; i < count; i++) {
+        const angle = (i / count) * Math.PI * 2;
+        const puff = new THREE.Mesh(dodecaGeo, mats.dustSkirt);
+        const r = randRange(0.28, 0.78);
+        const s = randRange(0.22, 0.38);
+        puff.scale.set(s * 1.4, s * 0.9, s * 1.4);
+        puff.castShadow = true;
+        puff.receiveShadow = true;
+        dustSkirtGroup.add(puff);
+        dustPuffs.push({
+          mesh: puff,
+          angle,
+          radius: r,
+          baseScale: s,
+          speed: randRange(3.2, 5.4),
+          yOff: randRange(0.1, 0.42),
+          phase: randRange(0, Math.PI * 2)
+        });
+      }
+    }
+    buildDustSkirt();
+
+    // 8. INSTANCED SWIRLING DEBRIS & DUST PARTICLES (300 instances)
+    const DEBRIS_COUNT = 300;
+    const debrisGeo = new THREE.BoxGeometry(0.11, 0.035, 0.16);
+    const debrisMat = new THREE.MeshStandardMaterial({
+      color: 0xffffff,
+      roughness: 0.65,
+      metalness: 0.05,
+      flatShading: true
+    });
+    const debrisMesh = new THREE.InstancedMesh(debrisGeo, debrisMat, DEBRIS_COUNT);
+    debrisMesh.castShadow = false;
+    debrisMesh.receiveShadow = false;
+    world.add(debrisMesh);
+
+    const debrisData = [];
+    const cHay = new THREE.Color(0xebc054);
+    const cPlank = new THREE.Color(0x9e6a40);
+    const cBarnBit = new THREE.Color(0xd1493b);
+    const cLeaf = new THREE.Color(0x7d9c44);
+    const cDust = new THREE.Color(0xc49e6c);
+
+    for (let i = 0; i < DEBRIS_COUNT; i++) {
+      const isDevil = i < 55;
+      const devilGroup = i < 28 ? 0 : 1;
+      const angle = randRange(0, Math.PI * 2);
+      const heightFrac = rand();
+      const radiusBase = randRange(0.28, 1.32);
+      const speed = randRange(3.2, 6.4);
+      const sx = randRange(0.6, 1.7);
+      const sy = randRange(0.5, 1.3);
+      const sz = randRange(0.6, 1.8);
+      const tumbleSpeed = randRange(2.5, 7.0);
+      const phase = randRange(0, Math.PI * 2);
+
+      debrisData.push({
+        isDevil,
+        devilGroup,
+        angle,
+        heightFrac,
+        radiusBase,
+        speed,
+        sx,
+        sy,
+        sz,
+        tumbleSpeed,
+        phase
+      });
+
+      const pick = rand();
+      if (pick < 0.32) debrisMesh.setColorAt(i, cHay);
+      else if (pick < 0.56) debrisMesh.setColorAt(i, cLeaf);
+      else if (pick < 0.78) debrisMesh.setColorAt(i, cPlank);
+      else if (pick < 0.92) debrisMesh.setColorAt(i, cDust);
+      else debrisMesh.setColorAt(i, cBarnBit);
+    }
+    debrisMesh.instanceColor.needsUpdate = true;
+
+    // 9. STARTLED CHICKENS (for Interaction 2: Tap the Barn)
+    const chickens = [];
+    function buildChickens() {
+      const offsets = [
+        { sideX: -0.18, endX: 0.48, endZ: 1.15, delay: 0.0 },
+        { sideX: 0.16, endX: 0.92, endZ: 1.35, delay: 0.08 },
+        { sideX: 0.0, endX: 0.18, endZ: 1.48, delay: 0.15 }
+      ];
+
+      offsets.forEach((cfg) => {
+        const chGroup = new THREE.Group();
+        world.add(chGroup);
+
+        const body = new THREE.Mesh(icoGeo, mats.chickenWhite);
+        body.scale.set(0.11, 0.1, 0.14);
+        body.position.y = 0.12;
+        body.castShadow = true;
+        chGroup.add(body);
+
+        const head = new THREE.Mesh(icoGeo, mats.chickenWhite);
+        head.scale.set(0.065, 0.07, 0.065);
+        head.position.set(0, 0.21, 0.09);
+        chGroup.add(head);
+
+        const comb = new THREE.Mesh(boxGeo, mats.chickenComb);
+        comb.scale.set(0.022, 0.045, 0.06);
+        comb.position.set(0, 0.26, 0.09);
+        chGroup.add(comb);
+
+        const beak = new THREE.Mesh(coneGeo, mats.chickenBeak);
+        beak.scale.set(0.025, 0.05, 0.025);
+        beak.rotation.x = Math.PI * 0.5;
+        beak.position.set(0, 0.21, 0.155);
+        chGroup.add(beak);
+
+        const tail = new THREE.Mesh(coneGeo, mats.chickenWhite);
+        tail.scale.set(0.045, 0.09, 0.06);
+        tail.rotation.x = -0.55;
+        tail.position.set(0, 0.17, -0.12);
+        chGroup.add(tail);
+
+        const wingL = new THREE.Mesh(boxGeo, mats.chickenWhite);
+        wingL.scale.set(0.09, 0.02, 0.1);
+        wingL.position.set(-0.1, 0.14, 0);
+        chGroup.add(wingL);
+
+        const wingR = wingL.clone();
+        wingR.position.x = 0.1;
+        chGroup.add(wingR);
+
+        chGroup.visible = false;
+        chickens.push({
+          group: chGroup,
+          wingL,
+          wingR,
+          cfg
+        });
+      });
+    }
+    buildChickens();
+
+    // 10. GENEROUS INVISIBLE RAYCAST PROXIES (for reliable tap at 320px)
+    const proxyMat = new THREE.MeshBasicMaterial({ visible: false });
+
+    const funnelProxy = new THREE.Mesh(new THREE.CylinderGeometry(1.55, 1.35, 6.2, 12), proxyMat);
+    funnelProxy.position.set(TORNADO_BASE_X, 3.25, TORNADO_BASE_Z);
+    funnelProxy.name = 'funnelProxy';
+    world.add(funnelProxy);
+
+    const barnProxy = new THREE.Mesh(new THREE.BoxGeometry(2.45, 2.35, 2.55), proxyMat);
+    barnProxy.position.set(barnX, barnY + 1.05, barnZ);
+    barnProxy.name = 'barnProxy';
+    world.add(barnProxy);
+
+    const interactables = [funnelProxy, barnProxy];
+
+    // 11. INTERACTION STATE & RETRIGGERABLE TIMERS (all driven by performance.now)
+    let tornadoStartMs = -99999;
+    const TORNADO_DURATION_MS = 5200;
+
+    let barnStartMs = -99999;
+    const BARN_DURATION_MS = 4300;
+
+    let windmillAngle = 0;
+    let lastFrameMs = performance.now();
+
+    function triggerTornado(nowMs) {
+      tornadoStartMs = nowMs;
+    }
+
+    function triggerBarn(nowMs) {
+      barnStartMs = nowMs;
+    }
+
+    // Raycaster & pointer tap vs drag handling
+    const raycaster = new THREE.Raycaster();
+    const pointerNDC = new THREE.Vector2();
+    let downX = 0;
+    let downY = 0;
+    let downTime = 0;
+    let isPointerDown = false;
+
+    renderer.domElement.addEventListener('pointerdown', (e) => {
+      isPointerDown = true;
+      downX = e.clientX;
+      downY = e.clientY;
+      downTime = performance.now();
+    });
+
+    renderer.domElement.addEventListener('pointerup', (e) => {
+      if (!isPointerDown) return;
+      isPointerDown = false;
+      const dist = Math.hypot(e.clientX - downX, e.clientY - downY);
+      const elapsed = performance.now() - downTime;
+      if (dist < 10 && elapsed < 500) {
+        handleTap(e.clientX, e.clientY);
+      }
+    });
+
+    function handleTap(clientX, clientY) {
+      const rect = renderer.domElement.getBoundingClientRect();
+      pointerNDC.x = ((clientX - rect.left) / rect.width) * 2 - 1;
+      pointerNDC.y = -((clientY - rect.top) / rect.height) * 2 + 1;
+
+      raycaster.setFromCamera(pointerNDC, camera);
+      const hits = raycaster.intersectObjects(interactables, false);
+      const now = performance.now();
+
+      if (hits.length > 0) {
+        const hitName = hits[0].object.name;
+        if (hitName === 'funnelProxy') {
+          triggerTornado(now);
+          return;
+        }
+        if (hitName === 'barnProxy') {
+          triggerBarn(now);
+          return;
+        }
+      }
+    }
+
+    // 12. EXACT PROJECTED BOUNDING-BOX CAMERA FRAMING SOLVER
+    // Guarantees the full vertical stack (cloud top through slab base) fills ~78-84% of the safe band
+    // on tall portrait viewports (320x700, 390x844) while keeping 100% of geometry inside 616x562 too.
+    const DESIGN_BOUNDS = [
+      // Slab bottom & top corners (including front-most & back-most edges)
+      new THREE.Vector3(-3.75, -0.88, -3.05),
+      new THREE.Vector3(3.75, -0.88, -3.05),
+      new THREE.Vector3(-3.75, -0.88, 3.05),
+      new THREE.Vector3(3.75, -0.88, 3.05),
+      new THREE.Vector3(0.0, -0.92, 3.12),
+      new THREE.Vector3(-3.75, 0.45, 2.95),
+      new THREE.Vector3(3.75, 0.45, 2.95),
+      // Storm cloud band top & lateral extremes
+      new THREE.Vector3(-3.65, 6.85, 0.25),
+      new THREE.Vector3(-1.62, 7.15, 0.15),
+      new THREE.Vector3(0.85, 7.15, -0.22),
+      new THREE.Vector3(3.15, 6.75, -0.1),
+      // Tornado debris swirl outer envelope
+      new THREE.Vector3(-3.25, 3.5, 1.55),
+      new THREE.Vector3(-3.25, 1.2, -1.25),
+      // Silo, barn & farmhouse right-side envelope
+      new THREE.Vector3(2.85, 2.95, 1.55)
+    ];
+
+    const VIEW_DIR = new THREE.Vector3(0.18, 0.27, 1.0).normalize();
+
+    function updateCameraFraming() {
+      const vw = window.innerWidth;
+      const vh = window.innerHeight;
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.75));
+      renderer.setSize(vw, vh);
+
+      const aspect = vw / Math.max(1, vh);
+      // Aspect-aware FOV: slightly tighter on portrait to minimize perspective foreshortening
+      const fovDeg = aspect < 0.65 ? 38 : (aspect < 1.0 ? 36 : 34);
+      camera.fov = fovDeg;
+      camera.aspect = aspect;
+      camera.updateProjectionMatrix();
+
+      const headerH = headerEl ? headerEl.getBoundingClientRect().height : 72;
+      const footerH = footerEl ? footerEl.getBoundingClientRect().height : 32;
+
+      const safeTopPx = headerH + 8;
+      const safeBotPx = footerH + 8;
+      const safeHeightPx = Math.max(120, vh - safeTopPx - safeBotPx);
+      const safeWidthPx = Math.max(120, vw - 16);
+
+      // Desired NDC span inside the usable safe area (target ~88% of safe box so vertical stack is 75-85%)
+      const targetSafeTopNDC = 1.0 - (safeTopPx / vh) * 2.0;
+      const targetSafeBotNDC = -1.0 + (safeBotPx / vh) * 2.0;
+      const safeCenterNDC_Y = (targetSafeTopNDC + targetSafeBotNDC) * 0.5;
+      const usableHalfNDC_Y = ((targetSafeTopNDC - targetSafeBotNDC) * 0.5) * 0.90;
+      const usableHalfNDC_X = (safeWidthPx / vw) * 0.92;
+
+      const halfFovRad = THREE.MathUtils.degToRad(fovDeg * 0.5);
+      const tanHalfV = Math.tan(halfFovRad);
+      const tanHalfH = tanHalfV * aspect;
+
+      // Camera basis vectors for VIEW_DIR
+      const forward = VIEW_DIR.clone().negate();
+      const upWorld = new THREE.Vector3(0, 1, 0);
+      const right = new THREE.Vector3().crossVectors(forward, upWorld).normalize();
+      const camUp = new THREE.Vector3().crossVectors(right, forward).normalize();
+
+      // Iteratively refine camera target & distance so projected bounds are centered in the safe area
+      let target = new THREE.Vector3(-0.08, 3.05, 0.05);
+      let dist = 12.0;
+
+      for (let iter = 0; iter < 5; iter++) {
+        let minCamX = Infinity, maxCamX = -Infinity;
+        let minCamY = Infinity, maxCamY = -Infinity;
+
+        for (let i = 0; i < DESIGN_BOUNDS.length; i++) {
+          const p = DESIGN_BOUNDS[i];
+          const relX = p.x - target.x;
+          const relY = p.y - target.y;
+          const relZ = p.z - target.z;
+
+          const xCam = relX * right.x + relY * right.y + relZ * right.z;
+          const yCam = relX * camUp.x + relY * camUp.y + relZ * camUp.z;
+          const zDepth = dist - (relX * VIEW_DIR.x + relY * VIEW_DIR.y + relZ * VIEW_DIR.z);
+          const safeZ = Math.max(1.0, zDepth);
+
+          const ndcX = xCam / (safeZ * tanHalfH);
+          const ndcY = yCam / (safeZ * tanHalfV);
+
+          if (ndcX < minCamX) minCamX = ndcX;
+          if (ndcX > maxCamX) maxCamX = ndcX;
+          if (ndcY < minCamY) minCamY = ndcY;
+          if (ndcY > maxCamY) maxCamY = ndcY;
+        }
+
+        // Shift target in camera plane so projected center aligns with (0, safeCenterNDC_Y)
+        const midNdcX = (minCamX + maxCamX) * 0.5;
+        const midNdcY = (minCamY + maxCamY) * 0.5;
+        const errNdcX = midNdcX - 0.0;
+        const errNdcY = midNdcY - safeCenterNDC_Y;
+
+        const worldShiftRight = errNdcX * dist * tanHalfH * 0.85;
+        const worldShiftUp = errNdcY * dist * tanHalfV * 0.85;
+        target.addScaledVector(right, worldShiftRight);
+        target.addScaledVector(camUp, worldShiftUp);
+
+        // Scale distance so both horizontal and vertical spans fit cleanly inside usableHalfNDC
+        const halfSpanX = (maxCamX - minCamX) * 0.5;
+        const halfSpanY = (maxCamY - minCamY) * 0.5;
+        const scaleReq = Math.max(halfSpanX / usableHalfNDC_X, halfSpanY / usableHalfNDC_Y);
+        dist *= Math.max(0.5, Math.min(2.0, scaleReq));
+      }
+
+      controls.target.copy(target);
+      camera.position.copy(target).addScaledVector(VIEW_DIR, dist);
+      controls.minDistance = dist * 0.82;
+      controls.maxDistance = dist * 1.25;
+      controls.update();
+    }
+
+    window.addEventListener('resize', updateCameraFraming);
+    requestAnimationFrame(updateCameraFraming);
+    updateCameraFraming();
+
+    // 13. MAIN ANIMATION LOOP (performance.now based, zero static states)
+    const dummy = new THREE.Object3D();
+
+    function animate(nowMs) {
+      requestAnimationFrame(animate);
+
+      const dt = Math.min(0.05, Math.max(0.001, (nowMs - lastFrameMs) * 0.001));
+      lastFrameMs = nowMs;
+      const tSec = nowMs * 0.001;
+
+      // Evaluate Interaction 1: Tornado Touchdown envelope (0 = idle, 1 = full ground touchdown)
+      const tElapsed = nowMs - tornadoStartMs;
+      let touchdownEnv = 0;
+      if (tElapsed >= 0 && tElapsed < TORNADO_DURATION_MS) {
+        const u = tElapsed / TORNADO_DURATION_MS;
+        if (u < 0.14) {
+          const p = u / 0.14;
+          touchdownEnv = 1 - Math.pow(1 - p, 3);
+        } else if (u < 0.72) {
+          touchdownEnv = 1.0;
+        } else {
+          const p = (u - 0.72) / 0.28;
+          touchdownEnv = 0.5 * (1 + Math.cos(p * Math.PI));
+        }
+      }
+
+      // Evaluate Interaction 2: Barn Doors & Startled Chickens envelope
+      const bElapsed = nowMs - barnStartMs;
+      let barnDoorEnv = 0;
+      let chickenProgress = -1;
+      if (bElapsed >= 0 && bElapsed < BARN_DURATION_MS) {
+        const u = bElapsed / BARN_DURATION_MS;
+        chickenProgress = u;
+        if (u < 0.12) {
+          barnDoorEnv = Math.sin((u / 0.12) * Math.PI * 0.5);
+        } else if (u < 0.78) {
+          barnDoorEnv = 1.0 + Math.sin((u - 0.12) * 28) * 0.04 * (1 - u);
+        } else {
+          const p = (u - 0.78) / 0.22;
+          barnDoorEnv = 0.5 * (1 + Math.cos(p * Math.PI));
+        }
+      }
+
+      // 1. Animate Storm Cloud Band (drifting & breathing)
+      for (let i = 0; i < cloudPuffs.length; i++) {
+        const cp = cloudPuffs[i];
+        const driftX = Math.sin(tSec * 0.55 + cp.phase) * 0.12;
+        const driftY = Math.cos(tSec * 0.7 + cp.phase) * 0.04;
+        cp.mesh.position.set(cp.baseX + driftX, cp.baseY + driftY, cp.baseZ);
+        const pulse = 1.0 + Math.sin(tSec * 1.4 + cp.phase) * 0.03 + touchdownEnv * 0.05;
+        cp.mesh.scale.set(cp.baseSx * pulse, cp.baseSy * pulse, cp.baseSz * pulse);
+      }
+
+      // 2. Animate Tall Sculpted Funnel Cloud
+      // In idle, the funnel reaches ~85% down to the prairie with a hovering tip right above the active dust skirt,
+      // and on tap it slams all the way to the ground and widens dramatically.
+      const groundY = prairieHeight(TORNADO_BASE_X, TORNADO_BASE_Z);
+      const idleTipY = groundY + 0.78 + Math.sin(tSec * 1.6) * 0.12;
+      const activeTipY = groundY + 0.04;
+      const currentTipY = THREE.MathUtils.lerp(idleTipY, activeTipY, touchdownEnv);
+
+      const roamRadius = THREE.MathUtils.lerp(0.22, 0.48, touchdownEnv);
+      const roamSpeed = THREE.MathUtils.lerp(1.15, 2.85, touchdownEnv);
+      const tipX = TORNADO_BASE_X + Math.cos(tSec * roamSpeed) * roamRadius;
+      const tipZ = TORNADO_BASE_Z + Math.sin(tSec * roamSpeed * 1.3) * roamRadius * 0.75;
+
+      const topX = TORNADO_BASE_X + Math.sin(tSec * 0.6) * 0.1;
+      const topZ = TORNADO_BASE_Z + Math.cos(tSec * 0.5) * 0.08;
+      const topY = CLOUD_Y - 0.34;
+
+      const spinRate = THREE.MathUtils.lerp(2.8, 12.0, touchdownEnv);
+
+      for (let i = 0; i < funnelRings.length; i++) {
+        const ring = funnelRings[i];
+        const f = ring.t;
+        const y = THREE.MathUtils.lerp(topY, currentTipY, f);
+
+        // Classic sculpted S-curve vortex bend
+        const snakeAmp = Math.sin(f * Math.PI) * THREE.MathUtils.lerp(0.28, 0.42, touchdownEnv);
+        const snakeX = Math.sin(tSec * 2.3 - f * 4.6) * snakeAmp;
+        const snakeZ = Math.cos(tSec * 2.0 - f * 4.2) * snakeAmp * 0.8;
+
+        const rx = THREE.MathUtils.lerp(topX, tipX, Math.pow(f, 1.15)) + snakeX;
+        const rz = THREE.MathUtils.lerp(topZ, tipZ, Math.pow(f, 1.15)) + snakeZ;
+
+        ring.mesh.position.set(rx, y, rz);
+        ring.mesh.rotation.y = tSec * spinRate * (1.0 + f * 1.45) + ring.phase;
+        ring.mesh.rotation.z = snakeX * 0.42;
+        ring.mesh.rotation.x = -snakeZ * 0.42;
+
+        const girthBoost = 1.0 + touchdownEnv * (0.18 + f * 0.48);
+        const hScale = THREE.MathUtils.lerp(0.92, 1.22, touchdownEnv);
+        ring.mesh.scale.set(girthBoost, hScale, girthBoost);
+      }
+
+      funnelProxy.position.set((topX + tipX) * 0.5, 3.25, (topZ + tipZ) * 0.5);
+
+      // 3. Animate Visible Dust-Brown Base Skirt at Ground Contact
+      // Clearly readable in idle (skirtScale = 0.68) and expands to 1.32 on full touchdown
+      const tipGroundY = prairieHeight(tipX, tipZ);
+      dustSkirtGroup.position.set(tipX, tipGroundY, tipZ);
+      const skirtScale = THREE.MathUtils.lerp(0.68, 1.32, touchdownEnv);
+      for (let i = 0; i < dustPuffs.length; i++) {
+        const dp = dustPuffs[i];
+        const a = dp.angle + tSec * dp.speed * (1.0 + touchdownEnv * 1.8);
+        const rad = dp.radius * skirtScale * (0.85 + 0.2 * Math.sin(tSec * 4 + dp.phase));
+        dp.mesh.position.set(
+          Math.cos(a) * rad,
+          dp.yOff * skirtScale + Math.abs(Math.sin(tSec * 5 + dp.phase)) * (0.06 + 0.16 * touchdownEnv),
+          Math.sin(a) * rad
+        );
+        dp.mesh.rotation.set(tSec * 2 + dp.phase, a, tSec * 1.5);
+        const s = dp.baseScale * skirtScale;
+        dp.mesh.scale.set(s * 1.4, s * 0.92, s * 1.4);
+      }
+
+      // 4. Animate Instanced Swirling Debris & Idle Dust Devils
+      const devil0X = -0.28 + Math.sin(tSec * 0.55) * 1.35;
+      const devil0Z = 0.78 + Math.cos(tSec * 0.42) * 0.85;
+      const devil0Y = prairieHeight(devil0X, devil0Z);
+
+      const devil1X = -1.85 + Math.cos(tSec * 0.48 + 1.7) * 0.95;
+      const devil1Z = -0.68 + Math.sin(tSec * 0.62 + 1.7) * 0.75;
+      const devil1Y = prairieHeight(devil1X, devil1Z);
+
+      for (let i = 0; i < DEBRIS_COUNT; i++) {
+        const d = debrisData[i];
+        if (d.isDevil) {
+          const cx = d.devilGroup === 0 ? devil0X : devil1X;
+          const cz = d.devilGroup === 0 ? devil0Z : devil1Z;
+          const cy = d.devilGroup === 0 ? devil0Y : devil1Y;
+
+          const mx = THREE.MathUtils.lerp(cx, tipX, touchdownEnv * 0.82);
+          const mz = THREE.MathUtils.lerp(cz, tipZ, touchdownEnv * 0.82);
+          const my = THREE.MathUtils.lerp(cy, tipGroundY, touchdownEnv * 0.82);
+
+          const ang = d.angle + tSec * d.speed * (1.0 + touchdownEnv * 1.5);
+          const h = ((d.heightFrac + tSec * 0.38) % 1.0) * THREE.MathUtils.lerp(1.25, 4.4, touchdownEnv);
+          const r = (0.12 + h * 0.28) * d.radiusBase * THREE.MathUtils.lerp(0.55, 1.15, touchdownEnv);
+
+          dummy.position.set(mx + Math.cos(ang) * r, my + 0.08 + h, mz + Math.sin(ang) * r);
+          dummy.rotation.set(tSec * d.tumbleSpeed + d.phase, ang, tSec * d.tumbleSpeed * 0.7);
+          const s = THREE.MathUtils.lerp(0.78, 1.28, touchdownEnv);
+          dummy.scale.set(d.sx * s, d.sy * s, d.sz * s);
+        } else {
+          const hNorm = (d.heightFrac + tSec * (0.22 + touchdownEnv * 0.45)) % 1.0;
+          const maxH = THREE.MathUtils.lerp(2.4, 5.2, touchdownEnv);
+          const minY = THREE.MathUtils.lerp(tipGroundY + 0.15, tipGroundY + 0.05, touchdownEnv);
+          const yPos = minY + hNorm * maxH;
+
+          const f = THREE.MathUtils.clamp((topY - yPos) / Math.max(0.5, topY - currentTipY), 0, 1);
+          const centerX = THREE.MathUtils.lerp(topX, tipX, f);
+          const centerZ = THREE.MathUtils.lerp(topZ, tipZ, f);
+
+          const coneR = THREE.MathUtils.lerp(0.35, 1.45, 1.0 - f * 0.55) * d.radiusBase * THREE.MathUtils.lerp(0.48, 1.15, touchdownEnv);
+          const ang = d.angle + tSec * d.speed * (1.2 + touchdownEnv * 2.1);
+
+          dummy.position.set(centerX + Math.cos(ang) * coneR, yPos, centerZ + Math.sin(ang) * coneR);
+          dummy.rotation.set(tSec * d.tumbleSpeed + d.phase, ang, tSec * d.tumbleSpeed * 0.8);
+
+          const visScale = THREE.MathUtils.lerp(0.52, 1.32, touchdownEnv);
+          dummy.scale.set(d.sx * visScale, d.sy * visScale, d.sz * visScale);
+        }
+        dummy.updateMatrix();
+        debrisMesh.setMatrixAt(i, dummy.matrix);
+      }
+      debrisMesh.instanceMatrix.needsUpdate = true;
+
+      // 5. Animate Wind-Bent Prairie Grass Waves
+      const windWaveSpeed = THREE.MathUtils.lerp(2.8, 7.5, touchdownEnv);
+      const baseWindLean = THREE.MathUtils.lerp(0.28, 0.72, touchdownEnv);
+      for (let i = 0; i < GRASS_COUNT; i++) {
+        const g = grassData[i];
+        const wave = Math.sin(tSec * windWaveSpeed - g.phase) * 0.18 + Math.cos(tSec * 1.9 + g.phase * 0.7) * 0.08;
+        dummy.position.set(g.x, g.y, g.z);
+        dummy.rotation.set(wave * 0.45, g.yaw, -(baseWindLean + wave));
+        dummy.scale.set(g.scaleW, g.scaleH, g.scaleW);
+        dummy.updateMatrix();
+        grassMesh.setMatrixAt(i, dummy.matrix);
+      }
+      grassMesh.instanceMatrix.needsUpdate = true;
+
+      // 6. Animate Trees Bending in Wind
+      for (let i = 0; i < trees.length; i++) {
+        const tr = trees[i];
+        const gust = Math.sin(tSec * (2.4 + touchdownEnv * 4.0) + tr.phase) * (0.06 + touchdownEnv * 0.14);
+        tr.bendPivot.rotation.z = tr.baseLeanZ - touchdownEnv * 0.34 - gust;
+        tr.bendPivot.rotation.x = tr.baseLeanX + Math.cos(tSec * 2.1 + tr.phase) * (0.04 + touchdownEnv * 0.08);
+        tr.crownGroup.rotation.z = -gust * 0.8;
+      }
+
+      // 7. Animate Windmill (lazy turn in idle, wild spin during touchdown)
+      const wheelSpeed = THREE.MathUtils.lerp(1.6, 18.5, touchdownEnv);
+      windmillAngle += dt * wheelSpeed;
+      if (windmillWheel) {
+        windmillWheel.rotation.z = windmillAngle;
+      }
+      if (windmillHead) {
+        windmillHead.rotation.y = 0.35 + Math.sin(tSec * (1.2 + touchdownEnv * 5.0)) * (0.06 + touchdownEnv * 0.22);
+      }
+
+      // 8. Animate Barn Doors & Startled Chickens (Interaction 2)
+      if (barnDoorLeftPivot && barnDoorRightPivot) {
+        const openAngle = barnDoorEnv * 2.05;
+        barnDoorLeftPivot.rotation.y = -openAngle;
+        barnDoorRightPivot.rotation.y = openAngle;
+      }
+
+      for (let i = 0; i < chickens.length; i++) {
+        const ch = chickens[i];
+        if (chickenProgress < 0) {
+          ch.group.visible = false;
+          continue;
+        }
+        const localU = THREE.MathUtils.clamp((chickenProgress - ch.cfg.delay) / (1.0 - ch.cfg.delay), 0, 1);
+        if (localU <= 0 || localU >= 0.98) {
+          ch.group.visible = false;
+          continue;
+        }
+        ch.group.visible = true;
+
+        const startLocal = new THREE.Vector3(ch.cfg.sideX, 0, 0.72);
+        startLocal.applyAxisAngle(new THREE.Vector3(0, 1, 0), barnGroup.rotation.y);
+        const startX = barnX + startLocal.x;
+        const startZ = barnZ + startLocal.z;
+
+        const targetX = barnX + ch.cfg.endX - 0.75;
+        const targetZ = barnZ + ch.cfg.endZ;
+
+        let posU = 0;
+        let hopAmp = 0;
+        let facingOffset = 0;
+
+        if (localU < 0.42) {
+          const p = localU / 0.42;
+          posU = 1 - Math.pow(1 - p, 2.2);
+          hopAmp = Math.abs(Math.sin(p * Math.PI * 5)) * 0.28;
+        } else if (localU < 0.72) {
+          const p = (localU - 0.42) / 0.3;
+          posU = 1.0 + Math.sin(p * Math.PI * 2) * 0.05;
+          hopAmp = Math.abs(Math.sin(p * Math.PI * 3)) * 0.07;
+          facingOffset = Math.sin(p * Math.PI * 4) * 0.6;
+        } else {
+          const p = (localU - 0.72) / 0.26;
+          posU = 1.0 - p;
+          hopAmp = Math.abs(Math.sin(p * Math.PI * 4)) * 0.18;
+          facingOffset = Math.PI;
+        }
+
+        const cx = THREE.MathUtils.lerp(startX, targetX, posU);
+        const cz = THREE.MathUtils.lerp(startZ, targetZ, posU);
+        const cy = prairieHeight(cx, cz) + hopAmp;
+
+        ch.group.position.set(cx, cy, cz);
+        const dirAngle = Math.atan2(targetX - startX, targetZ - startZ) + facingOffset;
+        ch.group.rotation.y = dirAngle;
+
+        const flap = Math.sin(nowMs * 0.045 + i) * 0.75;
+        ch.wingL.rotation.z = flap;
+        ch.wingR.rotation.z = -flap;
+      }
+
+      controls.update();
+      renderer.render(scene, camera);
+    }
+
+    requestAnimationFrame(animate);
+  </script>
 </body>
 </html>
+
