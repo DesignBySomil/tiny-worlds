@@ -1467,15 +1467,15 @@ function animate(now) {
       const env = Math.sin(u * Math.PI);
       const loopAngle = u * Math.PI * 2;
 
-      const glideX = (1 - Math.cos(loopAngle)) * 0.88 + Math.sin(loopAngle) * 0.52;
-      const glideZ = -Math.sin(loopAngle * 2) * 0.42;
+      const glideX = -((1 - Math.cos(loopAngle)) * 0.78 + Math.sin(loopAngle) * 0.45);
+      const glideZ = Math.sin(loopAngle) * 0.55;
 
       const bx = boatAnchor.x + glideX * env;
       const bz = boatAnchor.z + glideZ * env;
 
       // Tangent heading along path + cheerful 360 twirl near center of puddle (u in 0.36..0.70)
-      const dx = (Math.sin(loopAngle) * 0.88 + Math.cos(loopAngle) * 0.52);
-      const dz = -Math.cos(loopAngle * 2) * 0.84;
+      const dx = -(Math.sin(loopAngle) * 0.78 + Math.cos(loopAngle) * 0.45);
+      const dz = Math.cos(loopAngle) * 0.55;
       const pathHeading = Math.atan2(-dz, dx) * 0.55 * env;
 
       let spinBonus = 0;
