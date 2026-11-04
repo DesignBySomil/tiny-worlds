@@ -1,470 +1,1601 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Monsoon Street - a tiny world</title>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Monsoon street — a tiny world</title>
 <style>
-  html, body { margin:0; padding:0; height:100%; background:#46586d; overflow:hidden;
-    font-family: Georgia, 'Times New Roman', serif; }
-  #app { position:fixed; inset:0; }
-  header { position:fixed; top:0; left:0; right:0; text-align:center; pointer-events:none;
-    padding: max(18px, env(safe-area-inset-top)) 16px 18px; z-index:5;
-    background: linear-gradient(rgba(14,20,30,.66), rgba(14,20,30,.32) 55%, rgba(14,20,30,0)); }
-  header h1 { margin:0; font-size:15px; letter-spacing:.42em; font-weight:400;
-    color:#f2f6fa; text-transform:uppercase; text-shadow:0 1px 8px rgba(10,16,24,.8); }
-  header .rule { width:44px; height:1px; background:rgba(242,246,250,.55); margin:9px auto; }
-  #hint { display:inline-block; font-size:11.5px; letter-spacing:.24em; text-transform:uppercase;
-    color:#f4f8fc; transition:opacity 1.2s ease; padding:5px 12px; border-radius:3px;
-    background:rgba(14,22,32,.5);
-    text-shadow:0 1px 3px rgba(8,12,20,.98), 0 0 8px rgba(8,12,20,.95), 0 0 18px rgba(8,12,20,.85); }
-  #hint.faded { opacity:.45; }
-  footer { position:fixed; bottom:0; left:0; right:0; text-align:center; pointer-events:none;
-    padding:0 16px max(14px, env(safe-area-inset-bottom)); z-index:5;
-    font-size:10px; letter-spacing:.34em; text-transform:uppercase; color:rgba(242,246,250,.6); }
-  canvas { display:block; touch-action:none; }
-  @media (max-width: 380px) {
-    header h1 { font-size:12px; letter-spacing:.3em; }
-    #hint { font-size:10px; letter-spacing:.2em; }
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body {
+    width: 100%; height: 100%;
+    overflow: hidden;
+    background: #1f2e47;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    color: #f4f7fb;
+    user-select: none;
+    -webkit-user-select: none;
+    touch-action: none;
+  }
+  #canvas-container {
+    position: fixed;
+    inset: 0;
+    z-index: 1;
+    background: radial-gradient(circle at 50% 40%, #44628c 0%, #263a59 62%, #172338 100%);
+    transition: filter 0.08s ease;
+  }
+  canvas {
+    display: block;
+    width: 100%;
+    height: 100%;
+    outline: none;
+  }
+  #ui-header {
+    position: fixed;
+    top: 0; left: 0; right: 0;
+    z-index: 10;
+    padding: 14px 16px 10px;
+    text-align: center;
+    pointer-events: none;
+    background: linear-gradient(to bottom, rgba(16,25,40,0.86) 0%, rgba(16,25,40,0.48) 68%, rgba(16,25,40,0) 100%);
+  }
+  .title {
+    font-size: clamp(19px, 4.5vw, 24px);
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    color: #ffffff;
+    text-shadow: 0 2px 10px rgba(0,0,0,0.65);
+    line-height: 1.15;
+  }
+  .subtitle {
+    font-size: clamp(11px, 2.8vw, 13px);
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.16em;
+    color: #ffd175;
+    margin-top: 2px;
+    text-shadow: 0 1px 6px rgba(0,0,0,0.65);
+  }
+  .hint {
+    display: inline-block;
+    margin-top: 6px;
+    padding: 4px 12px;
+    border-radius: 999px;
+    font-size: clamp(11px, 2.8vw, 12.5px);
+    font-weight: 500;
+    letter-spacing: 0.02em;
+    color: #e6eef8;
+    background: rgba(24, 36, 56, 0.78);
+    border: 1px solid rgba(255, 212, 128, 0.28);
+    box-shadow: 0 2px 8px rgba(0,0,0,0.35);
+  }
+  #ui-footer {
+    position: fixed;
+    bottom: 0; left: 0; right: 0;
+    z-index: 10;
+    padding: 10px 16px 14px;
+    text-align: center;
+    pointer-events: none;
+    background: linear-gradient(to top, rgba(16,25,40,0.85) 0%, rgba(16,25,40,0.4) 65%, rgba(16,25,40,0) 100%);
+  }
+  .footer-text {
+    font-size: clamp(10.5px, 2.5vw, 12px);
+    font-weight: 600;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: rgba(230, 238, 248, 0.78);
+    text-shadow: 0 1px 4px rgba(0,0,0,0.7);
+  }
+  #fallback {
+    display: none;
+    position: fixed;
+    inset: 0;
+    z-index: 30;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+    text-align: center;
+    background: #1f2e47;
+    color: #f4f7fb;
+    font-size: 14px;
   }
 </style>
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
 </head>
 <body>
-<div id="app"></div>
-<header>
-  <h1>Monsoon Street</h1>
-  <div class="rule"></div>
-  <span id="hint"></span>
-</header>
-<footer>A tiny world</footer>
-<script type="importmap">
-{ "imports": {
-  "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
-  "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
-} }
-</script>
+  <header id="ui-header">
+    <h1 class="title">Monsoon street</h1>
+    <div class="subtitle">a tiny world</div>
+    <div class="hint">tap the sky for thunder - tap the boat to sail</div>
+  </header>
+
+  <div id="canvas-container"></div>
+
+  <footer id="ui-footer">
+    <div class="footer-text">A tiny world</div>
+  </footer>
+
+  <div id="fallback">WebGL context is unavailable or paused. Reload to restore the miniature.</div>
+
 <script type="module">
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 
-// pass 1
-const container = document.getElementById('app');
-const hintEl = document.getElementById('hint');
-const scene = new THREE.Scene();
-const SKY = new THREE.Color(0x46586d);
-const SKY_FLASH = new THREE.Color(0xc4d4e8);
-scene.background = SKY.clone();
-scene.fog = new THREE.Fog(0x46586d, 26, 80);
-
-const camera = new THREE.PerspectiveCamera(38, innerWidth/innerHeight, 0.1, 240);
-function pickFov() {
-  const a = innerWidth / innerHeight;
-  camera.fov = a >= 0.9 ? 38 : (a >= 0.62 ? 46 : 58);
-  camera.updateProjectionMatrix();
+// Seeded mulberry32 RNG
+function mulberry32(a) {
+  return function() {
+    let t = a += 0x6D2B79F5;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
 }
-pickFov();
-const renderer = new THREE.WebGLRenderer({ antialias: true });
-renderer.setSize(innerWidth, innerHeight);
-renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
-renderer.shadowMap.enabled = true;
-renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-container.appendChild(renderer.domElement);
-const controls = new OrbitControls(camera, renderer.domElement);
-controls.enableDamping = true; controls.dampingFactor = 0.06;
-controls.enablePan = false; controls.maxPolarAngle = Math.PI * 0.52;
+const rng = mulberry32(20260412);
+const randRange = (min, max) => min + rng() * (max - min);
 
-const skyLight = new THREE.DirectionalLight(0xbdd0e4, 1.7);
-skyLight.position.set(6, 10, 5); skyLight.castShadow = true;
-skyLight.shadow.mapSize.set(1024, 1024);
-skyLight.shadow.camera.left = -10; skyLight.shadow.camera.right = 10;
-skyLight.shadow.camera.top = 10; skyLight.shadow.camera.bottom = -10;
-skyLight.shadow.camera.far = 60; skyLight.shadow.bias = -0.0006;
-scene.add(skyLight);
-scene.add(new THREE.AmbientLight(0x8fa4bc, 0.85));
-const lampLight = new THREE.PointLight(0xffc46a, 12, 9, 1.8);
-lampLight.position.set(1.35, 2.35, -1.6);
-scene.add(lampLight);
+const container = document.getElementById('canvas-container');
+const headerEl = document.getElementById('ui-header');
+const footerEl = document.getElementById('ui-footer');
+const fallbackEl = document.getElementById('fallback');
 
-// seeded rng
-function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;}}
-const rng = mulberry32(20261101);
-function rand(a,b){return a+(b-a)*rng();}
+let renderer, scene, camera, controls;
+let isTabHidden = false;
+let contextLost = false;
 
-function makeSoftTexture(inner, outer) {
-  const c = document.createElement('canvas'); c.width = c.height = 64;
-  const g = c.getContext('2d');
-  const gr = g.createRadialGradient(32,32,2,32,32,30);
-  gr.addColorStop(0, inner); gr.addColorStop(1, outer);
-  g.fillStyle = gr; g.fillRect(0,0,64,64);
-  return new THREE.CanvasTexture(c);
+try {
+  renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance', alpha: true });
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  renderer.toneMapping = THREE.ACESFilmicToneMapping;
+  renderer.toneMappingExposure = 1.42;
+  container.appendChild(renderer.domElement);
+} catch (err) {
+  fallbackEl.style.display = 'flex';
+  throw err;
 }
 
-// ---------- slab ----------
-const slabGroup = new THREE.Group(); scene.add(slabGroup);
-{
-  const top = new THREE.Mesh(new THREE.BoxGeometry(6.5, 0.5, 6.5),
-    new THREE.MeshStandardMaterial({ color: 0x39424e, roughness: 0.85 }));
-  top.position.y = -0.25; top.receiveShadow = true; slabGroup.add(top);
-  const mid = new THREE.Mesh(new THREE.BoxGeometry(5.9, 0.7, 5.9),
-    new THREE.MeshStandardMaterial({ color: 0x2c333d, roughness: 0.9 }));
-  mid.position.y = -0.85; slabGroup.add(mid);
-  const base = new THREE.Mesh(new THREE.BoxGeometry(5.2, 1.1, 5.2),
-    new THREE.MeshStandardMaterial({ color: 0x21272f, roughness: 0.95 }));
-  base.position.y = -1.75; slabGroup.add(base);
-}
+renderer.domElement.addEventListener('webglcontextlost', (e) => {
+  e.preventDefault();
+  contextLost = true;
+}, false);
 
-// ---------- wet street ----------
-{
-  const street = new THREE.Mesh(new THREE.BoxGeometry(2.3, 0.06, 6.3),
-    new THREE.MeshStandardMaterial({ color: 0x272d36, roughness: 0.35, metalness: 0.35 }));
-  street.position.y = 0.03; street.receiveShadow = true; slabGroup.add(street);
-  // curbs
-  for (const sx of [-1, 1]) {
-    const curb = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.12, 6.3),
-      new THREE.MeshStandardMaterial({ color: 0x4a5462, roughness: 0.8 }));
-    curb.position.set(sx * 1.24, 0.06, 0); curb.receiveShadow = true; slabGroup.add(curb);
+renderer.domElement.addEventListener('webglcontextrestored', () => {
+  contextLost = false;
+  fitCameraToDiorama();
+}, false);
+
+scene = new THREE.Scene();
+
+camera = new THREE.PerspectiveCamera(34, window.innerWidth / window.innerHeight, 0.5, 120);
+camera.position.set(11.8, 9.2, 13.8);
+
+controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+controls.dampingFactor = 0.07;
+controls.enablePan = false;
+controls.minPolarAngle = Math.PI * 0.14;
+controls.maxPolarAngle = Math.PI * 0.45;
+controls.minAzimuthAngle = -Math.PI * 0.38;
+controls.maxAzimuthAngle = Math.PI * 0.38;
+controls.target.set(0, 2.8, 0.2);
+
+// Root group for diorama
+const world = new THREE.Group();
+scene.add(world);
+
+// Bounding points for exact viewport framing inside safe band
+const framingPoints = [
+  new THREE.Vector3(-4.1, -0.75, -3.5),
+  new THREE.Vector3( 4.1, -0.75, -3.5),
+  new THREE.Vector3(-4.1, -0.75,  3.5),
+  new THREE.Vector3( 4.1, -0.75,  3.5),
+  new THREE.Vector3(-3.9,  7.55, -2.8),
+  new THREE.Vector3( 3.9,  7.55, -2.8),
+  new THREE.Vector3(-3.9,  7.55,  2.8),
+  new THREE.Vector3( 3.9,  7.55,  2.8),
+  new THREE.Vector3( 0.0,  7.75,  0.0),
+  new THREE.Vector3( 0.0, -0.80,  3.6)
+];
+
+// Procedural Canvas Textures
+function createStripedAwningTexture(colorA, colorB) {
+  const c = document.createElement('canvas');
+  c.width = 256; c.height = 256;
+  const ctx = c.getContext('2d');
+  const stripes = 8;
+  const w = c.width / stripes;
+  for (let i = 0; i < stripes; i++) {
+    ctx.fillStyle = i % 2 === 0 ? colorA : colorB;
+    ctx.fillRect(i * w, 0, w + 1, c.height);
   }
-  // lane dashes, worn
-  for (let i = -3; i <= 3; i++) {
-    const dash = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.012, 0.42),
-      new THREE.MeshStandardMaterial({ color: 0x9aa48e, roughness: 0.7 }));
-    dash.position.set(0, 0.068, i * 0.9); slabGroup.add(dash);
-  }
+  ctx.fillStyle = 'rgba(0,0,0,0.12)';
+  ctx.fillRect(0, c.height - 28, c.width, 28);
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.wrapS = THREE.RepeatWrapping;
+  tex.wrapT = THREE.ClampToEdgeWrapping;
+  return tex;
 }
 
-// ---------- puddles ----------
-const puddles = [];
-for (const [x, z, r] of [[-0.6, 1.4, 0.5], [0.7, 0.4, 0.38], [-0.4, -1.6, 0.44], [0.62, -2.4, 0.3], [-0.85, 2.6, 0.34]]) {
-  const p = new THREE.Mesh(new THREE.CircleGeometry(r, 20),
-    new THREE.MeshStandardMaterial({ color: 0x5a6f84, roughness: 0.08, metalness: 0.85 }));
-  p.rotation.x = -Math.PI / 2; p.position.set(x, 0.068, z);
-  slabGroup.add(p); puddles.push(p);
+function createWindowGlowTexture() {
+  const c = document.createElement('canvas');
+  c.width = 128; c.height = 128;
+  const ctx = c.getContext('2d');
+  const grad = ctx.createRadialGradient(64, 72, 8, 64, 64, 74);
+  grad.addColorStop(0, '#fff7dc');
+  grad.addColorStop(0.55, '#ffc25c');
+  grad.addColorStop(1, '#d97a1c');
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, 128, 128);
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  return tex;
 }
 
-// ---------- buildings ----------
-const WIN = new THREE.MeshStandardMaterial({ color: 0xffd27a, emissive: 0xffb84d, emissiveIntensity: 1.6, roughness: 0.4 });
-const WIN_DIM = new THREE.MeshStandardMaterial({ color: 0x33404e, roughness: 0.6 });
-function makeBuilding(x, z, w, h, d, color, rot) {
-  const g = new THREE.Group(); g.position.set(x, 0, z); g.rotation.y = rot || 0;
-  const body = new THREE.Mesh(new THREE.BoxGeometry(w, h, d),
-    new THREE.MeshStandardMaterial({ color, roughness: 0.85 }));
-  body.position.y = h / 2; body.castShadow = true; body.receiveShadow = true; g.add(body);
-  // windows grid on street face (+z local)
-  const rows = Math.max(1, Math.floor(h / 0.75));
-  const cols = Math.max(1, Math.floor(w / 0.55));
-  for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) {
-    const lit = rng() < 0.55;
-    const win = new THREE.Mesh(new THREE.PlaneGeometry(0.2, 0.28), lit ? WIN : WIN_DIM);
-    win.position.set(-w/2 + 0.32 + c * 0.55, 0.5 + r * 0.75, d/2 + 0.006);
-    g.add(win);
-  }
-  // awning over ground floor
-  const awn = new THREE.Mesh(new THREE.BoxGeometry(w * 0.85, 0.05, 0.5),
-    new THREE.MeshStandardMaterial({ color: [0xa8442e, 0x2e6e68, 0xb8892e][Math.floor(rng()*3)], roughness: 0.7 }));
-  awn.position.set(0, 0.85, d/2 + 0.26); awn.rotation.x = 0.25; awn.castShadow = true; g.add(awn);
-  // sign board
-  const sign = new THREE.Mesh(new THREE.BoxGeometry(w * 0.6, 0.18, 0.05),
-    new THREE.MeshStandardMaterial({ color: 0xeadfc2, emissive: 0x8a7a4a, emissiveIntensity: 0.35, roughness: 0.6 }));
-  sign.position.set(0, 1.12, d/2 + 0.03); g.add(sign);
-  slabGroup.add(g);
-  return g;
-}
-makeBuilding(-2.35, -1.7, 1.7, 2.9, 1.5, 0x7a5a44, 0.1);
-makeBuilding(-2.3, 0.6, 1.9, 2.1, 1.6, 0x5f7370, -0.06);
-makeBuilding(-2.4, 2.5, 1.5, 2.5, 1.3, 0x8a6248, 0.14);
-makeBuilding(2.35, -2.2, 1.6, 2.4, 1.4, 0x6e5a68, -0.12);
-makeBuilding(2.3, -0.2, 1.8, 3.2, 1.5, 0x54646e, 0.05);
-makeBuilding(2.4, 1.9, 1.6, 1.9, 1.4, 0x7c6a4c, -0.1);
+function createPuddleReflectionTexture() {
+  const c = document.createElement('canvas');
+  c.width = 256; c.height = 256;
+  const ctx = c.getContext('2d');
+  ctx.fillStyle = '#2c4a70';
+  ctx.fillRect(0, 0, 256, 256);
 
-// ---------- streetlamp ----------
-{
-  const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.06, 2.3, 8),
-    new THREE.MeshStandardMaterial({ color: 0x22282e, roughness: 0.5, metalness: 0.6 }));
-  pole.position.set(1.35, 1.15, -1.6); pole.castShadow = true; slabGroup.add(pole);
-  const arm = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.05, 0.05), pole.material);
-  arm.position.set(1.13, 2.28, -1.6); slabGroup.add(arm);
-  const bulb = new THREE.Mesh(new THREE.SphereGeometry(0.09, 10, 8),
-    new THREE.MeshStandardMaterial({ color: 0xffd98a, emissive: 0xffc46a, emissiveIntensity: 2.4 }));
-  bulb.position.set(0.9, 2.24, -1.6); slabGroup.add(bulb);
-  const glow = new THREE.Sprite(new THREE.SpriteMaterial({
-    map: makeSoftTexture('rgba(255,205,120,0.85)', 'rgba(255,205,120,0)'), transparent: true, opacity: 0.85, depthWrite: false }));
-  glow.scale.set(1.1, 1.1, 1); glow.position.copy(bulb.position); slabGroup.add(glow);
+  const g1 = ctx.createRadialGradient(142, 112, 8, 142, 112, 105);
+  g1.addColorStop(0, 'rgba(255, 232, 155, 0.96)');
+  g1.addColorStop(0.42, 'rgba(255, 182, 82, 0.65)');
+  g1.addColorStop(1, 'rgba(44, 74, 112, 0)');
+  ctx.fillStyle = g1;
+  ctx.fillRect(0, 0, 256, 256);
+
+  const g2 = ctx.createRadialGradient(82, 142, 6, 82, 142, 85);
+  g2.addColorStop(0, 'rgba(165, 220, 255, 0.72)');
+  g2.addColorStop(0.55, 'rgba(95, 165, 235, 0.38)');
+  g2.addColorStop(1, 'rgba(44, 74, 112, 0)');
+  ctx.fillStyle = g2;
+  ctx.fillRect(0, 0, 256, 256);
+
+  const g3 = ctx.createRadialGradient(178, 155, 4, 178, 155, 58);
+  g3.addColorStop(0, 'rgba(255, 110, 95, 0.58)');
+  g3.addColorStop(1, 'rgba(44, 74, 112, 0)');
+  ctx.fillStyle = g3;
+  ctx.fillRect(0, 0, 256, 256);
+
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  return tex;
 }
 
-// ---------- string lights between buildings ----------
-{
-  const bulbMat = new THREE.MeshStandardMaterial({ color: 0xffe2a0, emissive: 0xffc46a, emissiveIntensity: 2.2 });
-  const wireMat = new THREE.MeshStandardMaterial({ color: 0x181c22, roughness: 0.6 });
-  for (const [z, sag] of [[-1.1, 0.35], [0.9, 0.45], [2.6, 0.3]]) {
-    const N = 9;
-    let prev = null;
-    for (let i = 0; i <= N; i++) {
-      const t = i / N;
-      const x = -1.55 + t * 3.1;
-      const y = 2.35 - Math.sin(t * Math.PI) * sag;
-      const pt = new THREE.Vector3(x, y, z + Math.sin(t * 5) * 0.05);
-      if (prev) {
-        const seg = new THREE.Vector3().subVectors(pt, prev);
-        const wire = new THREE.Mesh(new THREE.CylinderGeometry(0.008, 0.008, seg.length(), 4), wireMat);
-        wire.position.copy(prev).addScaledVector(seg, 0.5);
-        wire.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0), seg.clone().normalize());
-        slabGroup.add(wire);
-      }
-      if (i > 0 && i < N) {
-        const b = new THREE.Mesh(new THREE.SphereGeometry(0.035, 6, 5), bulbMat);
-        b.position.copy(pt).y -= 0.07; slabGroup.add(b);
-      }
-      prev = pt;
-    }
-  }
+const windowTex = createWindowGlowTexture();
+const puddleTex = createPuddleReflectionTexture();
+const awningTexTeal = createStripedAwningTexture('#e85a47', '#fff4e4');
+const awningTexTerra = createStripedAwningTexture('#1b8a7a', '#fff4e4');
+const awningTexCorner = createStripedAwningTexture('#f2a93b', '#fff5e6');
+
+// Shared Materials (Lifted wet slate & cobble tones for luminous monsoon dusk)
+const matSlabOuter = new THREE.MeshStandardMaterial({ color: 0x304057, roughness: 0.70, metalness: 0.08 });
+const matSlabTrim = new THREE.MeshStandardMaterial({ color: 0x485f7d, roughness: 0.50, metalness: 0.12 });
+const matRoad = new THREE.MeshStandardMaterial({
+  color: 0x3b4f6b,
+  emissive: 0x1a2738,
+  emissiveIntensity: 0.35,
+  roughness: 0.22,
+  metalness: 0.22
+});
+const matSidewalk = new THREE.MeshStandardMaterial({ color: 0x5c718c, roughness: 0.38, metalness: 0.08 });
+const matCurb = new THREE.MeshStandardMaterial({ color: 0x738aa8, roughness: 0.35, metalness: 0.08 });
+
+const matTealWall = new THREE.MeshStandardMaterial({ color: 0x2b8794, roughness: 0.50, metalness: 0.05 });
+const matTerracottaWall = new THREE.MeshStandardMaterial({ color: 0xdc6d4e, roughness: 0.52, metalness: 0.05 });
+const matOchreWall = new THREE.MeshStandardMaterial({ color: 0xe6a850, roughness: 0.52, metalness: 0.05 });
+const matCreamTrim = new THREE.MeshStandardMaterial({ color: 0xf4eadb, roughness: 0.46, metalness: 0.05 });
+const matDarkRoof = new THREE.MeshStandardMaterial({ color: 0x324359, roughness: 0.42, metalness: 0.15 });
+const matWood = new THREE.MeshStandardMaterial({ color: 0x69412b, roughness: 0.58, metalness: 0.05 });
+const matIron = new THREE.MeshStandardMaterial({ color: 0x263140, roughness: 0.35, metalness: 0.65 });
+const matCopper = new THREE.MeshStandardMaterial({ color: 0x4d8f80, roughness: 0.40, metalness: 0.35 });
+
+// Flicker-reactive emissive materials
+const matWindowGlow = new THREE.MeshStandardMaterial({
+  color: 0xffdf9e,
+  map: windowTex,
+  emissive: 0xff9d2e,
+  emissiveMap: windowTex,
+  emissiveIntensity: 1.85,
+  roughness: 0.2
+});
+
+const matShopWindowGlow = new THREE.MeshStandardMaterial({
+  color: 0xfff0c4,
+  map: windowTex,
+  emissive: 0xffaa3b,
+  emissiveMap: windowTex,
+  emissiveIntensity: 2.2,
+  roughness: 0.15
+});
+
+const matLampGlass = new THREE.MeshStandardMaterial({
+  color: 0xfff6d6,
+  emissive: 0xffae38,
+  emissiveIntensity: 3.1,
+  roughness: 0.1
+});
+
+const matStringBulb = new THREE.MeshStandardMaterial({
+  color: 0xfff3c4,
+  emissive: 0xffa834,
+  emissiveIntensity: 2.7,
+  roughness: 0.15
+});
+
+const matPuddle = new THREE.MeshStandardMaterial({
+  color: 0x8cc8ff,
+  map: puddleTex,
+  emissive: 0x628ec2,
+  emissiveMap: puddleTex,
+  emissiveIntensity: 1.35,
+  roughness: 0.04,
+  metalness: 0.72,
+  transparent: true,
+  opacity: 0.95
+});
+
+// Helper: beveled box mesh
+function makeBox(w, h, d, mat, x = 0, y = 0, z = 0, cast = true, receive = true) {
+  const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat);
+  m.position.set(x, y, z);
+  m.castShadow = cast;
+  m.receiveShadow = receive;
+  return m;
 }
 
-// ---------- umbrella figures ----------
-const umbrellas = [];
-function makeUmbrella(x, z, canopy, coat) {
-  const g = new THREE.Group(); g.position.set(x, 0.06, z); g.rotation.y = rand(0, 6.3);
-  const body = new THREE.Mesh(new THREE.CapsuleGeometry(0.09, 0.22, 4, 8),
-    new THREE.MeshStandardMaterial({ color: coat, roughness: 0.8 }));
-  body.position.y = 0.28; body.castShadow = true; g.add(body);
-  const head = new THREE.Mesh(new THREE.SphereGeometry(0.07, 8, 7),
-    new THREE.MeshStandardMaterial({ color: 0xc9a184, roughness: 0.7 }));
-  head.position.y = 0.5; g.add(head);
-  const stick = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.012, 0.5, 5),
-    new THREE.MeshStandardMaterial({ color: 0x333a42, roughness: 0.5 }));
-  stick.position.set(0.1, 0.62, 0); stick.rotation.z = -0.18; g.add(stick);
-  const can = new THREE.Mesh(new THREE.ConeGeometry(0.34, 0.2, 10),
-    new THREE.MeshStandardMaterial({ color: canopy, roughness: 0.55 }));
-  can.position.set(0.15, 0.9, 0); can.rotation.z = -0.18; can.castShadow = true; g.add(can);
-  slabGroup.add(g);
-  umbrellas.push({ g, ph: rand(0, 6.3), bx: x, bz: z });
-}
-makeUmbrella(-0.55, 0.9, 0xc23b2e, 0x3a4552);
-makeUmbrella(0.6, -0.9, 0xd9a52e, 0x2e4a44);
-makeUmbrella(-0.3, -2.5, 0x2e7e8c, 0x4a3a52);
+// 1. Lighting Setup (Luminous monsoon dusk: gentle soft cool sky fill + warm amber shop/lamp glow)
+const ambientSky = new THREE.AmbientLight(0x88b4e8, 0.78);
+scene.add(ambientSky);
 
-// ---------- paper boat in a puddle ----------
-const boat = new THREE.Group();
-{
-  const hullMat = new THREE.MeshStandardMaterial({ color: 0xf2efe4, roughness: 0.6, side: THREE.DoubleSide });
-  const hull = new THREE.Mesh(new THREE.ConeGeometry(0.12, 0.09, 4), hullMat);
-  hull.scale.set(1.5, 1, 0.8); hull.rotation.y = Math.PI / 4; boat.add(hull);
-  const sail = new THREE.Mesh(new THREE.ConeGeometry(0.06, 0.12, 4), hullMat);
-  sail.position.y = 0.09; boat.add(sail);
-  boat.position.set(-0.6, 0.1, 1.4);
-  slabGroup.add(boat);
+const hemiLight = new THREE.HemisphereLight(0xaad2ff, 0x526b8a, 2.35);
+scene.add(hemiLight);
+
+const dirLight = new THREE.DirectionalLight(0xb4d6ff, 2.15);
+dirLight.position.set(7.5, 13.5, 8.5);
+dirLight.castShadow = true;
+dirLight.shadow.mapSize.set(1024, 1024);
+dirLight.shadow.camera.near = 2;
+dirLight.shadow.camera.far = 30;
+const dCam = 6.2;
+dirLight.shadow.camera.left = -dCam;
+dirLight.shadow.camera.right = dCam;
+dirLight.shadow.camera.top = dCam;
+dirLight.shadow.camera.bottom = -dCam;
+dirLight.shadow.bias = -0.0008;
+scene.add(dirLight);
+
+const fillLight = new THREE.DirectionalLight(0xffd29c, 1.15);
+fillLight.position.set(-7, 6, 6);
+scene.add(fillLight);
+
+// Dedicated cool overhead sky bounce so wet cobbles and puddles shimmer clearly
+const streetSkyBounce = new THREE.DirectionalLight(0x95c4ff, 0.95);
+streetSkyBounce.position.set(0, 10, 9);
+scene.add(streetSkyBounce);
+
+const streetLampLight = new THREE.PointLight(0xffaa3b, 5.8, 12.5, 1.3);
+streetLampLight.position.set(1.25, 2.75, 0.25);
+streetLampLight.castShadow = true;
+streetLampLight.shadow.bias = -0.001;
+world.add(streetLampLight);
+
+const shopWarmLight = new THREE.PointLight(0xff9e3d, 4.2, 10.5, 1.35);
+shopWarmLight.position.set(-1.2, 1.45, -0.20);
+world.add(shopWarmLight);
+
+const cornerWarmLight = new THREE.PointLight(0xffb454, 3.4, 9.5, 1.35);
+cornerWarmLight.position.set(2.2, 1.5, 0.25);
+world.add(cornerWarmLight);
+
+// Warm street-level bounce light over main puddle & wet cobbles
+const puddleWarmBounce = new THREE.PointLight(0xffb84d, 2.6, 7.5, 1.3);
+puddleWarmBounce.position.set(0.1, 0.95, 1.08);
+world.add(puddleWarmBounce);
+
+// Lightning Flash Light (Controlled intensity so buildings keep their rich colors)
+const lightningLight = new THREE.DirectionalLight(0xc8e4ff, 0);
+lightningLight.position.set(-2, 14, 5);
+scene.add(lightningLight);
+
+// 2. Sculptural Diorama Slab & Wet Cobblestone Street
+const slabGroup = new THREE.Group();
+world.add(slabGroup);
+
+// Tiered diorama base
+slabGroup.add(makeBox(8.0, 0.56, 6.6, matSlabOuter, 0, -0.38, 0, false, true));
+slabGroup.add(makeBox(8.22, 0.16, 6.82, matSlabTrim, 0, -0.08, 0, false, true));
+slabGroup.add(makeBox(7.84, 0.14, 6.44, matRoad, 0, 0.0, 0, false, true));
+
+// Brass plaque on front of slab
+const matBrass = new THREE.MeshStandardMaterial({ color: 0xe6b35a, roughness: 0.3, metalness: 0.7, emissive: 0x4a3210, emissiveIntensity: 0.35 });
+slabGroup.add(makeBox(1.5, 0.22, 0.08, matBrass, 0, -0.32, 3.32, false, false));
+
+// Rear sidewalk (where row buildings stand)
+slabGroup.add(makeBox(7.82, 0.18, 2.65, matSidewalk, 0, 0.11, -1.88, true, true));
+slabGroup.add(makeBox(7.84, 0.2, 0.14, matCurb, 0, 0.11, -0.54, true, true));
+
+// Front right corner sidewalk
+slabGroup.add(makeBox(7.82, 0.16, 0.85, matSidewalk, 0, 0.10, 2.78, true, true));
+slabGroup.add(makeBox(7.84, 0.18, 0.14, matCurb, 0, 0.10, 2.34, true, true));
+
+// Sidewalk stone tiles
+for (let ix = -3.6; ix <= 3.6; ix += 0.6) {
+  slabGroup.add(makeBox(0.54, 0.02, 0.72, matCurb, ix, 0.205, -0.18, false, true));
+  slabGroup.add(makeBox(0.54, 0.02, 0.68, matCurb, ix, 0.185, 2.76, false, true));
 }
 
-// ---------- rain (instanced streaks) ----------
-const RAIN_N = 190;
-const rainGeo = new THREE.CylinderGeometry(0.006, 0.006, 0.34, 3);
-const rainMat = new THREE.MeshBasicMaterial({ color: 0xaebfd4, transparent: true, opacity: 0.5 });
-const rain = new THREE.InstancedMesh(rainGeo, rainMat, RAIN_N);
-rain.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
-scene.add(rain);
-const drops = [];
-for (let i = 0; i < RAIN_N; i++) {
-  drops.push({ x: rand(-4.5, 4.5), y: rand(0, 7), z: rand(-4, 4), spd: rand(5.5, 8) });
-}
+// Drain grate near curb
+const matGrate = new THREE.MeshStandardMaterial({ color: 0x18202c, roughness: 0.4, metalness: 0.8 });
+slabGroup.add(makeBox(0.55, 0.02, 0.32, matGrate, -2.1, 0.075, -0.25, false, true));
+
+// Wet Cobblestones (InstancedMesh with glossy wet sheen and warm reflected light)
+const cobbleCols = 23;
+const cobbleRows = 9;
+const cobbleGeo = new THREE.BoxGeometry(0.28, 0.045, 0.21);
+const matCobble = new THREE.MeshStandardMaterial({
+  color: 0x526b8c,
+  emissive: 0x24344a,
+  emissiveIntensity: 0.38,
+  roughness: 0.18,
+  metalness: 0.32
+});
+const cobbleInst = new THREE.InstancedMesh(cobbleGeo, matCobble, cobbleCols * cobbleRows);
+cobbleInst.receiveShadow = true;
 const dummy = new THREE.Object3D();
-const rainTilt = 0.14;
+const cColor = new THREE.Color();
+let cIdx = 0;
 
-// ---------- splash pops on the street ----------
-const splashes = [];
-const splashTex = makeSoftTexture('rgba(200,220,240,0.9)', 'rgba(200,220,240,0)');
-for (let i = 0; i < 14; i++) {
-  const mat = new THREE.SpriteMaterial({ map: splashTex, transparent: true, opacity: 0, depthWrite: false });
-  const s = new THREE.Sprite(mat); s.scale.set(0.1, 0.06, 1);
-  s.position.set(rand(-1, 1), 0.1, rand(-3, 3));
-  slabGroup.add(s);
-  splashes.push({ s, t0: rand(0, 1), dur: rand(0.35, 0.6), x: s.position.x, z: s.position.z });
-}
-
-// ---------- clouds ----------
-const clouds = [];
-{
-  const cTex = makeSoftTexture('rgba(52,64,80,0.9)', 'rgba(52,64,80,0)');
-  for (let i = 0; i < 6; i++) {
-    const mat = new THREE.SpriteMaterial({ map: cTex, transparent: true, opacity: rand(0.5, 0.75), depthWrite: false });
-    const s = new THREE.Sprite(mat);
-    const sc = rand(2.2, 3.8); s.scale.set(sc * 1.7, sc, 1);
-    s.position.set(rand(-5, 5), rand(4.4, 6), rand(-4, -1));
-    scene.add(s);
-    clouds.push({ s, spd: rand(0.08, 0.2) });
-  }
-}
-
-// ---------- lightning bolt ----------
-const bolt = new THREE.Group();
-{
-  const mat = new THREE.MeshBasicMaterial({ color: 0xf4f8ff });
-  let p = new THREE.Vector3(-1.4, 5.6, -3.2);
-  for (let i = 0; i < 6; i++) {
-    const np = p.clone().add(new THREE.Vector3(rand(-0.55, 0.55), -rand(0.5, 0.85), 0));
-    const seg = new THREE.Vector3().subVectors(np, p);
-    const m = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.012, seg.length(), 4), mat);
-    m.position.copy(p).addScaledVector(seg, 0.5);
-    m.quaternion.setFromUnitVectors(new THREE.Vector3(0,1,0), seg.clone().normalize());
-    bolt.add(m);
-    p = np;
-  }
-  bolt.visible = false;
-  scene.add(bolt);
-}
-
-// ---------- hint ----------
-const hintIdle = 'Tap for thunder';
-const hintStorm = 'Thunder rolls';
-let hintOwner = 'idle';
-function setHint(text, owner) { hintEl.textContent = text; hintEl.classList.remove('faded'); hintOwner = owner; }
-function resetHintIf(owner) { if (hintOwner === owner) setHint(hintIdle, 'idle'); }
-setHint(hintIdle, 'idle');
-
-let storm = { active: false, t0: 0 };
-let lastTap = 0;
-function thunder(now) {
-  lastTap = now;
-  storm.active = true; storm.t0 = now;
-  setHint(hintStorm, 'user');
-  bolt.visible = true;
-  setTimeout(() => resetHintIf('user'), 4600);
-}
-
-// ---------- interaction ----------
-const ray = new THREE.Raycaster();
-const ptr = new THREE.Vector2();
-const stormProxy = new THREE.Mesh(new THREE.BoxGeometry(6.5, 5.5, 6.5),
-  new THREE.MeshBasicMaterial({ visible: false }));
-stormProxy.position.y = 1.4; scene.add(stormProxy);
-let downX = 0, downY = 0;
-renderer.domElement.addEventListener('pointerdown', e => { downX = e.clientX; downY = e.clientY; });
-renderer.domElement.addEventListener('pointerup', e => {
-  if (Math.hypot(e.clientX - downX, e.clientY - downY) > 8) return;
-  ptr.x = (e.clientX / innerWidth) * 2 - 1;
-  ptr.y = -(e.clientY / innerHeight) * 2 + 1;
-  ray.setFromCamera(ptr, camera);
-  const hits = ray.intersectObjects([stormProxy], false);
-  if (hits.length) {
-    const now = performance.now() / 1000;
-    if (now - lastTap > 0.5) thunder(now);
-  }
-});
-
-// ---------- camera containment ----------
-const fitBox = new THREE.Box3(
-  new THREE.Vector3(-3.2, -2.35, -3.2),
-  new THREE.Vector3(3.2, 4.6, 3.2));
-function fitCamera() {
-  const center = fitBox.getCenter(new THREE.Vector3());
-  controls.target.copy(center);
-  const dir = new THREE.Vector3(0.16, 0.6, 1).normalize();
-  const corners = [];
-  for (const x of [fitBox.min.x, fitBox.max.x])
-    for (const y of [fitBox.min.y, fitBox.max.y])
-      for (const z of [fitBox.min.z, fitBox.max.z])
-        corners.push(new THREE.Vector3(x, y, z));
-  const probe = new THREE.PerspectiveCamera(camera.fov, camera.aspect, 0.1, 240);
-  probe.position.copy(center).addScaledVector(dir, 0.001); probe.lookAt(center); probe.updateMatrixWorld();
-  const inv = probe.matrixWorldInverse;
-  let need = 0;
-  const vFov = THREE.MathUtils.degToRad(camera.fov) / 2;
-  const hFov = Math.atan(Math.tan(vFov) * camera.aspect);
-  for (const c of corners) {
-    const p = c.clone().applyMatrix4(inv);
-    const d = -p.z;
-    need = Math.max(need, d + Math.abs(p.y) / Math.tan(vFov), d + Math.abs(p.x) / Math.tan(hFov));
-  }
-  const dist = need * 1.1 + 0.2;
-  camera.position.copy(center).addScaledVector(dir, dist);
-  controls.target.y += -0.35;
-  camera.position.y += -0.35;
-  camera.lookAt(controls.target); controls.update();
-}
-fitCamera();
-addEventListener('resize', () => {
-  camera.aspect = innerWidth / innerHeight; pickFov();
-  renderer.setSize(innerWidth, innerHeight); fitCamera();
-});
-
-// ---------- animate ----------
-const clock = new THREE.Clock();
-const ndcV = new THREE.Vector3();
-function animate() {
-  requestAnimationFrame(animate);
-  const dt = Math.min(clock.getDelta(), 0.3);
-  const now = performance.now() / 1000;
-  const stormBoost = storm.active ? Math.max(0, 1 - (now - storm.t0) / 4.4) : 0;
-  if (storm.active && now - storm.t0 > 4.6) storm.active = false;
-
-  // lightning flash: two blinks in the first 0.8s
-  let flash = 0;
-  if (storm.active) {
-    const ft = now - storm.t0;
-    if (ft < 0.14) flash = 1;
-    else if (ft < 0.26) flash = 0.15;
-    else if (ft < 0.44) flash = 0.85;
-    else if (ft < 0.8) flash = Math.max(0, 0.85 - (ft - 0.44) * 2.4);
-    bolt.visible = ft < 0.8;
-  }
-  scene.background.copy(SKY).lerp(SKY_FLASH, flash);
-  scene.fog.color.copy(scene.background);
-  skyLight.intensity = 1.7 + flash * 3.2;
-
-  // rain
-  const rainSpeed = 1 + stormBoost * 1.1;
-  rainMat.opacity = 0.5 + stormBoost * 0.25;
-  for (let i = 0; i < RAIN_N; i++) {
-    const d = drops[i];
-    d.y -= d.spd * rainSpeed * dt;
-    if (d.y < 0) { d.y = rand(5.5, 7.5); d.x = rand(-4.5, 4.5); d.z = rand(-4, 4); }
-    dummy.position.set(d.x + d.y * rainTilt, d.y, d.z);
-    dummy.rotation.z = -rainTilt;
+for (let r = 0; r < cobbleRows; r++) {
+  const z = -0.25 + r * 0.29;
+  for (let c = 0; c < cobbleCols; c++) {
+    const stagger = (r % 2) * 0.15;
+    const x = -3.45 + c * 0.31 + stagger;
+    // Skip deep interior of the expanded main puddle and left puddle so puddles read as glassy mirror basins
+    const inMainPuddle = ((x - 0.05) * (x - 0.05)) / (2.32 * 2.32) + ((z - 1.06) * (z - 1.06)) / (1.06 * 1.06) < 0.84;
+    const inLeftPuddle = ((x + 2.55) * (x + 2.55)) / (0.85 * 0.85) + ((z - 0.55) * (z - 0.55)) / (0.46 * 0.46) < 0.76;
+    const y = (inMainPuddle || inLeftPuddle) ? 0.035 : 0.062 + randRange(-0.006, 0.01);
+    dummy.position.set(x, y, z);
+    dummy.rotation.set(randRange(-0.02, 0.02), randRange(-0.06, 0.06), randRange(-0.02, 0.02));
+    dummy.scale.set(randRange(0.92, 1.08), 1, randRange(0.92, 1.08));
     dummy.updateMatrix();
-    rain.setMatrixAt(i, dummy.matrix);
+    cobbleInst.setMatrixAt(cIdx, dummy.matrix);
+    const shade = randRange(0.88, 1.22);
+    cColor.setRGB(0.32 * shade, 0.42 * shade, 0.56 * shade);
+    cobbleInst.setColorAt(cIdx, cColor);
+    cIdx++;
   }
-  rain.instanceMatrix.needsUpdate = true;
+}
+cobbleInst.instanceMatrix.needsUpdate = true;
+if (cobbleInst.instanceColor) cobbleInst.instanceColor.needsUpdate = true;
+slabGroup.add(cobbleInst);
 
-  // splashes pop on the street (wall-clock)
-  for (const sp of splashes) {
-    const t = (now - sp.t0) / sp.dur;
-    if (t >= 1) {
-      sp.t0 = now + rand(0, 0.5) / (1 + stormBoost * 2);
-      sp.s.position.x = sp.x = rand(-1, 1); sp.s.position.z = sp.z = rand(-3, 3);
-      continue;
+// Subtle wet-street warm reflection streaks outside puddles so the whole street shimmers
+const streetSheenGeo = new THREE.PlaneGeometry(6.8, 1.85);
+streetSheenGeo.rotateX(-Math.PI / 2);
+const matStreetSheen = new THREE.MeshBasicMaterial({
+  map: puddleTex,
+  transparent: true,
+  opacity: 0.24,
+  depthWrite: false
+});
+const streetSheen = new THREE.Mesh(streetSheenGeo, matStreetSheen);
+streetSheen.position.set(0.1, 0.083, 0.92);
+slabGroup.add(streetSheen);
+
+// 3. Reflective Puddles & Animated Ripple Rings (Main Puddle Clearly Larger for 320px Readability)
+const puddleGroup = new THREE.Group();
+world.add(puddleGroup);
+
+function createPuddle(x, z, rx, rz, rotY = 0) {
+  const g = new THREE.Group();
+  g.position.set(x, 0.075, z);
+  g.rotation.y = rotY;
+
+  const geo = new THREE.CylinderGeometry(1, 1, 0.012, 48);
+  geo.scale(rx, 1, rz);
+  const mesh = new THREE.Mesh(geo, matPuddle);
+  mesh.receiveShadow = true;
+  g.add(mesh);
+
+  // Luminous rim highlight for high readability at 320px
+  const rimGeo = new THREE.RingGeometry(0.955, 1.01, 48);
+  rimGeo.rotateX(-Math.PI / 2);
+  rimGeo.scale(rx, 1, rz);
+  const rimMat = new THREE.MeshBasicMaterial({ color: 0xbbe0ff, transparent: true, opacity: 0.58 });
+  const rim = new THREE.Mesh(rimGeo, rimMat);
+  rim.position.y = 0.008;
+  g.add(rim);
+
+  // Reflected warm window glow patch inside puddle
+  const glowGeo = new THREE.CircleGeometry(0.58, 32);
+  glowGeo.rotateX(-Math.PI / 2);
+  glowGeo.scale(rx * 0.76, 1, rz * 0.68);
+  const glowMat = new THREE.MeshBasicMaterial({ color: 0xffc864, transparent: true, opacity: 0.52 });
+  const glowPatch = new THREE.Mesh(glowGeo, glowMat);
+  glowPatch.position.set(0.06 * rx, 0.007, -0.06 * rz);
+  g.add(glowPatch);
+
+  puddleGroup.add(g);
+  return { group: g, mesh, glowMat, x, z, rx, rz };
+}
+
+// Expanded main puddle (rx: 2.32, rz: 1.05) plus two companion puddles
+const mainPuddle = createPuddle(0.05, 1.06, 2.32, 1.05, 0.03);
+const leftPuddle = createPuddle(-2.62, 0.55, 0.86, 0.48, -0.12);
+const rightPuddle = createPuddle(2.78, 1.52, 0.78, 0.44, 0.15);
+const puddles = [mainPuddle, leftPuddle, rightPuddle];
+
+// 4. Three Charming Row Buildings (Teal, Terracotta, Warm Ochre Corner)
+const buildingsGroup = new THREE.Group();
+world.add(buildingsGroup);
+
+function addFramedWindow(parent, x, y, z, w, h, hasShutters = true, hasBox = false) {
+  const wg = new THREE.Group();
+  wg.position.set(x, y, z);
+
+  // Outer cream frame
+  wg.add(makeBox(w + 0.12, h + 0.12, 0.08, matCreamTrim, 0, 0, 0.01));
+  // Glowing glass pane
+  wg.add(makeBox(w, h, 0.06, matWindowGlow, 0, 0, 0.03, false, false));
+  // Mullions
+  wg.add(makeBox(w, 0.04, 0.08, matWood, 0, 0.05, 0.04, false, false));
+  wg.add(makeBox(0.04, h, 0.08, matWood, 0, 0, 0.04, false, false));
+  // Sill
+  wg.add(makeBox(w + 0.2, 0.07, 0.16, matCreamTrim, 0, -h / 2 - 0.04, 0.05));
+
+  if (hasShutters) {
+    const sw = w * 0.34;
+    wg.add(makeBox(sw, h + 0.04, 0.05, matWood, -w / 2 - sw / 2 - 0.04, 0, 0.04));
+    wg.add(makeBox(sw, h + 0.04, 0.05, matWood,  w / 2 + sw / 2 + 0.04, 0, 0.04));
+  }
+  if (hasBox) {
+    wg.add(makeBox(w + 0.08, 0.14, 0.16, matTerracottaWall, 0, -h / 2 - 0.11, 0.09));
+    const matFoliage = new THREE.MeshStandardMaterial({ color: 0x3b9c62, roughness: 0.6 });
+    for (let i = -1; i <= 1; i++) {
+      const bush = new THREE.Mesh(new THREE.SphereGeometry(0.09, 10, 8), matFoliage);
+      bush.position.set(i * (w * 0.28), -h / 2 - 0.02, 0.11);
+      wg.add(bush);
     }
-    if (t < 0) continue;
-    const k = Math.sin(t * Math.PI);
-    sp.s.material.opacity = k * (0.5 + stormBoost * 0.3);
-    const sc = 0.06 + t * 0.14;
-    sp.s.scale.set(sc, sc * 0.6, 1);
+  }
+  parent.add(wg);
+}
+
+function addStripedAwning(parent, x, y, z, width, depth, tex) {
+  const ag = new THREE.Group();
+  ag.position.set(x, y, z);
+
+  const slope = new THREE.Mesh(
+    new THREE.BoxGeometry(width, 0.07, depth),
+    new THREE.MeshStandardMaterial({ map: tex, roughness: 0.45 })
+  );
+  slope.rotation.x = 0.38;
+  slope.castShadow = true;
+  slope.receiveShadow = true;
+  ag.add(slope);
+
+  // Scalloped front valance
+  const valY = -Math.sin(0.38) * (depth / 2) - 0.06;
+  const valZ =  Math.cos(0.38) * (depth / 2);
+  const valance = new THREE.Mesh(
+    new THREE.BoxGeometry(width, 0.13, 0.05),
+    new THREE.MeshStandardMaterial({ map: tex, roughness: 0.45 })
+  );
+  valance.position.set(0, valY, valZ);
+  ag.add(valance);
+
+  // Iron side brackets
+  for (const s of [-1, 1]) {
+    const strut = makeBox(0.04, 0.04, depth * 0.9, matIron, s * (width * 0.46), -0.14, 0);
+    strut.rotation.x = -0.15;
+    ag.add(strut);
   }
 
-  // clouds drift, faded in title band
-  for (const c of clouds) {
-    c.s.position.x += c.spd * (1 + stormBoost) * dt;
-    if (c.s.position.x > 6.5) c.s.position.x = -6.5;
-    ndcV.copy(c.s.position).project(camera);
-    const inBand = ndcV.y > 0.45 && Math.abs(ndcV.x) < 0.62;
-    c.s.material.opacity = inBand ? 0.12 : 0.62;
+  parent.add(ag);
+}
+
+// Building A (Left: Teal Bakery & Tea House)
+const bldgLeft = new THREE.Group();
+bldgLeft.position.set(-2.45, 0.2, -1.85);
+buildingsGroup.add(bldgLeft);
+
+bldgLeft.add(makeBox(2.45, 3.85, 1.95, matTealWall, 0, 1.925, 0));
+bldgLeft.add(makeBox(2.58, 0.16, 2.08, matCreamTrim, 0, 1.48, 0));
+bldgLeft.add(makeBox(2.64, 0.22, 2.14, matCreamTrim, 0, 3.88, 0));
+bldgLeft.add(makeBox(2.35, 0.45, 1.82, matDarkRoof, 0, 4.18, 0));
+
+// Quoins on left edge
+for (let qy = 0.25; qy < 3.7; qy += 0.38) {
+  bldgLeft.add(makeBox(0.16, 0.2, 2.02, matCreamTrim, -1.2, qy, 0));
+}
+
+// Ground shopfront (Left)
+bldgLeft.add(makeBox(1.32, 1.02, 0.08, matShopWindowGlow, -0.32, 0.72, 0.98, false, false));
+bldgLeft.add(makeBox(1.42, 1.12, 0.06, matWood, -0.32, 0.72, 0.96));
+// Door
+bldgLeft.add(makeBox(0.58, 1.18, 0.08, matWood, 0.76, 0.62, 0.97));
+bldgLeft.add(makeBox(0.38, 0.52, 0.09, matShopWindowGlow, 0.76, 0.82, 0.98, false, false));
+// Striped Awning
+addStripedAwning(bldgLeft, -0.15, 1.44, 1.34, 2.28, 0.82, awningTexTeal);
+// Upper windows
+addFramedWindow(bldgLeft, -0.58, 2.22, 0.98, 0.56, 0.74, true, true);
+addFramedWindow(bldgLeft,  0.58, 2.22, 0.98, 0.56, 0.74, true, true);
+addFramedWindow(bldgLeft, -0.58, 3.25, 0.98, 0.54, 0.64, true, false);
+addFramedWindow(bldgLeft,  0.58, 3.25, 0.98, 0.54, 0.64, true, false);
+// Roof chimney & water tank
+bldgLeft.add(makeBox(0.38, 0.65, 0.38, matTerracottaWall, -0.7, 4.55, -0.3));
+bldgLeft.add(makeBox(0.44, 0.1, 0.44, matCreamTrim, -0.7, 4.88, -0.3));
+
+// Building B (Center: Tall Terracotta Bookshop & Cafe)
+const bldgCenter = new THREE.Group();
+bldgCenter.position.set(0.05, 0.2, -1.92);
+buildingsGroup.add(bldgCenter);
+
+bldgCenter.add(makeBox(2.42, 4.45, 2.02, matTerracottaWall, 0, 2.225, 0));
+bldgCenter.add(makeBox(2.54, 0.16, 2.12, matCreamTrim, 0, 1.52, 0));
+bldgCenter.add(makeBox(2.54, 0.14, 2.12, matCreamTrim, 0, 2.96, 0));
+bldgCenter.add(makeBox(2.62, 0.24, 2.18, matCreamTrim, 0, 4.48, 0));
+bldgCenter.add(makeBox(2.3, 0.48, 1.85, matDarkRoof, 0, 4.78, 0));
+
+// Ground cafe storefront
+bldgCenter.add(makeBox(1.48, 1.05, 0.08, matShopWindowGlow, 0.28, 0.74, 1.01, false, false));
+bldgCenter.add(makeBox(1.58, 1.14, 0.06, matWood, 0.28, 0.74, 0.99));
+bldgCenter.add(makeBox(0.56, 1.2, 0.08, matWood, -0.82, 0.62, 1.0));
+bldgCenter.add(makeBox(0.36, 0.52, 0.09, matShopWindowGlow, -0.82, 0.84, 1.01, false, false));
+
+// Striped Awning
+addStripedAwning(bldgCenter, 0.0, 1.48, 1.38, 2.26, 0.85, awningTexTerra);
+
+// Second floor wrought-iron balcony + windows
+addFramedWindow(bldgCenter, -0.56, 2.28, 1.01, 0.54, 0.82, false, false);
+addFramedWindow(bldgCenter,  0.56, 2.28, 1.01, 0.54, 0.82, false, false);
+bldgCenter.add(makeBox(1.95, 0.08, 0.42, matCreamTrim, 0, 1.82, 1.18));
+bldgCenter.add(makeBox(1.92, 0.34, 0.04, matIron, 0, 2.02, 1.36));
+for (let bx = -0.88; bx <= 0.88; bx += 0.22) {
+  bldgCenter.add(makeBox(0.03, 0.34, 0.03, matIron, bx, 2.02, 1.36));
+}
+
+// Third floor windows
+addFramedWindow(bldgCenter, -0.56, 3.68, 1.01, 0.54, 0.72, true, true);
+addFramedWindow(bldgCenter,  0.56, 3.68, 1.01, 0.54, 0.72, true, true);
+
+// Hanging illuminated cafe blade sign
+const signGroup = new THREE.Group();
+signGroup.position.set(-1.12, 1.85, 1.25);
+signGroup.add(makeBox(0.05, 0.05, 0.52, matIron, 0, 0.18, 0));
+const matSign = new THREE.MeshStandardMaterial({ color: 0xffdf8e, emissive: 0xff9b26, emissiveIntensity: 1.5, roughness: 0.25 });
+signGroup.add(makeBox(0.08, 0.32, 0.36, matSign, 0, -0.02, 0.08));
+bldgCenter.add(signGroup);
+
+// Building C (Right: Ochre & Copper-Domed Corner Apothecary)
+const bldgRight = new THREE.Group();
+bldgRight.position.set(2.48, 0.2, -1.78);
+buildingsGroup.add(bldgRight);
+
+bldgRight.add(makeBox(2.28, 3.65, 2.08, matOchreWall, 0, 1.825, 0));
+bldgRight.add(makeBox(2.40, 0.16, 2.18, matCreamTrim, 0, 1.44, 0));
+bldgRight.add(makeBox(2.46, 0.22, 2.24, matCreamTrim, 0, 3.68, 0));
+bldgRight.add(makeBox(2.15, 0.42, 1.92, matCopper, 0, 3.98, 0));
+
+// Corner turret cupola on top right
+const cupola = new THREE.Mesh(new THREE.CylinderGeometry(0.48, 0.54, 0.52, 16), matCopper);
+cupola.position.set(0.55, 4.35, 0.45);
+cupola.castShadow = true;
+bldgRight.add(cupola);
+const dome = new THREE.Mesh(new THREE.SphereGeometry(0.48, 16, 12, 0, Math.PI * 2, 0, Math.PI * 0.5), matCopper);
+dome.position.set(0.55, 4.6, 0.45);
+bldgRight.add(dome);
+const finial = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.04, 0.35, 8), matIron);
+finial.position.set(0.55, 5.18, 0.45);
+bldgRight.add(finial);
+
+// Storefront & Awning
+bldgRight.add(makeBox(1.35, 1.0, 0.08, matShopWindowGlow, -0.15, 0.72, 1.04, false, false));
+bldgRight.add(makeBox(1.45, 1.1, 0.06, matWood, -0.15, 0.72, 1.02));
+addStripedAwning(bldgRight, -0.05, 1.42, 1.42, 2.05, 0.80, awningTexCorner);
+
+// Upper windows
+addFramedWindow(bldgRight, -0.48, 2.22, 1.04, 0.52, 0.72, true, true);
+addFramedWindow(bldgRight,  0.48, 2.22, 1.04, 0.52, 0.72, true, false);
+addFramedWindow(bldgRight, -0.48, 3.15, 1.04, 0.52, 0.62, true, false);
+addFramedWindow(bldgRight,  0.48, 3.15, 1.04, 0.52, 0.62, true, false);
+
+// Downspouts between buildings
+world.add(makeBox(0.07, 3.9, 0.07, matIron, -1.21, 2.15, -0.86));
+world.add(makeBox(0.07, 4.2, 0.07, matIron,  1.29, 2.30, -0.86));
+
+// Sidewalk Cafe Table & Potted Plants under awnings
+const propGroup = new THREE.Group();
+world.add(propGroup);
+
+// Potted plants
+for (const px of [-3.45, -1.18, 1.22, 3.38]) {
+  const pot = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.12, 0.24, 12), matTerracottaWall);
+  pot.position.set(px, 0.32, -0.72);
+  pot.castShadow = true;
+  propGroup.add(pot);
+  const bush = new THREE.Mesh(
+    new THREE.SphereGeometry(0.20, 12, 10),
+    new THREE.MeshStandardMaterial({ color: 0x3da867, roughness: 0.55 })
+  );
+  bush.position.set(px, 0.52, -0.72);
+  bush.castShadow = true;
+  propGroup.add(bush);
+}
+
+// 5. Vintage Streetlamp with Warm Amber Glow
+const lampGroup = new THREE.Group();
+lampGroup.position.set(1.38, 0.2, -0.45);
+world.add(lampGroup);
+
+// Tiered cast-iron base & fluted post
+const lBase1 = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.22, 0.25, 14), matIron);
+lBase1.position.y = 0.125;
+lampGroup.add(lBase1);
+const lBase2 = new THREE.Mesh(new THREE.CylinderGeometry(0.11, 0.17, 0.35, 14), matIron);
+lBase2.position.y = 0.42;
+lampGroup.add(lBase2);
+const lPole = new THREE.Mesh(new THREE.CylinderGeometry(0.055, 0.08, 2.15, 12), matIron);
+lPole.position.y = 1.62;
+lPole.castShadow = true;
+lampGroup.add(lPole);
+// Crossbar
+lampGroup.add(makeBox(0.46, 0.05, 0.05, matIron, 0, 2.42, 0));
+// Lantern housing
+const lCage = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.15, 0.44, 6), matLampGlass);
+lCage.position.y = 2.86;
+lampGroup.add(lCage);
+const lCap = new THREE.Mesh(new THREE.ConeGeometry(0.28, 0.22, 6), matIron);
+lCap.position.y = 3.18;
+lampGroup.add(lCap);
+const lSpike = new THREE.Mesh(new THREE.SphereGeometry(0.06, 8, 8), matBrass);
+lSpike.position.y = 3.31;
+lampGroup.add(lSpike);
+
+// Soft volumetric halo around streetlamp
+const haloMat = new THREE.MeshBasicMaterial({
+  color: 0xffba52,
+  transparent: true,
+  opacity: 0.32,
+  depthWrite: false
+});
+const lampHalo = new THREE.Mesh(new THREE.SphereGeometry(0.58, 16, 16), haloMat);
+lampHalo.position.y = 2.86;
+lampGroup.add(lampHalo);
+
+// 6. Sagging String Lights Between Buildings & Lamp
+const stringLightCurves = [
+  {
+    p0: new THREE.Vector3(-3.35, 2.75, -0.82),
+    p1: new THREE.Vector3(-1.75, 2.32, -0.35),
+    p2: new THREE.Vector3(-0.15, 2.88, -0.85),
+    bulbs: 8
+  },
+  {
+    p0: new THREE.Vector3(-0.15, 2.88, -0.85),
+    p1: new THREE.Vector3( 1.45, 2.45, -0.32),
+    p2: new THREE.Vector3( 3.25, 2.82, -0.78),
+    bulbs: 8
+  },
+  {
+    p0: new THREE.Vector3(-2.35, 2.55, -0.82),
+    p1: new THREE.Vector3(-0.45, 2.18, -0.15),
+    p2: new THREE.Vector3( 1.38, 2.62, -0.45),
+    bulbs: 7
+  }
+];
+
+const stringStrands = [];
+const matCord = new THREE.MeshBasicMaterial({ color: 0x1e2836 });
+const bulbGeo = new THREE.SphereGeometry(0.068, 10, 10);
+const socketGeo = new THREE.CylinderGeometry(0.032, 0.032, 0.06, 8);
+
+for (let s = 0; s < stringLightCurves.length; s++) {
+  const cfg = stringLightCurves[s];
+  const pivotGroup = new THREE.Group();
+  world.add(pivotGroup);
+
+  const curve = new THREE.QuadraticBezierCurve3(cfg.p0, cfg.p1, cfg.p2);
+  const tubeGeo = new THREE.TubeGeometry(curve, 24, 0.015, 6, false);
+  const cordMesh = new THREE.Mesh(tubeGeo, matCord);
+  pivotGroup.add(cordMesh);
+
+  for (let b = 1; b <= cfg.bulbs; b++) {
+    const t = b / (cfg.bulbs + 1);
+    const pt = curve.getPoint(t);
+    const sock = new THREE.Mesh(socketGeo, matIron);
+    sock.position.set(pt.x, pt.y - 0.03, pt.z);
+    pivotGroup.add(sock);
+
+    const bulb = new THREE.Mesh(bulbGeo, matStringBulb);
+    bulb.position.set(pt.x, pt.y - 0.085, pt.z);
+    pivotGroup.add(bulb);
+  }
+  stringStrands.push({ group: pivotGroup, phase: s * 1.4 });
+}
+
+// 7. Two Small Figures with Bright Umbrellas (One Red, One Yellow) Mid-Stride
+function createUmbrellaFigure(coatColor, umbrellaColor, accentColor, x, y, z, rotY) {
+  const root = new THREE.Group();
+  root.position.set(x, y, z);
+  root.rotation.y = rotY;
+
+  const bodyGroup = new THREE.Group();
+  root.add(bodyGroup);
+
+  const matCoat = new THREE.MeshStandardMaterial({ color: coatColor, roughness: 0.42, metalness: 0.05 });
+  const matBoot = new THREE.MeshStandardMaterial({ color: accentColor, roughness: 0.35 });
+  const matSkin = new THREE.MeshStandardMaterial({ color: 0xf4c8a8, roughness: 0.5 });
+  const matUmb = new THREE.MeshStandardMaterial({
+    color: umbrellaColor,
+    emissive: umbrellaColor,
+    emissiveIntensity: 0.28,
+    roughness: 0.26,
+    side: THREE.DoubleSide
+  });
+
+  // Legs with pivots for walking stride
+  const leftLeg = new THREE.Group();
+  leftLeg.position.set(-0.075, 0.28, 0);
+  const lBoot = new THREE.Mesh(new THREE.CylinderGeometry(0.048, 0.055, 0.26, 10), matBoot);
+  lBoot.position.y = -0.12;
+  lBoot.castShadow = true;
+  leftLeg.add(lBoot);
+  bodyGroup.add(leftLeg);
+
+  const rightLeg = new THREE.Group();
+  rightLeg.position.set(0.075, 0.28, 0);
+  const rBoot = new THREE.Mesh(new THREE.CylinderGeometry(0.048, 0.055, 0.26, 10), matBoot);
+  rBoot.position.y = -0.12;
+  rBoot.castShadow = true;
+  rightLeg.add(rBoot);
+  bodyGroup.add(rightLeg);
+
+  // Raincoat torso
+  const coat = new THREE.Mesh(new THREE.ConeGeometry(0.22, 0.52, 14), matCoat);
+  coat.position.y = 0.48;
+  coat.castShadow = true;
+  bodyGroup.add(coat);
+
+  // Scarf
+  const scarf = new THREE.Mesh(new THREE.TorusGeometry(0.105, 0.038, 8, 16), matBoot);
+  scarf.rotation.x = Math.PI / 2;
+  scarf.position.y = 0.72;
+  bodyGroup.add(scarf);
+
+  // Head
+  const head = new THREE.Mesh(new THREE.SphereGeometry(0.115, 14, 12), matSkin);
+  head.position.y = 0.83;
+  head.castShadow = true;
+  bodyGroup.add(head);
+
+  // Umbrella Assembly
+  const umbGroup = new THREE.Group();
+  umbGroup.position.set(0.06, 0.62, 0.08);
+  umbGroup.rotation.set(-0.14, 0, -0.06);
+  bodyGroup.add(umbGroup);
+
+  const shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.016, 0.016, 0.76, 8), matIron);
+  shaft.position.y = 0.36;
+  umbGroup.add(shaft);
+
+  // Ribbed dome canopy
+  const canopy = new THREE.Mesh(
+    new THREE.SphereGeometry(0.56, 12, 10, 0, Math.PI * 2, 0, Math.PI * 0.46),
+    matUmb
+  );
+  canopy.scale.y = 0.68;
+  canopy.position.y = 0.48;
+  canopy.castShadow = true;
+  umbGroup.add(canopy);
+
+  // White/cream trim band on umbrella edge for high contrast
+  const trimRing = new THREE.Mesh(
+    new THREE.TorusGeometry(0.552, 0.018, 8, 24),
+    matCreamTrim
+  );
+  trimRing.rotation.x = Math.PI / 2;
+  trimRing.position.y = 0.52;
+  umbGroup.add(trimRing);
+
+  const ferrule = new THREE.Mesh(new THREE.ConeGeometry(0.035, 0.11, 8), matBrass);
+  ferrule.position.y = 0.90;
+  umbGroup.add(ferrule);
+
+  world.add(root);
+  return { root, bodyGroup, leftLeg, rightLeg, umbGroup, baseY: y };
+}
+
+// Red umbrella figure on rear sidewalk striding right, Yellow umbrella figure on street corner striding left
+const walkerRed = createUmbrellaFigure(0x284e78, 0xff2e2b, 0xffd24c, -1.55, 0.20, -0.25, Math.PI * 0.42);
+const walkerYellow = createUmbrellaFigure(0x9e342e, 0xffcc18, 0x20354f, 1.98, 0.08, 1.92, -Math.PI * 0.62);
+
+// 8. Prominent Paper Boat in the Largest Puddle + Bold Wake Ripples (INTERACTION 2)
+const boatAnchor = { x: -0.62, y: 0.095, z: 1.12, rotY: 0.24 };
+const boatGroup = new THREE.Group();
+boatGroup.position.set(boatAnchor.x, boatAnchor.y, boatAnchor.z);
+boatGroup.rotation.y = boatAnchor.rotY;
+// Scaled up prominently so it is an unmistakable focal hero at 320px
+boatGroup.scale.setScalar(1.62);
+world.add(boatGroup);
+
+const matPaperBright = new THREE.MeshStandardMaterial({
+  color: 0xffffff,
+  emissive: 0xfff2d6,
+  emissiveIntensity: 0.72,
+  roughness: 0.22,
+  side: THREE.DoubleSide
+});
+const matPaperDeck = new THREE.MeshStandardMaterial({
+  color: 0xfffaf0,
+  emissive: 0xffe4b5,
+  emissiveIntensity: 0.55,
+  roughness: 0.28,
+  side: THREE.DoubleSide
+});
+const matSailAccent = new THREE.MeshStandardMaterial({
+  color: 0xff3b2f,
+  emissive: 0xff4538,
+  emissiveIntensity: 0.58,
+  roughness: 0.25,
+  side: THREE.DoubleSide
+});
+const matSailGold = new THREE.MeshStandardMaterial({
+  color: 0xffcb2e,
+  emissive: 0xffb71c,
+  emissiveIntensity: 0.52,
+  roughness: 0.25,
+  side: THREE.DoubleSide
+});
+
+// Sculpted crisp white origami paper boat hull
+const hullGeo = new THREE.ConeGeometry(0.28, 0.17, 4);
+hullGeo.rotateX(Math.PI);
+hullGeo.rotateY(Math.PI / 4);
+hullGeo.scale(1.68, 0.92, 0.70);
+const hullMesh = new THREE.Mesh(hullGeo, matPaperBright);
+hullMesh.position.y = 0.075;
+hullMesh.castShadow = true;
+boatGroup.add(hullMesh);
+
+// Raised origami bow & stern gunwale folds
+const innerDeckGeo = new THREE.ConeGeometry(0.24, 0.12, 4);
+innerDeckGeo.rotateY(Math.PI / 4);
+innerDeckGeo.scale(1.52, 0.65, 0.58);
+const innerDeckMesh = new THREE.Mesh(innerDeckGeo, matPaperDeck);
+innerDeckMesh.position.y = 0.095;
+boatGroup.add(innerDeckMesh);
+
+// Tall origami center peak sail (bright white with bold coral-red & gold accents)
+const sailGeo = new THREE.ConeGeometry(0.155, 0.27, 4);
+sailGeo.rotateY(Math.PI / 4);
+sailGeo.scale(1.18, 1.08, 0.62);
+const sailMesh = new THREE.Mesh(sailGeo, matPaperBright);
+sailMesh.position.y = 0.175;
+sailMesh.castShadow = true;
+boatGroup.add(sailMesh);
+
+// Colored sail accent triangle panel + cheerful pennant flag on top
+const accentSailGeo = new THREE.ConeGeometry(0.115, 0.19, 4);
+accentSailGeo.rotateY(Math.PI / 4);
+accentSailGeo.scale(1.22, 1.0, 0.66);
+const accentSailMesh = new THREE.Mesh(accentSailGeo, matSailAccent);
+accentSailMesh.position.set(0.02, 0.205, 0);
+boatGroup.add(accentSailMesh);
+
+// Cheerful golden pennant flag at peak
+const pennantGeo = new THREE.BufferGeometry();
+const pVerts = new Float32Array([
+  0, 0.30, 0,
+  -0.13, 0.27, 0.02,
+  0, 0.24, 0
+]);
+pennantGeo.setAttribute('position', new THREE.BufferAttribute(pVerts, 3));
+pennantGeo.computeVertexNormals();
+const pennantMesh = new THREE.Mesh(pennantGeo, matSailGold);
+boatGroup.add(pennantMesh);
+
+// Bright crimson stripe along hull rim
+const stripeGeo = new THREE.BoxGeometry(0.42, 0.026, 0.21);
+const boatStripe = new THREE.Mesh(stripeGeo, matSailAccent);
+boatStripe.position.y = 0.115;
+boatGroup.add(boatStripe);
+
+// Soft luminous reflection ring right around the boat base so it pops on the water
+const boatWaterGlowGeo = new THREE.RingGeometry(0.14, 0.34, 28);
+boatWaterGlowGeo.rotateX(-Math.PI / 2);
+boatWaterGlowGeo.scale(1.45, 1, 0.85);
+const matBoatWaterGlow = new THREE.MeshBasicMaterial({
+  color: 0xffe8a3,
+  transparent: true,
+  opacity: 0.55,
+  depthWrite: false
+});
+const boatWaterGlow = new THREE.Mesh(boatWaterGlowGeo, matBoatWaterGlow);
+boatWaterGlow.position.y = 0.01;
+boatGroup.add(boatWaterGlow);
+
+// Boat wake ripple rings pool (Larger, high-contrast expanding rings)
+const wakeRings = [];
+const wakeRingGeo = new THREE.RingGeometry(0.15, 0.22, 32);
+wakeRingGeo.rotateX(-Math.PI / 2);
+for (let i = 0; i < 14; i++) {
+  const rMat = new THREE.MeshBasicMaterial({ color: 0xe6f5ff, transparent: true, opacity: 0, depthWrite: false });
+  const rMesh = new THREE.Mesh(wakeRingGeo, rMat);
+  rMesh.position.y = 0.089;
+  rMesh.visible = false;
+  world.add(rMesh);
+  wakeRings.push({ mesh: rMesh, mat: rMat, active: false, birth: 0, duration: 1150 });
+}
+
+function spawnWakeRing(x, z, now) {
+  for (let i = 0; i < wakeRings.length; i++) {
+    const w = wakeRings[i];
+    if (!w.active) {
+      w.active = true;
+      w.birth = now;
+      w.mesh.position.set(x, 0.089, z);
+      w.mesh.scale.set(0.75, 1, 0.75);
+      w.mat.opacity = 0.92;
+      w.mesh.visible = true;
+      return;
+    }
+  }
+}
+
+// 9. Low Sculptural Monsoon Clouds Above + Jagged Lightning Bolt (INTERACTION 1)
+const cloudsGroup = new THREE.Group();
+cloudsGroup.position.set(0, 6.25, -0.15);
+world.add(cloudsGroup);
+
+const matCloud = new THREE.MeshStandardMaterial({
+  color: 0x6b84a8,
+  emissive: 0x2e415e,
+  emissiveIntensity: 0.48,
+  roughness: 0.65,
+  metalness: 0.05
+});
+
+const cloudClusters = [];
+const clusterConfigs = [
+  { x: -1.85, y: 0.10, z: -0.25, scale: 1.08, speed: 0.7, phase: 0.0 },
+  { x:  0.15, y: 0.28, z:  0.15, scale: 1.22, speed: 0.55, phase: 1.6 },
+  { x:  2.05, y: 0.05, z: -0.20, scale: 1.02, speed: 0.65, phase: 3.1 }
+];
+
+const puffGeo = new THREE.IcosahedronGeometry(0.65, 2);
+for (const cfg of clusterConfigs) {
+  const cg = new THREE.Group();
+  cg.position.set(cfg.x, cfg.y, cfg.z);
+  cg.scale.setScalar(cfg.scale);
+
+  const puffs = [
+    [0, 0, 0, 1.25, 0.78, 1.0],
+    [-0.68, -0.08, 0.12, 0.92, 0.68, 0.85],
+    [ 0.72, -0.06, 0.08, 0.96, 0.70, 0.88],
+    [-0.28, 0.28, -0.15, 0.88, 0.72, 0.82],
+    [ 0.34, 0.24,  0.18, 0.82, 0.68, 0.78],
+    [ 0.0, -0.14,  0.42, 0.95, 0.60, 0.75]
+  ];
+  for (const p of puffs) {
+    const m = new THREE.Mesh(puffGeo, matCloud);
+    m.position.set(p[0], p[1], p[2]);
+    m.scale.set(p[3], p[4], p[5]);
+    m.castShadow = true;
+    cg.add(m);
+  }
+  cloudsGroup.add(cg);
+  cloudClusters.push({ group: cg, baseX: cfg.x, baseY: cfg.y, speed: cfg.speed, phase: cfg.phase });
+}
+
+// Jagged Lightning Bolt Geometry (Crisp bright core + electric blue halo)
+const boltGroup = new THREE.Group();
+boltGroup.visible = false;
+world.add(boltGroup);
+
+const matBoltCore = new THREE.MeshBasicMaterial({ color: 0xffffff });
+const matBoltHalo = new THREE.MeshBasicMaterial({ color: 0x7ac5ff, transparent: true, opacity: 0.82 });
+let boltCoreMesh = null;
+let boltHaloMesh = null;
+let boltBranchMesh = null;
+
+// Ground strike impact ring
+const strikeRingGeo = new THREE.RingGeometry(0.18, 0.62, 28);
+strikeRingGeo.rotateX(-Math.PI / 2);
+const matStrikeRing = new THREE.MeshBasicMaterial({ color: 0xdff2ff, transparent: true, opacity: 0.92, side: THREE.DoubleSide });
+const strikeRingMesh = new THREE.Mesh(strikeRingGeo, matStrikeRing);
+strikeRingMesh.position.set(-0.2, 0.11, 0.65);
+boltGroup.add(strikeRingMesh);
+
+function rebuildLightningBolt() {
+  if (boltCoreMesh) {
+    boltGroup.remove(boltCoreMesh);
+    boltCoreMesh.geometry.dispose();
+  }
+  if (boltHaloMesh) {
+    boltGroup.remove(boltHaloMesh);
+    boltHaloMesh.geometry.dispose();
+  }
+  if (boltBranchMesh) {
+    boltGroup.remove(boltBranchMesh);
+    boltBranchMesh.geometry.dispose();
   }
 
-  // umbrellas bob along the street
-  for (const u of umbrellas) {
-    u.g.position.y = 0.06 + Math.abs(Math.sin(now * 2.2 + u.ph)) * 0.02;
-    u.g.rotation.z = Math.sin(now * 1.6 + u.ph) * 0.03;
+  const startX = randRange(-1.1, 1.1);
+  const endX = randRange(-0.85, 0.75);
+  const endZ = randRange(0.25, 1.05);
+  const pts = [];
+  const steps = 9;
+  for (let i = 0; i <= steps; i++) {
+    const t = i / steps;
+    const y = THREE.MathUtils.lerp(6.1, 0.12, t);
+    const jitter = (i === 0 || i === steps) ? 0 : randRange(-0.48, 0.48);
+    const x = THREE.MathUtils.lerp(startX, endX, t) + jitter;
+    const z = THREE.MathUtils.lerp(-0.1, endZ, t) + ((i === 0 || i === steps) ? 0 : randRange(-0.22, 0.22));
+    pts.push(new THREE.Vector3(x, y, z));
+  }
+  const path = new THREE.CatmullRomCurve3(pts);
+  const coreGeo = new THREE.TubeGeometry(path, 24, 0.065, 6, false);
+  boltCoreMesh = new THREE.Mesh(coreGeo, matBoltCore);
+  boltGroup.add(boltCoreMesh);
+
+  const haloGeo = new THREE.TubeGeometry(path, 24, 0.135, 6, false);
+  boltHaloMesh = new THREE.Mesh(haloGeo, matBoltHalo);
+  boltGroup.add(boltHaloMesh);
+
+  // Secondary branch
+  const midPt = pts[3].clone();
+  const bPts = [
+    midPt,
+    midPt.clone().add(new THREE.Vector3(randRange(0.4, 0.85), -0.95, randRange(-0.2, 0.2))),
+    midPt.clone().add(new THREE.Vector3(randRange(0.8, 1.35), -1.85, randRange(-0.3, 0.3)))
+  ];
+  const bPath = new THREE.CatmullRomCurve3(bPts);
+  const branchGeo = new THREE.TubeGeometry(bPath, 10, 0.042, 5, false);
+  boltBranchMesh = new THREE.Mesh(branchGeo, matBoltCore);
+  boltGroup.add(boltBranchMesh);
+
+  strikeRingMesh.position.set(endX, 0.11, endZ);
+}
+rebuildLightningBolt();
+
+// 10. Steady Rain Streaks & Tiny Splash Pops on the Street
+const RAIN_COUNT = 340;
+const rainGeo = new THREE.CylinderGeometry(0.011, 0.011, 0.56, 4);
+rainGeo.rotateZ(0.09); // Slight monsoon wind slant
+const matRain = new THREE.MeshBasicMaterial({ color: 0xd4ebff, transparent: true, opacity: 0.65 });
+const rainInst = new THREE.InstancedMesh(rainGeo, matRain, RAIN_COUNT);
+world.add(rainInst);
+
+const rainDrops = [];
+for (let i = 0; i < RAIN_COUNT; i++) {
+  rainDrops.push({
+    x: randRange(-3.65, 3.65),
+    y: randRange(0.2, 6.0),
+    z: randRange(-2.6, 3.0),
+    speed: randRange(9.2, 13.5),
+    lenScale: randRange(0.8, 1.35)
+  });
+}
+
+// Splash pops on cobblestones & puddles
+const SPLASH_COUNT = 56;
+const splashGeo = new THREE.RingGeometry(0.038, 0.082, 14);
+splashGeo.rotateX(-Math.PI / 2);
+const matSplash = new THREE.MeshBasicMaterial({ color: 0xe0f2ff, transparent: true, opacity: 0.72, side: THREE.DoubleSide });
+const splashInst = new THREE.InstancedMesh(splashGeo, matSplash, SPLASH_COUNT);
+world.add(splashInst);
+
+const splashes = [];
+for (let i = 0; i < SPLASH_COUNT; i++) {
+  const z = randRange(-0.4, 2.25);
+  splashes.push({
+    x: randRange(-3.4, 3.4),
+    y: z < -0.45 ? 0.21 : 0.09,
+    z,
+    phase: rng(),
+    speed: randRange(1.8, 3.1)
+  });
+}
+
+// 11. Generous Invisible Raycast Hit Proxies (Unmistakable at 320px)
+const proxyMat = new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false });
+
+// Sky & Clouds Proxy (covers upper cloud stack & sky area generously)
+const skyProxy = new THREE.Mesh(new THREE.BoxGeometry(9.2, 3.6, 6.2), proxyMat);
+skyProxy.position.set(0, 6.1, 0);
+skyProxy.userData.action = 'thunder';
+world.add(skyProxy);
+
+// Paper Boat & Puddle Proxy (expanded generous touch volume over main puddle & boat)
+const boatProxy = new THREE.Mesh(new THREE.CylinderGeometry(2.55, 2.55, 1.25, 24), proxyMat);
+boatProxy.position.set(0.05, 0.38, 1.08);
+boatProxy.userData.action = 'sail';
+world.add(boatProxy);
+
+const interactables = [boatProxy, skyProxy];
+
+// 12. Interaction State Machines (Retriggerable on every tap, never locks)
+const thunderState = {
+  active: false,
+  startTime: 0,
+  duration: 1350
+};
+
+const sailState = {
+  active: false,
+  startTime: 0,
+  duration: 3100,
+  lastWakeTime: 0
+};
+
+function triggerThunder(now) {
+  thunderState.active = true;
+  thunderState.startTime = now;
+  rebuildLightningBolt();
+}
+
+function triggerBoatSail(now) {
+  sailState.active = true;
+  sailState.startTime = now;
+  sailState.lastWakeTime = 0;
+  spawnWakeRing(boatGroup.position.x, boatGroup.position.z, now);
+}
+
+// Pointer Tap Handling (distinguishes tap from orbit drag)
+const raycaster = new THREE.Raycaster();
+const pointerDownPos = new THREE.Vector2();
+const pointerNDC = new THREE.Vector2();
+let pointerDownTime = 0;
+
+renderer.domElement.addEventListener('pointerdown', (e) => {
+  pointerDownPos.set(e.clientX, e.clientY);
+  pointerDownTime = performance.now();
+});
+
+renderer.domElement.addEventListener('pointerup', (e) => {
+  const dx = e.clientX - pointerDownPos.x;
+  const dy = e.clientY - pointerDownPos.y;
+  const dist = Math.hypot(dx, dy);
+  const elapsed = performance.now() - pointerDownTime;
+  if (dist > 14 || elapsed > 600) return;
+
+  const rect = renderer.domElement.getBoundingClientRect();
+  pointerNDC.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+  pointerNDC.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+
+  raycaster.setFromCamera(pointerNDC, camera);
+  const hits = raycaster.intersectObjects(interactables, false);
+  const now = performance.now();
+
+  if (hits.length > 0) {
+    const action = hits[0].object.userData.action;
+    if (action === 'sail') {
+      triggerBoatSail(now);
+      return;
+    }
+    if (action === 'thunder') {
+      triggerThunder(now);
+      return;
+    }
   }
 
-  // paper boat bobs in its puddle
-  boat.position.y = 0.1 + Math.sin(now * 1.8) * 0.015;
-  boat.rotation.z = Math.sin(now * 1.3) * 0.08;
-  boat.rotation.x = Math.cos(now * 1.6) * 0.05;
+  // Fallback screen-zone check so tapping upper sky always triggers thunder
+  const headerBottom = headerEl.getBoundingClientRect().bottom;
+  if (e.clientY > headerBottom && e.clientY < rect.height * 0.42) {
+    triggerThunder(now);
+  }
+});
 
-  // warm windows flicker very slightly during lightning
-  WIN.emissiveIntensity = 1.6 + flash * 0.8;
+// 13. Projected Bounding-Box Camera Framing with Safe Header/Footer Clearance
+const viewDir = new THREE.Vector3(0.60, 0.36, 0.715).normalize();
+
+function fitCameraToDiorama() {
+  const width = window.innerWidth;
+  const height = window.innerHeight;
+  if (!width || !height) return;
+
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+  renderer.setSize(width, height);
+  camera.aspect = width / height;
+
+  const headerH = headerEl.getBoundingClientRect().height || 78;
+  const footerH = footerEl.getBoundingClientRect().height || 40;
+
+  const topSafePx = headerH + 10;
+  const bottomSafePx = footerH + 10;
+  const usableH = Math.max(140, height - topSafePx - bottomSafePx);
+
+  // Adjust FOV subtly for tall portrait phones vs desktop
+  camera.fov = camera.aspect < 0.75 ? 36 : 32;
+  camera.updateProjectionMatrix();
+
+  const vFovRad = THREE.MathUtils.degToRad(camera.fov);
+  const tanHalfVFov = Math.tan(vFovRad / 2);
+  const tanHalfHFov = tanHalfVFov * camera.aspect;
+
+  const usableVFraction = (usableH / height) * 0.90;
+  const usableHFraction = 0.89;
+
+  // Target center slightly shifted so safe band center aligns with diorama center
+  const bandCenterNormY = ((height - bottomSafePx + topSafePx) * 0.5 / height - 0.5) * 2;
+  const sceneCenter = new THREE.Vector3(0.0, 3.35, 0.05);
+
+  // Build camera basis vectors from viewDir
+  const forward = viewDir.clone().negate();
+  const worldUp = new THREE.Vector3(0, 1, 0);
+  const right = new THREE.Vector3().crossVectors(forward, worldUp).normalize();
+  const up = new THREE.Vector3().crossVectors(right, forward).normalize();
+
+  let requiredDist = 8.0;
+  for (const pt of framingPoints) {
+    const rel = pt.clone().sub(sceneCenter);
+    const xCam = rel.dot(right);
+    const yCam = rel.dot(up);
+    const zCam = rel.dot( viewDir );
+
+    const dH = Math.abs(xCam) / (tanHalfHFov * usableHFraction) + zCam;
+    const dV = Math.abs(yCam) / (tanHalfVFov * usableVFraction) + zCam;
+    requiredDist = Math.max(requiredDist, dH, dV);
+  }
+
+  // Offset target vertically to account for asymmetric header/footer safe margins
+  const verticalTargetShift = bandCenterNormY * requiredDist * tanHalfVFov * 0.55;
+  controls.target.set(sceneCenter.x, sceneCenter.y + verticalTargetShift, sceneCenter.z);
+
+  camera.position.copy(controls.target).addScaledVector(viewDir, requiredDist);
+  controls.minDistance = requiredDist * 0.68;
+  controls.maxDistance = requiredDist * 1.45;
+  controls.update();
+}
+
+window.addEventListener('resize', fitCameraToDiorama);
+fitCameraToDiorama();
+requestAnimationFrame(fitCameraToDiorama);
+
+document.addEventListener('visibilitychange', () => {
+  isTabHidden = document.hidden;
+});
+
+// 14. Smooth Animation Loop (Driven by performance.now)
+let lastTime = performance.now();
+
+function animate(now) {
+  requestAnimationFrame(animate);
+  if (isTabHidden || contextLost) {
+    lastTime = now;
+    return;
+  }
+
+  const dt = Math.min((now - lastTime) / 1000, 0.05);
+  lastTime = now;
+  const tSec = now * 0.001;
+
+  // --- A. INTERACTION 1: Monsoon Thunder Beat (Balanced flash that preserves building colors) ---
+  let rainRateMult = 1.0;
+  let rainLenMult = 1.0;
+  let lampFlicker = 1.0;
+  let windowFlicker = 1.0;
+  let lightningIntensity = 0.0;
+  let cloudFlashBoost = 0.0;
+  let boltVisible = false;
+
+  if (thunderState.active) {
+    const elapsed = now - thunderState.startTime;
+    const p = elapsed / thunderState.duration;
+    if (p >= 1.0) {
+      thunderState.active = false;
+      container.style.filter = 'none';
+    } else {
+      // Crisp double-pulse lightning strike: bright bolt, controlled scene illumination (max 2.15)
+      if (p < 0.08) {
+        lightningIntensity = 1.85;
+        cloudFlashBoost = 1.1;
+        boltVisible = true;
+      } else if (p < 0.13) {
+        lightningIntensity = 0.35;
+        cloudFlashBoost = 0.25;
+        boltVisible = false;
+      } else if (p < 0.24) {
+        lightningIntensity = 2.15;
+        cloudFlashBoost = 1.35;
+        boltVisible = true;
+      } else if (p < 0.44) {
+        const decay = 1 - (p - 0.24) / 0.20;
+        lightningIntensity = decay * 0.95;
+        cloudFlashBoost = decay * 0.6;
+        boltVisible = p < 0.29;
+      }
+
+      // Streetlamp and shop windows flicker during strike then recover warmly
+      if (p > 0.06 && p < 0.55) {
+        const flickWave = Math.sin(elapsed * 0.075) * Math.cos(elapsed * 0.13);
+        lampFlicker = flickWave > 0 ? 1.18 : 0.24;
+        windowFlicker = flickWave > -0.2 ? 1.12 : 0.38;
+      }
+
+      // Rain bursts heavier for a moment then settles back
+      const burstEnv = Math.sin(Math.min(1, p * 1.15) * Math.PI);
+      rainRateMult = 1.0 + 1.15 * burstEnv;
+      rainLenMult = 1.0 + 0.55 * burstEnv;
+
+      // Subtle sky-flash lift without washing out building facades
+      if (lightningIntensity > 0.5) {
+        container.style.filter = `brightness(${(1 + lightningIntensity * 0.055).toFixed(3)})`;
+      } else {
+        container.style.filter = 'none';
+      }
+    }
+  }
+
+  boltGroup.visible = boltVisible;
+  if (boltVisible) {
+    const s = 0.85 + 0.55 * Math.sin(now * 0.05);
+    strikeRingMesh.scale.set(s, 1, s);
+  }
+  lightningLight.intensity = lightningIntensity;
+  matCloud.emissiveIntensity = 0.48 + cloudFlashBoost;
+
+  // Apply warm lamp/window glow + subtle idle shimmer
+  const idleWarmPulse = 1.0 + 0.035 * Math.sin(tSec * 4.2);
+  streetLampLight.intensity = 5.8 * lampFlicker * idleWarmPulse;
+  matLampGlass.emissiveIntensity = 3.1 * lampFlicker * idleWarmPulse;
+  lampHalo.material.opacity = 0.32 * lampFlicker;
+  matWindowGlow.emissiveIntensity = 1.85 * windowFlicker;
+  matShopWindowGlow.emissiveIntensity = 2.2 * windowFlicker;
+  matStringBulb.emissiveIntensity = 2.7 * lampFlicker;
+
+  // --- B. INTERACTION 2: Paper Boat Sets Sail (Wide, Unmistakable Glide & Spin at 320px) ---
+  if (sailState.active) {
+    const elapsed = now - sailState.startTime;
+    const u = elapsed / sailState.duration;
+    if (u >= 1.0) {
+      sailState.active = false;
+    } else {
+      // Wide, sweeping voyage across the expanded puddle:
+      // Glides from left-front (-0.62, 1.12) -> right-back (+1.18, 0.82) -> center spin -> front-right -> back to mooring
+      const env = Math.sin(u * Math.PI);
+      const loopAngle = u * Math.PI * 2;
+
+      const glideX = (1 - Math.cos(loopAngle)) * 0.88 + Math.sin(loopAngle) * 0.52;
+      const glideZ = -Math.sin(loopAngle * 2) * 0.42;
+
+      const bx = boatAnchor.x + glideX * env;
+      const bz = boatAnchor.z + glideZ * env;
+
+      // Tangent heading along path + cheerful 360 twirl near center of puddle (u in 0.36..0.70)
+      const dx = (Math.sin(loopAngle) * 0.88 + Math.cos(loopAngle) * 0.52);
+      const dz = -Math.cos(loopAngle * 2) * 0.84;
+      const pathHeading = Math.atan2(-dz, dx) * 0.55 * env;
+
+      let spinBonus = 0;
+      if (u > 0.36 && u < 0.70) {
+        const su = (u - 0.36) / 0.34;
+        spinBonus = (0.5 - 0.5 * Math.cos(su * Math.PI)) * Math.PI * 2;
+      }
+
+      boatGroup.position.x = bx;
+      boatGroup.position.z = bz;
+      boatGroup.position.y = boatAnchor.y + Math.sin(tSec * 10.0) * 0.024 + 0.018 * env;
+      boatGroup.rotation.y = boatAnchor.rotY + pathHeading + spinBonus;
+      boatGroup.rotation.z = Math.sin(tSec * 8.5) * 0.11;
+      boatGroup.rotation.x = Math.cos(tSec * 7.0) * 0.075;
+
+      if (now - sailState.lastWakeTime > 95) {
+        sailState.lastWakeTime = now;
+        spawnWakeRing(bx, bz, now);
+      }
+    }
+  } else {
+    // Ongoing gentle idle bobble in its mooring spot
+    boatGroup.position.x = boatAnchor.x + Math.sin(tSec * 1.4) * 0.06;
+    boatGroup.position.z = boatAnchor.z + Math.cos(tSec * 1.1) * 0.045;
+    boatGroup.position.y = boatAnchor.y + Math.sin(tSec * 3.6) * 0.018;
+    boatGroup.rotation.y = boatAnchor.rotY + Math.sin(tSec * 1.2) * 0.14;
+    boatGroup.rotation.z = Math.sin(tSec * 2.9) * 0.07;
+    boatGroup.rotation.x = Math.cos(tSec * 2.3) * 0.05;
+  }
+
+  // Update active wake rings
+  for (let i = 0; i < wakeRings.length; i++) {
+    const w = wakeRings[i];
+    if (w.active) {
+      const age = now - w.birth;
+      if (age >= w.duration) {
+        w.active = false;
+        w.mesh.visible = false;
+      } else {
+        const k = age / w.duration;
+        const sc = 0.75 + k * 3.85;
+        w.mesh.scale.set(sc, 1, sc);
+        w.mat.opacity = (1 - k) * 0.88;
+      }
+    }
+  }
+
+  // --- C. IDLE ANIMATIONS: Rain, Splashes, Puddles, String Lights, Walkers, Clouds ---
+  // 1. Rain streaks falling within diorama bounds (never crossing header/footer)
+  for (let i = 0; i < RAIN_COUNT; i++) {
+    const r = rainDrops[i];
+    r.y -= r.speed * rainRateMult * dt;
+    r.x -= r.speed * 0.09 * rainRateMult * dt;
+    if (r.y < 0.15) {
+      r.y = 5.95 + (r.y % 0.4);
+      r.x = randRange(-3.6, 3.6);
+    }
+    dummy.position.set(r.x, r.y, r.z);
+    dummy.rotation.set(0, 0, 0);
+    dummy.scale.set(1, r.lenScale * rainLenMult, 1);
+    dummy.updateMatrix();
+    rainInst.setMatrixAt(i, dummy.matrix);
+  }
+  rainInst.instanceMatrix.needsUpdate = true;
+
+  // 2. Splash pops on the wet street
+  for (let i = 0; i < SPLASH_COUNT; i++) {
+    const s = splashes[i];
+    s.phase = (s.phase + dt * s.speed * rainRateMult) % 1.0;
+    const sc = 0.35 + s.phase * 1.65;
+    const visScale = s.phase < 0.85 ? sc : 0.001;
+    dummy.position.set(s.x, s.y, s.z);
+    dummy.rotation.set(0, 0, 0);
+    dummy.scale.set(visScale, 1, visScale);
+    dummy.updateMatrix();
+    splashInst.setMatrixAt(i, dummy.matrix);
+  }
+  splashInst.instanceMatrix.needsUpdate = true;
+
+  // 3. Puddle reflected light shimmer
+  for (let i = 0; i < puddles.length; i++) {
+    const p = puddles[i];
+    p.glowMat.opacity = (0.46 + 0.12 * Math.sin(tSec * 3.8 + i * 1.7)) * lampFlicker;
+  }
+
+  // 4. String lights gentle sway
+  for (let i = 0; i < stringLightCurves.length; i++) {
+    const st = stringStrands[i];
+    st.group.rotation.z = Math.sin(tSec * 1.85 + st.phase) * 0.012;
+    st.group.rotation.x = Math.cos(tSec * 1.45 + st.phase) * 0.010;
+  }
+
+  // 5. Umbrella figures bobbing as they walk in place
+  const strideA = tSec * 5.6;
+  walkerRed.bodyGroup.position.y = Math.abs(Math.sin(strideA)) * 0.048;
+  walkerRed.bodyGroup.rotation.z = Math.sin(strideA) * 0.045;
+  walkerRed.leftLeg.rotation.x = Math.sin(strideA) * 0.42;
+  walkerRed.rightLeg.rotation.x = -Math.sin(strideA) * 0.42;
+  walkerRed.umbGroup.rotation.z = -0.06 + Math.sin(strideA * 0.5) * 0.05;
+
+  const strideB = tSec * 5.2 + 1.4;
+  walkerYellow.bodyGroup.position.y = Math.abs(Math.sin(strideB)) * 0.048;
+  walkerYellow.bodyGroup.rotation.z = Math.sin(strideB) * 0.045;
+  walkerYellow.leftLeg.rotation.x = Math.sin(strideB) * 0.42;
+  walkerYellow.rightLeg.rotation.x = -Math.sin(strideB) * 0.42;
+  walkerYellow.umbGroup.rotation.z = -0.06 + Math.cos(strideB * 0.5) * 0.05;
+
+  // 6. Clouds drifting slowly above
+  for (let i = 0; i < cloudClusters.length; i++) {
+    const cl = cloudClusters[i];
+    cl.group.position.x = cl.baseX + Math.sin(tSec * cl.speed + cl.phase) * 0.28;
+    cl.group.position.y = cl.baseY + Math.cos(tSec * (cl.speed * 1.3) + cl.phase) * 0.06;
+  }
 
   controls.update();
   renderer.render(scene, camera);
 }
-animate();
+
+requestAnimationFrame(animate);
 </script>
 </body>
 </html>
+
