@@ -1378,7 +1378,7 @@
       const aspect = vw / Math.max(1, vh);
 
       // Aspect-aware FOV: slightly wider vertical FOV on narrow portrait screens
-      const fovDeg = aspect < 0.75 ? 40 : (aspect < 1.0 ? 37 : 33);
+      const fovDeg = aspect < 0.75 ? 65 : (aspect < 1.0 ? 37 : 33);
       camera.fov = fovDeg;
       camera.aspect = aspect;
       camera.updateProjectionMatrix();
@@ -1394,7 +1394,7 @@
       const ndcTopMax = 1.0 - (topSafePx / vh) * 2.0;
       const ndcBotMin = -1.0 + (bottomSafePx / vh) * 2.0;
       const safeHalfNdcY = Math.max(0.28, Math.min(ndcTopMax, -ndcBotMin) * 0.93);
-      const safeHalfNdcX = 0.91;
+      const safeHalfNdcX = aspect < 0.75 ? 1.20 : 0.91;
 
       // Center target slightly biased so asymmetrical UI header/footer balance nicely
       const centerTarget = new THREE.Vector3(0.0, 1.55, -0.15);
@@ -1426,7 +1426,7 @@
         requiredDistance = Math.max(requiredDistance, distForX, distForY);
       });
 
-      const finalDist = requiredDistance * 1.04;
+      const finalDist = requiredDistance * 1.02;
       camera.position.copy(centerTarget).addScaledVector(viewDir, finalDist);
       controls.minDistance = finalDist * 0.82;
       controls.maxDistance = finalDist * 1.25;
