@@ -1329,7 +1329,7 @@
       new THREE.Vector3(-2.5, 3.85, 1.4)
     ];
 
-    const PORTRAIT_ZOOM = 0.55;
+    const PORTRAIT_ZOOM = 1.0;
     const PORTRAIT_ELEV = 0.28;
     const PORTRAIT_SHIFT_PX = -70; // raise content into the upper whitespace band
     const viewDirBase = new THREE.Vector3(0.28, 0.56, 0.78);
@@ -1355,7 +1355,7 @@
       const bottomSafePx = Math.min(vh * 0.16, (vh - footerRect.top) + 12);
 
       const usableHeightFrac = Math.max(0.52, (vh - topSafePx - bottomSafePx) / Math.max(1, vh));
-      const usableWidthFrac = aspect < 1.0 ? 1.30 : 0.90;
+      const usableWidthFrac = aspect < 1.0 ? 0.95 : 0.90;
 
       const vFovRad = THREE.MathUtils.degToRad(camera.fov);
       const tanHalfVFov = Math.tan(vFovRad * 0.5) * usableHeightFrac;
@@ -1383,7 +1383,7 @@
       }
 
       reqDist *= 1.06; // Small breathing margin
-      if (aspect < 1.0) reqDist *= PORTRAIT_ZOOM; // Portrait: let slab edges bleed so the model fills the tall frame
+      if (aspect < 1.0) reqDist *= PORTRAIT_ZOOM; // Portrait: fit the full slab width - no content cropping
 
       // Shift target vertically so the diorama sits centered between header and footer
       const pixelOffsetY = (topSafePx - bottomSafePx) * 0.5;
