@@ -1,0 +1,1337 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Canal Lock - a tiny world</title>
+<style>
+  html, body { margin:0; padding:0; height:100%; background:#bcd8ea; overflow:hidden;
+    font-family: Georgia, 'Times New Roman', serif; }
+  #app { position:fixed; inset:0; }
+  header { position:fixed; top:0; left:0; right:0; text-align:center; pointer-events:none;
+    padding: max(18px, env(safe-area-inset-top)) 16px 18px; z-index:5;
+    background: linear-gradient(rgba(40,62,84,.5), rgba(40,62,84,.24) 55%, rgba(40,62,84,0)); }
+  header h1 { margin:0; font-size:15px; letter-spacing:.42em; font-weight:400;
+    color:#f5fafd; text-transform:uppercase; text-shadow:0 1px 8px rgba(24,40,58,.8); }
+  header .subtitle { margin:4px 0 0; font-size:10px; letter-spacing:.28em; font-style:italic;
+    color:rgba(245,250,253,.82); text-shadow:0 1px 4px rgba(24,40,58,.75); }
+  header .rule { width:44px; height:1px; background:rgba(245,250,253,.55); margin:8px auto; }
+  #hint { display:inline-block; font-size:11.5px; letter-spacing:.24em; text-transform:uppercase;
+    color:#f6fbfe; transition:opacity 1.2s ease; padding:5px 12px; border-radius:3px;
+    background:rgba(34,54,74,.45);
+    text-shadow:0 1px 3px rgba(18,32,46,.98), 0 0 8px rgba(18,32,46,.95), 0 0 18px rgba(18,32,46,.85); }
+  #hint.faded { opacity:.45; }
+  footer { position:fixed; bottom:0; left:0; right:0; text-align:center; pointer-events:none;
+    padding:0 16px max(14px, env(safe-area-inset-bottom)); z-index:5;
+    font-size:10px; letter-spacing:.34em; text-transform:uppercase; color:rgba(245,250,253,.65); }
+  canvas { display:block; touch-action:none; }
+  @media (max-width: 380px) {
+    header h1 { font-size:12px; letter-spacing:.3em; }
+    header .subtitle { font-size:9px; letter-spacing:.22em; }
+    #hint { font-size:10px; letter-spacing:.2em; }
+  }
+</style>
+</head>
+<body>
+<div id="app"></div>
+<header>
+  <h1>Canal Lock</h1>
+  <div class="subtitle">a tiny world</div>
+  <div class="rule"></div>
+  <span id="hint"></span>
+</header>
+<footer>A tiny world</footer>
+<script type="importmap">
+{ "imports": {
+  "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+  "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+} }
+</script>
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;}}
+const rand = mulberry32(20261101);
+
+const container = document.getElementById('app');
+const hintEl = document.getElementById('hint');
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0xbcd8ea);
+scene.fog = new THREE.Fog(0xbcd8ea, 36, 95);
+
+const camera = new THREE.PerspectiveCamera(36, innerWidth / innerHeight, 0.1, 240);
+function pickFov() {
+  const a = innerWidth / innerHeight;
+  camera.fov = a >= 0.9 ? 34 : (a >= 0.62 ? 42 : 50);
+  camera.aspect = a;
+  camera.updateProjectionMatrix();
+}
+pickFov();
+
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setSize(innerWidth, innerHeight);
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.04;
+container.appendChild(renderer.domElement);
+
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+controls.dampingFactor = 0.06;
+controls.enablePan = false;
+controls.minPolarAngle = 0.25;
+controls.maxPolarAngle = Math.PI * 0.47;
+controls.minDistance = 8;
+controls.maxDistance = 32;
+
+const sun = new THREE.DirectionalLight(0xfff5e0, 2.15);
+sun.position.set(8.5, 13.5, 6.5);
+sun.castShadow = true;
+sun.shadow.mapSize.set(2048, 2048);
+sun.shadow.camera.left = -9.5;
+sun.shadow.camera.right = 9.5;
+sun.shadow.camera.top = 9.5;
+sun.shadow.camera.bottom = -9.5;
+sun.shadow.camera.near = 1;
+sun.shadow.camera.far = 40;
+sun.shadow.bias = -0.0006;
+scene.add(sun);
+
+const fillLight = new THREE.DirectionalLight(0x9ec5e6, 0.55);
+fillLight.position.set(-8, 6, -5);
+scene.add(fillLight);
+
+scene.add(new THREE.AmbientLight(0xd4e6f4, 0.72));
+scene.add(new THREE.HemisphereLight(0xeef7fd, 0x4d5b49, 0.58));
+
+// ---------- procedural ripple normal map ----------
+function createWaterNormalMap() {
+  const size = 256;
+  const data = new Uint8Array(size * size * 4);
+  for (let y = 0; y < size; y++) {
+    for (let x = 0; x < size; x++) {
+      const u = (x / size) * Math.PI * 2;
+      const v = (y / size) * Math.PI * 2;
+      const dx =
+        Math.cos(u * 3 + v * 2) * 0.35 +
+        Math.cos(u * 5 - v * 4 + 1.3) * 0.25 +
+        Math.sin(u * 8 + v * 7) * 0.15;
+      const dy =
+        Math.sin(u * 2 - v * 3) * 0.35 +
+        Math.sin(u * 4 + v * 6 + 0.7) * 0.25 +
+        Math.cos(u * 7 - v * 8) * 0.15;
+      const nx = Math.max(0, Math.min(255, Math.floor((dx * 0.45 + 0.5) * 255)));
+      const ny = Math.max(0, Math.min(255, Math.floor((dy * 0.45 + 0.5) * 255)));
+      const idx = (y * size + x) * 4;
+      data[idx] = nx;
+      data[idx + 1] = ny;
+      data[idx + 2] = 235;
+      data[idx + 3] = 255;
+    }
+  }
+  const tex = new THREE.DataTexture(data, size, size, THREE.RGBAFormat);
+  tex.wrapS = THREE.RepeatWrapping;
+  tex.wrapT = THREE.RepeatWrapping;
+  tex.repeat.set(3, 3);
+  tex.needsUpdate = true;
+  return tex;
+}
+const waterNormalTex = createWaterNormalMap();
+
+// ---------- palette & materials ----------
+const M = {
+  // Cutaway strata
+  bedrock: new THREE.MeshStandardMaterial({ color: 0x454a4f, roughness: 0.96 }),
+  shale: new THREE.MeshStandardMaterial({ color: 0x5d5750, roughness: 0.94 }),
+  clay: new THREE.MeshStandardMaterial({ color: 0x7b6046, roughness: 0.92 }),
+  subsoil: new THREE.MeshStandardMaterial({ color: 0x624b35, roughness: 0.92 }),
+  // Muted moss-green grassy banks
+  turf: new THREE.MeshStandardMaterial({ color: 0x5b7448, roughness: 0.9 }),
+  turfDark: new THREE.MeshStandardMaterial({ color: 0x4b623b, roughness: 0.92 }),
+  turfLight: new THREE.MeshStandardMaterial({ color: 0x6c8554, roughness: 0.88 }),
+  moss: new THREE.MeshStandardMaterial({ color: 0x496937, roughness: 0.92 }),
+  mossBright: new THREE.MeshStandardMaterial({ color: 0x628243, roughness: 0.9 }),
+  towpath: new THREE.MeshStandardMaterial({ color: 0x9c8e78, roughness: 0.92 }),
+  // Weathered granite greys
+  granite: new THREE.MeshStandardMaterial({ color: 0x848789, roughness: 0.88 }),
+  graniteLight: new THREE.MeshStandardMaterial({ color: 0x999b9c, roughness: 0.85 }),
+  graniteDark: new THREE.MeshStandardMaterial({ color: 0x66696c, roughness: 0.92 }),
+  graniteWet: new THREE.MeshStandardMaterial({ color: 0x4b5154, roughness: 0.65 }),
+  mortar: new THREE.MeshStandardMaterial({ color: 0x55585a, roughness: 0.95 }),
+  // Deep teal-green water with normal ripples
+  waterUp: new THREE.MeshStandardMaterial({
+    color: 0x1e666e,
+    roughness: 0.16,
+    metalness: 0.12,
+    normalMap: waterNormalTex,
+    normalScale: new THREE.Vector2(0.28, 0.28),
+    transparent: true,
+    opacity: 0.93
+  }),
+  waterChamber: new THREE.MeshStandardMaterial({
+    color: 0x1a5c64,
+    roughness: 0.18,
+    metalness: 0.12,
+    normalMap: waterNormalTex,
+    normalScale: new THREE.Vector2(0.32, 0.32),
+    transparent: true,
+    opacity: 0.94
+  }),
+  waterLow: new THREE.MeshStandardMaterial({
+    color: 0x17535b,
+    roughness: 0.18,
+    metalness: 0.12,
+    normalMap: waterNormalTex,
+    normalScale: new THREE.Vector2(0.28, 0.28),
+    transparent: true,
+    opacity: 0.93
+  }),
+  // Honey-colored oak gates + black iron strapping
+  oakHoney: new THREE.MeshStandardMaterial({ color: 0xb57c3e, roughness: 0.78 }),
+  oakWarm: new THREE.MeshStandardMaterial({ color: 0x9c672f, roughness: 0.82 }),
+  oakBeam: new THREE.MeshStandardMaterial({ color: 0xc89252, roughness: 0.74 }),
+  beamTipWhite: new THREE.MeshStandardMaterial({ color: 0xebe6da, roughness: 0.8 }),
+  iron: new THREE.MeshStandardMaterial({ color: 0x23272b, roughness: 0.45, metalness: 0.68 }),
+  brass: new THREE.MeshStandardMaterial({ color: 0xc89d44, roughness: 0.35, metalness: 0.75 }),
+  // Narrowboat & cottage
+  hullBlack: new THREE.MeshStandardMaterial({ color: 0x242a2e, roughness: 0.55 }),
+  hullCabinGreen: new THREE.MeshStandardMaterial({ color: 0x264c40, roughness: 0.62 }),
+  hullCream: new THREE.MeshStandardMaterial({ color: 0xe6dec8, roughness: 0.72 }),
+  hullGold: new THREE.MeshStandardMaterial({ color: 0xd19f43, roughness: 0.5 }),
+  doorRed: new THREE.MeshStandardMaterial({ color: 0xb84632, roughness: 0.65 }),
+  cottageStone: new THREE.MeshStandardMaterial({ color: 0x949189, roughness: 0.88 }),
+  cottageQuoin: new THREE.MeshStandardMaterial({ color: 0x787670, roughness: 0.9 }),
+  // Red-tiled hut roof (single warm accent)
+  roofTerra: new THREE.MeshStandardMaterial({ color: 0xb84a34, roughness: 0.76 }),
+  roofTerraDark: new THREE.MeshStandardMaterial({ color: 0x993a27, roughness: 0.8 }),
+  windowGlow: new THREE.MeshStandardMaterial({
+    color: 0x42331f,
+    emissive: 0xffb957,
+    emissiveIntensity: 1.55,
+    roughness: 0.3
+  }),
+  lampGlass: new THREE.MeshStandardMaterial({
+    color: 0xfff0cc,
+    emissive: 0xffcf78,
+    emissiveIntensity: 1.35,
+    roughness: 0.2
+  }),
+  rope: new THREE.MeshStandardMaterial({ color: 0xc2a675, roughness: 0.92 }),
+  foam: new THREE.MeshBasicMaterial({ color: 0xe8f6f8, transparent: true, opacity: 0.82 }),
+  duckBody: new THREE.MeshStandardMaterial({ color: 0xf0ece1, roughness: 0.8 }),
+  duckHead: new THREE.MeshStandardMaterial({ color: 0x285842, roughness: 0.75 }),
+  duckBeak: new THREE.MeshStandardMaterial({ color: 0xd99b38, roughness: 0.7 })
+};
+
+const world = new THREE.Group();
+scene.add(world);
+
+function addMesh(geo, mat, x, y, z, rx = 0, ry = 0, rz = 0, parent = world, cast = true, receive = true) {
+  const m = new THREE.Mesh(geo, mat);
+  m.position.set(x, y, z);
+  if (rx || ry || rz) m.rotation.set(rx, ry, rz);
+  m.castShadow = cast;
+  m.receiveShadow = receive;
+  parent.add(m);
+  return m;
+}
+
+// ---------- dimensions & water levels ----------
+// Square 10.0 x 10.0 cutaway slab
+const SLAB_W = 10.0;
+const SLAB_D = 10.0;
+const UP_Y = -0.18;
+const LOW_Y = -1.22;
+const FLOOR_Y = -1.78;
+
+// ---------- 1. SQUARE CUTAWAY SLAB WITH ROCK/SOIL STRATA ----------
+{
+  // Bottom dark bedrock plate
+  addMesh(new THREE.BoxGeometry(SLAB_W, 0.48, SLAB_D), M.bedrock, 0, -2.36, 0, 0, 0, 0, world, true, true);
+  // Layered shale band
+  addMesh(new THREE.BoxGeometry(SLAB_W - 0.04, 0.36, SLAB_D - 0.04), M.shale, 0, -1.94, 0, 0, 0, 0, world, true, true);
+
+  // Left and right solid earth masses (leaving carved central channel x in [-1.85, 1.85])
+  for (const side of [-1, 1]) {
+    const bankX = side * 3.425; // spans from 1.85 to 5.0 (width 3.15)
+    const bankW = 3.15;
+
+    // Lower clay stratum (full depth)
+    addMesh(new THREE.BoxGeometry(bankW, 0.56, SLAB_D), M.clay, bankX, -1.48, 0);
+    // Subsoil stratum (full depth)
+    addMesh(new THREE.BoxGeometry(bankW, 0.56, SLAB_D), M.subsoil, bankX, -0.92, 0);
+    // Upper bank terrace (z from -5.0 to +1.05, sits higher around upper reach & lock chamber)
+    addMesh(new THREE.BoxGeometry(bankW, 0.52, 6.05), M.subsoil, bankX, -0.38, -1.975);
+    addMesh(new THREE.BoxGeometry(bankW + 0.04, 0.24, 6.08), M.turf, bankX, 0.0, -1.975);
+
+    // Lower bank terrace (z from +1.05 to +5.0, steps down gently toward lower reach)
+    addMesh(new THREE.BoxGeometry(bankW, 0.28, 3.95), M.subsoil, bankX, -0.50, 3.025);
+    addMesh(new THREE.BoxGeometry(bankW + 0.04, 0.24, 3.98), M.turfDark, bankX, -0.24, 3.025);
+
+    // Exposed rock & pebble nuggets embedded in the cutaway outer faces
+    for (let i = 0; i < 18; i++) {
+      const rw = 0.28 + rand() * 0.55;
+      const rh = 0.14 + rand() * 0.22;
+      const rd = 0.14 + rand() * 0.22;
+      const rz = -4.5 + rand() * 9.0;
+      const ry = -2.2 + rand() * 1.55;
+      const mat = rand() > 0.45 ? M.graniteDark : M.shale;
+      addMesh(new THREE.BoxGeometry(rd, rh, rw), mat, side * (SLAB_W * 0.5 + 0.02), ry, rz);
+    }
+  }
+
+  // Front & back cutaway rock ledges under the water channel
+  for (const endZ of [-SLAB_D * 0.5, SLAB_D * 0.5]) {
+    for (let i = 0; i < 10; i++) {
+      const rw = 0.35 + rand() * 0.55;
+      const rh = 0.15 + rand() * 0.22;
+      const rx = -4.2 + i * 0.92 + (rand() - 0.5) * 0.25;
+      const ry = -2.22 + (rand() * 0.55);
+      addMesh(new THREE.BoxGeometry(rw, rh, 0.14), M.graniteDark, rx, ry, endZ);
+    }
+  }
+
+  // Underwater channel bed & upper reach breast wall (cill)
+  addMesh(new THREE.BoxGeometry(3.8, 0.28, SLAB_D - 0.06), M.graniteWet, 0, FLOOR_Y, 0);
+  // Upper pound raised stone bed (z: -5.0 to -1.15)
+  addMesh(new THREE.BoxGeometry(3.5, 0.78, 3.85), M.graniteDark, 0, -1.32, -3.075);
+  // Breast wall / cill drop at z = -1.15
+  addMesh(new THREE.BoxGeometry(3.4, 0.85, 0.32), M.graniteWet, 0, -1.28, -1.15);
+
+  // Submerged retaining sill lips at both ends of cutaway channel so water reads as a thick cross-section
+  addMesh(new THREE.BoxGeometry(3.5, 0.72, 0.14), M.graniteWet, 0, -0.58, -4.93);
+  addMesh(new THREE.BoxGeometry(3.5, 0.44, 0.14), M.graniteWet, 0, -1.52, 4.93);
+}
+
+// ---------- 2. HAND-PLACED GRANITE LOCK WALLS, GATE RECESSES & COPING ----------
+{
+  for (const side of [-1, 1]) {
+    // Base masonry wall cores along upper reach, chamber, and lower reach
+    // Upper reach wall (z: -5.0 to -1.35)
+    addMesh(new THREE.BoxGeometry(0.52, 1.4, 3.65), M.graniteDark, side * 1.88, -0.62, -3.175);
+    // Chamber main wall (z: -1.35 to 1.65) with recessed pockets at gate swing zones
+    // Outer backing behind gate recesses so recess pockets are visibly indented
+    addMesh(new THREE.BoxGeometry(0.42, 1.85, 3.2), M.graniteWet, side * 2.02, -0.82, 0.15);
+    // Center chamber wall pillar between upper gate recess and lower gate recess (z: -0.05 to +0.85)
+    addMesh(new THREE.BoxGeometry(0.52, 1.85, 0.95), M.granite, side * 1.84, -0.82, 0.40);
+    // Lower gate buttress pier (z: 1.15 to 2.25)
+    addMesh(new THREE.BoxGeometry(0.58, 1.85, 1.1), M.granite, side * 1.85, -0.82, 1.70);
+    // Lower reach quay wall (z: 2.25 to 5.0)
+    addMesh(new THREE.BoxGeometry(0.48, 1.55, 2.75), M.graniteDark, side * 1.88, -0.96, 3.625);
+
+    // Wet dark slime/waterline band inside chamber walls
+    addMesh(new THREE.BoxGeometry(0.06, 0.92, 2.85), M.graniteWet, side * 1.59, -1.12, 0.15);
+
+    // Individual hand-placed ashlar granite blocks along inner wall faces & top coping stones
+    // Upper level coping stones (z: -4.9 to +1.85)
+    const upperCopingCount = 19;
+    for (let i = 0; i < upperCopingCount; i++) {
+      const z0 = -4.82 + i * 0.36;
+      const inRecess = (z0 > -1.08 && z0 < -0.12) || (z0 > 0.95 && z0 < 1.68);
+      const xOff = inRecess ? side * 1.96 : side * 1.82;
+      const w = inRecess ? 0.44 : 0.58 + (rand() - 0.5) * 0.04;
+      const h = 0.17 + (rand() - 0.5) * 0.025;
+      const mat = i % 3 === 0 ? M.graniteLight : (i % 2 === 0 ? M.granite : M.graniteDark);
+      addMesh(
+        new THREE.BoxGeometry(w, h, 0.33),
+        mat,
+        xOff + (rand() - 0.5) * 0.02,
+        0.14 + (rand() - 0.5) * 0.012,
+        z0,
+        0, (rand() - 0.5) * 0.03, 0
+      );
+    }
+
+    // Stepped stone transition from upper wall to lower wall (around z = 1.95..2.35)
+    addMesh(new THREE.BoxGeometry(0.60, 0.18, 0.42), M.graniteLight, side * 1.85, 0.02, 2.02);
+    addMesh(new THREE.BoxGeometry(0.60, 0.18, 0.42), M.granite, side * 1.85, -0.10, 2.34);
+
+    // Lower reach coping stones (z: 2.55 to 4.88)
+    for (let i = 0; i < 7; i++) {
+      const z0 = 2.62 + i * 0.36;
+      const mat = i % 2 === 0 ? M.graniteLight : M.granite;
+      addMesh(
+        new THREE.BoxGeometry(0.54, 0.16, 0.33),
+        mat,
+        side * 1.85 + (rand() - 0.5) * 0.02,
+        -0.14 + (rand() - 0.5) * 0.01,
+        z0,
+        0, (rand() - 0.5) * 0.03, 0
+      );
+    }
+
+    // Ashlar block courses protruding on inner & outer wall faces
+    for (let row = 0; row < 4; row++) {
+      const yRow = -0.12 - row * 0.32;
+      for (let k = 0; k < 14; k++) {
+        const zk = -4.6 + k * 0.68 + (row % 2) * 0.32;
+        if (zk > 4.75) continue;
+        // Skip gate recess pockets on inner face so gates sit flush
+        if ((zk > -1.15 && zk < -0.08) || (zk > 0.90 && zk < 1.68)) continue;
+        const mat = (k + row) % 3 === 0 ? M.graniteLight : ((k + row) % 2 === 0 ? M.granite : M.graniteDark);
+        addMesh(
+          new THREE.BoxGeometry(0.12, 0.26, 0.56),
+          mat,
+          side * 1.60,
+          yRow,
+          zk
+        );
+      }
+    }
+
+    // Stone steps connecting upper bank to lower bank on both sides
+    for (let s = 0; s < 3; s++) {
+      addMesh(
+        new THREE.BoxGeometry(0.75, 0.12, 0.32),
+        M.graniteLight,
+        side * 2.48,
+        0.06 - s * 0.09,
+        1.12 + s * 0.28
+      );
+    }
+  }
+
+  // Right-bank gravel towpath running alongside the lock
+  for (let i = 0; i < 16; i++) {
+    const z = -4.6 + i * 0.6;
+    const y = z < 1.05 ? 0.125 : -0.115;
+    addMesh(
+      new THREE.BoxGeometry(0.95 + (rand() - 0.5) * 0.12, 0.04, 0.56),
+      M.towpath,
+      2.62 + (rand() - 0.5) * 0.06,
+      y,
+      z,
+      0, (rand() - 0.5) * 0.06, 0
+    );
+  }
+
+  // Moss cushions tucked into stone joints, wall corners, and waterlines
+  const mossSpots = [
+    [-1.60, 0.06, -1.2], [1.60, 0.05, -0.05], [-1.62, -0.25, 0.55], [1.62, -0.28, 0.25],
+    [-1.60, 0.04, 1.85], [1.60, 0.04, 1.95], [-1.62, -0.18, 2.8], [1.62, -0.20, 3.4],
+    [-1.85, 0.22, -2.4], [1.85, 0.22, -3.1], [-1.88, 0.22, 0.3], [1.88, 0.22, 0.65],
+    [-1.86, -0.05, 3.9], [1.86, -0.05, 4.2], [-2.12, 0.13, -0.6], [2.12, 0.13, 1.4]
+  ];
+  for (const [mx, my, mz] of mossSpots) {
+    const mGeo = new THREE.DodecahedronGeometry(0.11 + rand() * 0.06, 1);
+    const mMesh = addMesh(mGeo, rand() > 0.4 ? M.moss : M.mossBright, mx, my, mz);
+    mMesh.scale.set(1.2, 0.45, 1.5);
+  }
+}
+
+// ---------- 3. WATER SURFACES (UPPER REACH, LOCK CHAMBER, LOWER REACH) ----------
+const upWater = addMesh(
+  new THREE.BoxGeometry(3.16, 0.72, 3.82),
+  M.waterUp,
+  0, UP_Y - 0.36, -3.08,
+  0, 0, 0, world, false, true
+);
+
+const chamberWater = addMesh(
+  new THREE.BoxGeometry(3.12, 1.65, 2.52),
+  M.waterChamber,
+  0, LOW_Y - 0.825, 0.12,
+  0, 0, 0, world, false, true
+);
+
+const lowWater = addMesh(
+  new THREE.BoxGeometry(3.16, 0.68, 3.62),
+  M.waterLow,
+  0, LOW_Y - 0.34, 3.18,
+  0, 0, 0, world, false, true
+);
+
+// Animated surface ripple lines on upper, chamber, and lower water
+const rippleStrips = [];
+function createRippleStrip(zBase, width, levelType) {
+  const geo = new THREE.PlaneGeometry(width, 0.045);
+  const mat = new THREE.MeshBasicMaterial({
+    color: 0xd9f2f4,
+    transparent: true,
+    opacity: 0.28,
+    depthWrite: false
+  });
+  const mesh = new THREE.Mesh(geo, mat);
+  mesh.rotation.x = -Math.PI / 2;
+  world.add(mesh);
+  rippleStrips.push({ mesh, zBase, xBase: (rand() - 0.5) * 1.1, levelType, phase: rand() * 6.28 });
+}
+for (let i = 0; i < 6; i++) createRippleStrip(-4.4 + i * 0.52, 0.7 + rand() * 0.9, 'up');
+for (let i = 0; i < 5; i++) createRippleStrip(-0.7 + i * 0.38, 0.65 + rand() * 0.85, 'chamber');
+for (let i = 0; i < 6; i++) createRippleStrip(1.9 + i * 0.48, 0.7 + rand() * 0.9, 'low');
+
+// ---------- 4. MITRED OAK LOCK GATES WITH IRON STRAPPING & BALANCE BEAMS ----------
+function makeMitredGatePair(zHinge, isUpper) {
+  const gates = [];
+  const leafWidth = 1.68;
+  const leafHeight = isUpper ? 1.48 : 1.72;
+  const yCenter = isUpper ? -0.52 : -0.64;
+  // Both pairs point upstream (-Z) when closed to hold back upper-level water pressure
+  const mitreAngle = 0.24;
+
+  for (const side of [-1, 1]) {
+    const pivot = new THREE.Group();
+    pivot.position.set(side * 1.58, yCenter, zHinge);
+    world.add(pivot);
+
+    // Leaf container angled to form the upstream mitre V
+    const leaf = new THREE.Group();
+    leaf.rotation.y = -side * mitreAngle;
+    pivot.add(leaf);
+
+    // Heel post (at hollow quoin hinge)
+    addMesh(
+      new THREE.CylinderGeometry(0.09, 0.09, leafHeight + 0.14, 10),
+      M.oakWarm,
+      0, 0.04, 0, 0, 0, 0, leaf
+    );
+
+    // Mitre post (meeting at center of canal)
+    addMesh(
+      new THREE.BoxGeometry(0.12, leafHeight + 0.08, 0.14),
+      M.oakWarm,
+      -side * leafWidth, 0.02, 0, 0, 0, 0, leaf
+    );
+
+    // Vertical honey-oak planks
+    const plankCount = 7;
+    const span = leafWidth - 0.12;
+    for (let p = 0; p < plankCount; p++) {
+      const px = -side * (0.12 + (p + 0.5) * (span / plankCount));
+      const pMat = p % 2 === 0 ? M.oakHoney : M.oakBeam;
+      addMesh(
+        new THREE.BoxGeometry(span / plankCount - 0.015, leafHeight - 0.04, 0.095),
+        pMat,
+        px, 0, 0, 0, 0, 0, leaf
+      );
+    }
+
+    // Heavy horizontal oak cross-rails
+    for (const ry of [-leafHeight * 0.36, 0, leafHeight * 0.36]) {
+      addMesh(
+        new THREE.BoxGeometry(leafWidth, 0.11, 0.135),
+        M.oakWarm,
+        -side * (leafWidth * 0.5), ry, 0, 0, 0, 0, leaf
+      );
+    }
+
+    // Black wrought-iron corner straps & diagonal bracing
+    for (const ry of [-leafHeight * 0.36, leafHeight * 0.36]) {
+      // Hinge strap
+      addMesh(
+        new THREE.BoxGeometry(0.46, 0.065, 0.155),
+        M.iron,
+        -side * 0.24, ry, 0, 0, 0, 0, leaf
+      );
+      // Mitre strap
+      addMesh(
+        new THREE.BoxGeometry(0.36, 0.065, 0.155),
+        M.iron,
+        -side * (leafWidth - 0.20), ry, 0, 0, 0, 0, leaf
+      );
+    }
+    // Iron anchor collar around top of heel post
+    addMesh(
+      new THREE.CylinderGeometry(0.115, 0.115, 0.07, 10),
+      M.iron,
+      0, leafHeight * 0.5 + 0.04, 0, 0, 0, 0, leaf
+    );
+    addMesh(
+      new THREE.BoxGeometry(0.28, 0.05, 0.22),
+      M.iron,
+      side * 0.1, leafHeight * 0.5 + 0.04, 0.04, 0, 0, 0, leaf
+    );
+
+    // Traditional sweeping wooden balance beam extending over the bank
+    const beamGroup = new THREE.Group();
+    beamGroup.position.set(0, leafHeight * 0.5 + 0.09, 0);
+    leaf.add(beamGroup);
+
+    // Main balance beam timber extending outward onto bank (+side) and part-way over gate (-side)
+    addMesh(
+      new THREE.BoxGeometry(2.15, 0.13, 0.14),
+      M.oakBeam,
+      side * 0.32, 0.04, 0,
+      0, 0, side * 0.05, beamGroup
+    );
+    // White-painted counterweight tip on bank end of balance beam
+    addMesh(
+      new THREE.BoxGeometry(0.46, 0.145, 0.15),
+      M.beamTipWhite,
+      side * 1.25, 0.08, 0,
+      0, 0, side * 0.05, beamGroup
+    );
+    // Iron band on balance beam
+    addMesh(
+      new THREE.BoxGeometry(0.08, 0.155, 0.16),
+      M.iron,
+      side * 0.98, 0.07, 0,
+      0, 0, side * 0.05, beamGroup
+    );
+
+    // Iron paddle gear rack mounted directly on the gate leaf + top gangway plank
+    const rackRod = addMesh(
+      new THREE.CylinderGeometry(0.024, 0.024, leafHeight + 0.55, 6),
+      M.iron,
+      -side * (leafWidth * 0.55), 0.22, 0.09, 0, 0, 0, leaf
+    );
+    addMesh(
+      new THREE.BoxGeometry(0.18, 0.22, 0.08),
+      M.iron,
+      -side * (leafWidth * 0.55), leafHeight * 0.5 + 0.24, 0.09, 0, 0, 0, leaf
+    );
+
+    gates.push({ pivot, leaf, rackRod, side });
+  }
+  return gates;
+}
+
+const upperGates = makeMitredGatePair(-1.05, true);
+const lowerGates = makeMitredGatePair(1.32, false);
+
+// ---------- 5. PADDLE-GEAR MECHANISMS (CRANK WHEELS & RACKS BESIDE EACH GATE) ----------
+const paddleWheels = [];
+for (const [x, z] of [[-1.82, -1.18], [1.82, -1.18], [-1.82, 1.52], [1.82, 1.52]]) {
+  const gearGroup = new THREE.Group();
+  gearGroup.position.set(x, 0.22, z);
+  world.add(gearGroup);
+
+  // Cast-iron pedestal base & housing box
+  addMesh(new THREE.BoxGeometry(0.24, 0.12, 0.24), M.iron, 0, 0.06, 0, 0, 0, 0, gearGroup);
+  addMesh(new THREE.CylinderGeometry(0.055, 0.07, 0.52, 8), M.iron, 0, 0.32, 0, 0, 0, 0, gearGroup);
+  addMesh(new THREE.BoxGeometry(0.16, 0.18, 0.16), M.iron, 0, 0.56, 0, 0, 0, 0, gearGroup);
+  // Vertical toothed steel rack bar sliding through gearbox
+  const rack = addMesh(new THREE.BoxGeometry(0.045, 0.78, 0.045), M.graniteLight, 0, 0.42, 0.05, 0, 0, 0, gearGroup);
+
+  // Brass & iron hand crank wheel
+  const wheelGroup = new THREE.Group();
+  wheelGroup.position.set(x < 0 ? -0.11 : 0.11, 0.56, 0);
+  gearGroup.add(wheelGroup);
+
+  const rim = new THREE.Mesh(new THREE.TorusGeometry(0.17, 0.022, 8, 18), M.brass);
+  rim.rotation.y = Math.PI / 2;
+  rim.castShadow = true;
+  wheelGroup.add(rim);
+
+  for (let s = 0; s < 4; s++) {
+    const spoke = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.012, 0.32, 6), M.brass);
+    spoke.rotation.x = (s * Math.PI) / 4;
+    wheelGroup.add(spoke);
+  }
+  const handle = new THREE.Mesh(new THREE.CylinderGeometry(0.014, 0.014, 0.09, 6), M.oakHoney);
+  handle.rotation.z = Math.PI / 2;
+  handle.position.set(x < 0 ? -0.05 : 0.05, 0.14, 0);
+  wheelGroup.add(handle);
+
+  paddleWheels.push({ wheelGroup, rack, baseRackY: 0.42 });
+}
+
+// ---------- 6. HERO NARROWBOAT (~3.25 UNITS LONG = ~1/3 OF SLAB WIDTH) ----------
+const boat = new THREE.Group();
+{
+  const boatLen = 3.25;
+  // Rounded hull formed from central body + tapered cylindrical bow & stern counters
+  const hullMid = addMesh(
+    new THREE.BoxGeometry(0.92, 0.38, 2.05),
+    M.hullBlack,
+    0, 0.16, 0.05, 0, 0, 0, boat
+  );
+
+  // Rounded bow (-Z)
+  const bowCyl = addMesh(
+    new THREE.CylinderGeometry(0.46, 0.42, 0.38, 16),
+    M.hullBlack,
+    0, 0.16, -0.98, 0, 0, 0, boat
+  );
+  bowCyl.scale.set(1.0, 1.0, 1.42);
+
+  // Pointed iron stem post at bow tip
+  addMesh(
+    new THREE.BoxGeometry(0.08, 0.46, 0.24),
+    M.hullBlack,
+    0, 0.22, -1.58, 0.12, 0, 0, boat
+  );
+  // Decorative wooden bow fender (button fender)
+  addMesh(
+    new THREE.CylinderGeometry(0.09, 0.09, 0.22, 10),
+    M.rope,
+    0, 0.24, -1.68, 0, 0, 0, boat
+  );
+
+  // Rounded stern (+Z)
+  const sternCyl = addMesh(
+    new THREE.CylinderGeometry(0.45, 0.38, 0.38, 16),
+    M.hullBlack,
+    0, 0.16, 1.06, 0, 0, 0, boat
+  );
+  sternCyl.scale.set(1.0, 1.0, 1.25);
+
+  // Rudder & brass tiller arm at stern
+  addMesh(
+    new THREE.BoxGeometry(0.05, 0.36, 0.34),
+    M.hullBlack,
+    0, 0.12, 1.66, 0, 0.12, 0, boat
+  );
+  addMesh(
+    new THREE.CylinderGeometry(0.022, 0.018, 0.56, 8),
+    M.brass,
+    0.03, 0.46, 1.38, Math.PI / 2 - 0.15, 0, -0.18, boat
+  );
+
+  // Rubbing strakes (hull trim bands in red & gold)
+  addMesh(new THREE.BoxGeometry(0.95, 0.055, 2.12), M.doorRed, 0, 0.32, 0.04, 0, 0, 0, boat);
+  addMesh(new THREE.BoxGeometry(0.96, 0.03, 2.08), M.hullGold, 0, 0.26, 0.04, 0, 0, 0, boat);
+
+  // Foredeck cratch board & recessed well deck
+  addMesh(new THREE.BoxGeometry(0.76, 0.06, 0.55), M.oakWarm, 0, 0.35, -1.12, 0, 0, 0, boat);
+  // Stern steerer's deck
+  addMesh(new THREE.BoxGeometry(0.74, 0.06, 0.48), M.oakWarm, 0, 0.35, 1.16, 0, 0, 0, boat);
+
+  // Traditional painted cabin with tumblehome (slightly narrower top)
+  const cabinLen = 1.68;
+  const cabinZ = 0.08;
+  addMesh(
+    new THREE.BoxGeometry(0.78, 0.42, cabinLen),
+    M.hullCabinGreen,
+    0, 0.54, cabinZ, 0, 0, 0, boat
+  );
+  // Cream & crimson decorative side panels on the cabin
+  for (const sx of [-1, 1]) {
+    addMesh(
+      new THREE.BoxGeometry(0.02, 0.28, cabinLen - 0.18),
+      M.hullCream,
+      sx * 0.395, 0.55, cabinZ, 0, 0, 0, boat
+    );
+    addMesh(
+      new THREE.BoxGeometry(0.025, 0.18, 0.42),
+      M.doorRed,
+      sx * 0.398, 0.55, cabinZ + 0.42, 0, 0, 0, boat
+    );
+    // Brass porthole windows with warm glow
+    for (const wz of [cabinZ - 0.48, cabinZ - 0.08]) {
+      const ring = addMesh(
+        new THREE.CylinderGeometry(0.095, 0.095, 0.04, 14),
+        M.brass,
+        sx * 0.395, 0.56, wz, 0, 0, Math.PI / 2, boat
+      );
+      const glass = addMesh(
+        new THREE.CylinderGeometry(0.07, 0.07, 0.045, 12),
+        M.windowGlow,
+        sx * 0.396, 0.56, wz, 0, 0, Math.PI / 2, boat, false, false
+      );
+    }
+  }
+
+  // Arched cabin roof
+  const roofCyl = addMesh(
+    new THREE.CylinderGeometry(0.41, 0.41, cabinLen + 0.08, 14, 1, false, -Math.PI * 0.38, Math.PI * 0.76),
+    M.hullCream,
+    0, 0.51, cabinZ, Math.PI / 2, 0, 0, boat
+  );
+  roofCyl.scale.set(1.0, 1.0, 0.72);
+  // Roof center plank
+  addMesh(new THREE.BoxGeometry(0.18, 0.04, cabinLen + 0.06), M.doorRed, 0, 0.80, cabinZ, 0, 0, 0, boat);
+
+  // Painted double doors at front (-Z) & rear (+Z) of cabin with folk art panels
+  for (const [dz, dir] of [[cabinZ - cabinLen * 0.5 - 0.01, -1], [cabinZ + cabinLen * 0.5 + 0.01, 1]]) {
+    for (const dx of [-0.15, 0.15]) {
+      addMesh(new THREE.BoxGeometry(0.24, 0.34, 0.03), M.doorRed, dx, 0.53, dz, 0, 0, 0, boat);
+      addMesh(new THREE.BoxGeometry(0.16, 0.14, 0.036), M.hullCream, dx, 0.59, dz, 0, 0, 0, boat);
+      addMesh(new THREE.BoxGeometry(0.12, 0.08, 0.04), M.hullGold, dx, 0.45, dz, 0, 0, 0, boat);
+    }
+  }
+
+  // Stove chimney with brass collar & wisps of smoke
+  addMesh(new THREE.CylinderGeometry(0.055, 0.065, 0.34, 10), M.iron, 0.16, 0.94, cabinZ - 0.35, 0, 0, 0, boat);
+  addMesh(new THREE.CylinderGeometry(0.062, 0.062, 0.06, 10), M.brass, 0.16, 1.08, cabinZ - 0.35, 0, 0, 0, boat);
+
+  // Coiled ropes on foredeck & roof
+  for (const [rx, ry, rz] of [[0, 0.39, -1.16], [-0.14, 0.81, cabinZ + 0.25]]) {
+    for (let r = 0; r < 3; r++) {
+      const torus = addMesh(
+        new THREE.TorusGeometry(0.11 - r * 0.026, 0.018, 6, 14),
+        M.rope,
+        rx, ry + r * 0.012, rz, Math.PI / 2, 0, 0, boat
+      );
+    }
+  }
+
+  // Brass headlamp on the bow
+  addMesh(new THREE.CylinderGeometry(0.055, 0.055, 0.09, 10), M.brass, 0, 0.44, -1.46, Math.PI / 2, 0, 0, boat);
+  addMesh(new THREE.SphereGeometry(0.042, 8, 8), M.lampGlass, 0, 0.44, -1.50, 0, 0, 0, boat, false, false);
+}
+
+// Boat sits in the lower reach waiting right outside the lower gates (or inside chamber ready to rise)
+const BOAT_HOME = new THREE.Vector3(0, LOW_Y - 0.08, 0.12);
+boat.position.copy(BOAT_HOME);
+world.add(boat);
+
+// ---------- 7. LOCK-KEEPER'S HUT ON THE UPPER BANK (RED-TILED ROOF ACCENT) ----------
+const hut = new THREE.Group();
+{
+  const hw = 1.85, hh = 1.25, hd = 1.55;
+  // Stone cottage walls
+  addMesh(new THREE.BoxGeometry(hw, hh, hd), M.cottageStone, 0, hh * 0.5, 0, 0, 0, 0, hut);
+  // Plinth base
+  addMesh(new THREE.BoxGeometry(hw + 0.08, 0.18, hd + 0.08), M.graniteDark, 0, 0.09, 0, 0, 0, 0, hut);
+
+  // Corner quoins
+  for (const cx of [-hw * 0.5, hw * 0.5]) {
+    for (const cz of [-hd * 0.5, hd * 0.5]) {
+      for (let q = 0; q < 5; q++) {
+        const qw = q % 2 === 0 ? 0.22 : 0.16;
+        const qd = q % 2 === 0 ? 0.16 : 0.22;
+        addMesh(new THREE.BoxGeometry(qw, 0.20, qd), M.cottageQuoin, cx, 0.20 + q * 0.23, cz, 0, 0, 0, hut);
+      }
+    }
+  }
+
+  // Gable triangles (front & back along X)
+  const gableGeo = new THREE.ConeGeometry(hd * 0.74, 0.72, 4);
+  const gableL = addMesh(gableGeo, M.cottageStone, -hw * 0.44, hh + 0.34, 0, 0, Math.PI / 4, 0, hut);
+  gableL.scale.set(0.18, 1, 1);
+  const gableR = addMesh(gableGeo, M.cottageStone, hw * 0.44, hh + 0.34, 0, 0, Math.PI / 4, 0, hut);
+  gableR.scale.set(0.18, 1, 1);
+
+  // Warm terracotta red-tiled pitched roof (layered courses for tactile depth)
+  const roofPitch = 0.58;
+  for (const sideZ of [-1, 1]) {
+    addMesh(
+      new THREE.BoxGeometry(hw + 0.28, 0.09, 1.06),
+      M.roofTerra,
+      0, hh + 0.32, sideZ * 0.44,
+      sideZ * roofPitch, 0, 0, hut
+    );
+    // Ribbed tile rows
+    for (let r = 0; r < 5; r++) {
+      const frac = (r - 2) * 0.19;
+      addMesh(
+        new THREE.BoxGeometry(hw + 0.30, 0.045, 0.14),
+        r % 2 === 0 ? M.roofTerra : M.roofTerraDark,
+        0,
+        hh + 0.36 - Math.abs(frac) * 0.48 + (frac * sideZ < 0 ? 0.18 : -0.18),
+        sideZ * (0.44 + frac),
+        sideZ * roofPitch, 0, 0, hut
+      );
+    }
+  }
+  // Terracotta ridge tiles
+  addMesh(new THREE.BoxGeometry(hw + 0.32, 0.11, 0.14), M.roofTerraDark, 0, hh + 0.65, 0, 0, 0, 0, hut);
+
+  // Stone chimney stack + terracotta pot
+  addMesh(new THREE.BoxGeometry(0.32, 0.78, 0.32), M.cottageQuoin, -0.52, hh + 0.58, -0.28, 0, 0, 0, hut);
+  addMesh(new THREE.CylinderGeometry(0.08, 0.10, 0.22, 8), M.roofTerra, -0.52, hh + 1.04, -0.28, 0, 0, 0, hut);
+
+  // Timber door with stone lintel & doorstep on front (+Z)
+  addMesh(new THREE.BoxGeometry(0.46, 0.10, 0.12), M.graniteLight, -0.32, 0.90, hd * 0.5 + 0.02, 0, 0, 0, hut);
+  addMesh(new THREE.BoxGeometry(0.38, 0.78, 0.06), M.oakWarm, -0.32, 0.44, hd * 0.5 + 0.01, 0, 0, 0, hut);
+  addMesh(new THREE.BoxGeometry(0.54, 0.10, 0.26), M.graniteLight, -0.32, 0.05, hd * 0.5 + 0.12, 0, 0, 0, hut);
+
+  // Warm glowing multi-pane window on front (+Z) and canal-facing side (+X)
+  function addWindow(wx, wy, wz, rotY) {
+    const wGroup = new THREE.Group();
+    wGroup.position.set(wx, wy, wz);
+    wGroup.rotation.y = rotY;
+    hut.add(wGroup);
+    addMesh(new THREE.BoxGeometry(0.48, 0.46, 0.06), M.oakWarm, 0, 0, 0, 0, 0, 0, wGroup);
+    addMesh(new THREE.BoxGeometry(0.40, 0.38, 0.07), M.windowGlow, 0, 0, 0, 0, 0, 0, wGroup, false, false);
+    // Mullion bars
+    addMesh(new THREE.BoxGeometry(0.42, 0.03, 0.08), M.oakWarm, 0, 0, 0, 0, 0, 0, wGroup);
+    addMesh(new THREE.BoxGeometry(0.03, 0.40, 0.08), M.oakWarm, 0, 0, 0, 0, 0, 0, wGroup);
+    // Stone sill
+    addMesh(new THREE.BoxGeometry(0.54, 0.07, 0.14), M.graniteLight, 0, -0.24, 0.03, 0, 0, 0, wGroup);
+  }
+  addWindow(0.36, 0.62, hd * 0.5 + 0.01, 0);
+  addWindow(hw * 0.5 + 0.01, 0.62, 0.05, Math.PI / 2);
+
+  // Wooden bench & flower barrel outside the hut
+  addMesh(new THREE.BoxGeometry(0.55, 0.05, 0.20), M.oakHoney, 0.36, 0.22, hd * 0.5 + 0.24, 0, 0, 0, hut);
+  addMesh(new THREE.CylinderGeometry(0.14, 0.11, 0.26, 8), M.oakWarm, -0.76, 0.13, hd * 0.5 + 0.22, 0, 0, 0, hut);
+  addMesh(new THREE.SphereGeometry(0.15, 7, 6), M.mossBright, -0.76, 0.28, hd * 0.5 + 0.22, 0, 0, 0, hut);
+}
+hut.position.set(-3.38, 0.12, -2.55);
+hut.rotation.y = 0.36;
+world.add(hut);
+
+const hutLight = new THREE.PointLight(0xffb85c, 1.1, 4.5);
+hutLight.position.set(-2.6, 0.85, -1.9);
+world.add(hutLight);
+
+// ---------- 8. LAMP POSTS (3) & BOLLARDS WITH MOORING ROPES ----------
+const lampPositions = [
+  [2.28, 0.12, -2.25],
+  [-2.25, 0.12, 0.55],
+  [2.28, -0.12, 2.75]
+];
+for (const [lx, ly, lz] of lampPositions) {
+  const lp = new THREE.Group();
+  lp.position.set(lx, ly, lz);
+  world.add(lp);
+
+  addMesh(new THREE.CylinderGeometry(0.09, 0.12, 0.32, 8), M.iron, 0, 0.16, 0, 0, 0, 0, lp);
+  addMesh(new THREE.CylinderGeometry(0.042, 0.058, 1.55, 8), M.iron, 0, 0.92, 0, 0, 0, 0, lp);
+  addMesh(new THREE.BoxGeometry(0.24, 0.04, 0.05), M.iron, 0, 1.52, 0, 0, 0, 0, lp);
+  // Lantern cage + glowing glass
+  addMesh(new THREE.CylinderGeometry(0.13, 0.09, 0.24, 6), M.lampGlass, 0, 1.78, 0, 0, 0, 0, lp, false, false);
+  addMesh(new THREE.ConeGeometry(0.17, 0.14, 6), M.iron, 0, 1.96, 0, 0, 0, 0, lp);
+
+  const pt = new THREE.PointLight(0xffcf78, 0.65, 3.8);
+  pt.position.set(lx, ly + 1.75, lz);
+  world.add(pt);
+}
+
+// Chunky cast-iron bollards with coiled ropes along both banks
+const bollardCoords = [
+  [-2.08, 0.14, -3.55, true],
+  [2.08, 0.14, -3.10, false],
+  [-2.08, 0.14, -0.15, true],
+  [2.08, 0.14, 0.35, true],
+  [-2.08, -0.12, 2.55, false],
+  [2.08, -0.12, 3.65, true]
+];
+for (const [bx, by, bz, hasRope] of bollardCoords) {
+  const bGroup = new THREE.Group();
+  bGroup.position.set(bx, by, bz);
+  world.add(bGroup);
+
+  addMesh(new THREE.CylinderGeometry(0.085, 0.105, 0.32, 10), M.iron, 0, 0.16, 0, 0, 0, 0, bGroup);
+  addMesh(new THREE.SphereGeometry(0.098, 10, 8), M.iron, 0, 0.33, 0, 0, 0, 0, bGroup);
+  addMesh(new THREE.CylinderGeometry(0.11, 0.11, 0.04, 10), M.iron, 0, 0.25, 0, 0, 0, 0, bGroup);
+
+  if (hasRope) {
+    for (let c = 0; c < 3; c++) {
+      addMesh(
+        new THREE.TorusGeometry(0.105, 0.022, 6, 14),
+        M.rope,
+        0, 0.08 + c * 0.038, 0,
+        Math.PI / 2 + (rand() - 0.5) * 0.1, 0, 0, bGroup
+      );
+    }
+    // Trailing rope tail lying on the stone quay
+    addMesh(
+      new THREE.CylinderGeometry(0.018, 0.018, 0.42, 6),
+      M.rope,
+      bx > 0 ? 0.14 : -0.14, 0.03, 0.16,
+      Math.PI / 2, 0, 0.45, bGroup
+    );
+  }
+}
+
+// ---------- 9. GRASS TUFTS, REEDS & STONE FIELD WALL ----------
+{
+  // Low dry-stone boundary wall behind the lock-keeper's hut on the left bank
+  for (let i = 0; i < 9; i++) {
+    const wz = -4.55 + i * 0.42;
+    const wx = -4.48 + (rand() - 0.5) * 0.05;
+    addMesh(new THREE.BoxGeometry(0.28, 0.34, 0.38), i % 2 ? M.granite : M.graniteDark, wx, 0.28, wz);
+    addMesh(new THREE.BoxGeometry(0.32, 0.10, 0.36), M.graniteLight, wx, 0.48, wz);
+  }
+
+  // Sculpted grass mounds & moss tufts on both banks
+  for (let i = 0; i < 32; i++) {
+    const side = i % 2 === 0 ? -1 : 1;
+    const gz = -4.6 + rand() * 9.2;
+    const gx = side * (2.45 + rand() * 2.25);
+    // Avoid overlapping the hut footprint
+    if (gx < -2.2 && gz < -1.4 && gz > -3.7) continue;
+    const gy = gz < 1.05 ? 0.12 : -0.12;
+    const rad = 0.14 + rand() * 0.16;
+    const mat = i % 3 === 0 ? M.turfLight : (i % 2 === 0 ? M.turf : M.moss);
+    const tuft = addMesh(new THREE.DodecahedronGeometry(rad, 1), mat, gx, gy + rad * 0.25, gz);
+    tuft.scale.set(1.3, 0.48, 1.2);
+  }
+
+  // Clusters of riverside reeds tucked into upper and lower bank edges
+  const reedSpots = [
+    [-1.48, UP_Y, -4.2], [-1.46, UP_Y, -3.7], [1.48, UP_Y, -4.4], [1.46, UP_Y, -3.9],
+    [-1.48, LOW_Y, 2.9], [-1.45, LOW_Y, 3.6], [1.48, LOW_Y, 3.8], [1.45, LOW_Y, 4.3]
+  ];
+  for (const [rx, ry, rz] of reedSpots) {
+    for (let k = 0; k < 4; k++) {
+      const h = 0.45 + rand() * 0.32;
+      addMesh(
+        new THREE.ConeGeometry(0.032, h, 5),
+        k % 2 === 0 ? M.moss : M.turfLight,
+        rx + (rand() - 0.5) * 0.16,
+        ry + h * 0.42,
+        rz + (rand() - 0.5) * 0.18,
+        (rand() - 0.5) * 0.18, 0, (rand() - 0.5) * 0.22
+      );
+    }
+  }
+}
+
+// ---------- 10. FOAM STREAKS AT GATE CILLS & CHAMBER TURBULENCE ----------
+const foamStreaks = [];
+for (let i = 0; i < 14; i++) {
+  const w = 0.08 + rand() * 0.12;
+  const len = 0.35 + rand() * 0.55;
+  const geo = new THREE.PlaneGeometry(w, len);
+  const mat = M.foam.clone();
+  mat.opacity = 0;
+  const mesh = new THREE.Mesh(geo, mat);
+  mesh.rotation.x = -Math.PI / 2;
+  world.add(mesh);
+  foamStreaks.push({
+    mesh,
+    mat,
+    x: (rand() - 0.5) * 2.3,
+    zStart: i < 10 ? -0.95 : 1.38,
+    isUpperCill: i < 10,
+    speed: 0.9 + rand() * 0.7,
+    phase: rand()
+  });
+}
+
+const FOAM_N = 64;
+const foamGeo = new THREE.BufferGeometry();
+const foamPos = new Float32Array(FOAM_N * 3);
+const foamSeed = [];
+for (let i = 0; i < FOAM_N; i++) {
+  foamSeed.push({
+    x: (rand() - 0.5) * 2.5,
+    z: -0.95 + rand() * 2.1,
+    ph: rand(),
+    sp: 0.65 + rand() * 0.65
+  });
+}
+foamGeo.setAttribute('position', new THREE.BufferAttribute(foamPos, 3));
+const foamPoints = new THREE.Points(
+  foamGeo,
+  new THREE.PointsMaterial({
+    color: 0xeaf8fa,
+    size: 0.11,
+    transparent: true,
+    opacity: 0,
+    depthWrite: false
+  })
+);
+world.add(foamPoints);
+
+// ---------- 11. DUCKS & PASSING BIRDS ----------
+const ducks = [];
+for (let i = 0; i < 2; i++) {
+  const d = new THREE.Group();
+  const body = addMesh(new THREE.SphereGeometry(0.12, 9, 7), M.duckBody, 0, 0, 0, 0, 0, 0, d);
+  body.scale.set(1.15, 0.82, 1.35);
+  addMesh(new THREE.SphereGeometry(0.068, 8, 7), M.duckHead, 0, 0.10, -0.12, 0, 0, 0, d);
+  addMesh(new THREE.ConeGeometry(0.028, 0.065, 5), M.duckBeak, 0, 0.09, -0.19, -Math.PI / 2, 0, 0, d);
+  world.add(d);
+  ducks.push({
+    g: d,
+    ph: i * 2.8,
+    cx: i === 0 ? -0.45 : 0.48,
+    cz: 3.15 + i * 0.75,
+    r: 0.46 + i * 0.16,
+    sp: 0.28 + i * 0.07
+  });
+}
+
+const birds = [];
+for (let i = 0; i < 3; i++) {
+  const b = new THREE.Group();
+  const birdMat = new THREE.MeshBasicMaterial({ color: 0x334454 });
+  const w1 = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.02, 0.06), birdMat);
+  w1.position.x = -0.10;
+  w1.rotation.z = 0.32;
+  const w2 = w1.clone();
+  w2.position.x = 0.10;
+  w2.rotation.z = -0.32;
+  b.add(w1);
+  b.add(w2);
+  world.add(b);
+  birds.push({
+    g: b,
+    w1,
+    w2,
+    r: 3.6 + rand() * 1.1,
+    h: 2.75 + rand() * 0.75,
+    ph: rand() * 6.28,
+    sp: 0.22 + rand() * 0.12
+  });
+}
+
+// ---------- 12. GENEROUS INVISIBLE LOCK HIT PROXY ----------
+const gateProxy = new THREE.Mesh(
+  new THREE.BoxGeometry(5.6, 3.4, 5.8),
+  new THREE.MeshBasicMaterial({ visible: false })
+);
+gateProxy.position.set(0, -0.35, 0.1);
+world.add(gateProxy);
+
+// ---------- 13. BOUNDS-FIT CAMERA (FILLS 85-90% WIDTH ON 320x700, 390x844, 616x562) ----------
+const fitBox = new THREE.Box3(
+  new THREE.Vector3(-5.05, -2.55, -5.05),
+  new THREE.Vector3(5.05, 2.25, 5.05)
+);
+const fitDir = new THREE.Vector3(0.56, 0.54, 0.88).normalize();
+
+function fitCamera() {
+  pickFov();
+  const center = fitBox.getCenter(new THREE.Vector3());
+  const corners = [];
+  for (const x of [fitBox.min.x, fitBox.max.x])
+    for (const y of [fitBox.min.y, fitBox.max.y])
+      for (const z of [fitBox.min.z, fitBox.max.z])
+        corners.push(new THREE.Vector3(x, y, z));
+
+  const probe = new THREE.PerspectiveCamera(camera.fov, camera.aspect, 0.1, 240);
+  probe.position.copy(center).addScaledVector(fitDir, 0.001);
+  probe.lookAt(center);
+  probe.updateMatrixWorld();
+
+  const inv = probe.matrixWorldInverse;
+  const tanHalfFov = Math.tan(THREE.MathUtils.degToRad(probe.fov * 0.5));
+  const tanHalfHoriz = tanHalfFov * probe.aspect;
+
+  let needW = 0;
+  let needH = 0;
+  for (const c of corners) {
+    const v = c.clone().applyMatrix4(inv);
+    needW = Math.max(needW, Math.abs(v.x) / tanHalfHoriz + Math.abs(v.z));
+    needH = Math.max(needH, Math.abs(v.y) / tanHalfFov + Math.abs(v.z));
+  }
+
+  // Portrait phones get a tight width-filling fit (~88-90% width) with vertical offset to keep header clear
+  const isPortrait = camera.aspect < 0.85;
+  const padW = isPortrait ? 1.10 : 1.04;
+  const padH = isPortrait ? 1.08 : 1.08;
+  const dist = Math.max(needW * padW, needH * padH);
+
+  const yShift = isPortrait ? 0.22 : -0.12;
+  controls.target.set(center.x, center.y + yShift, center.z);
+  camera.position.copy(controls.target).addScaledVector(fitDir, dist);
+  camera.lookAt(controls.target);
+  controls.update();
+}
+fitCamera();
+
+// ---------- 14. HINTS & 7px / 450ms TAP DISCRIMINATION ----------
+const hintIdle = 'Open the lock';
+const hintRise = 'Watch the boat rise';
+const hintGlide = 'Upper gates open — gliding through';
+let hintOwner = null;
+
+function setHint(text, owner) {
+  if (owner) hintOwner = owner;
+  if (hintEl.textContent !== text) {
+    hintEl.textContent = text;
+    hintEl.classList.remove('faded');
+  }
+}
+function resetHintIf(owner) {
+  if (hintOwner === owner) {
+    hintOwner = null;
+    setHint(hintIdle, null);
+  }
+}
+setHint(hintIdle, null);
+setTimeout(() => hintEl.classList.add('faded'), 6000);
+
+let cycleT = -1;
+const CYCLE = 13.0;
+const ray = new THREE.Raycaster();
+let downPos = null;
+let downTime = 0;
+
+renderer.domElement.addEventListener('pointerdown', (e) => {
+  downPos = { x: e.clientX, y: e.clientY };
+  downTime = performance.now();
+});
+
+renderer.domElement.addEventListener('pointerup', (e) => {
+  if (!downPos) return;
+  const dx = e.clientX - downPos.x;
+  const dy = e.clientY - downPos.y;
+  const dist = Math.hypot(dx, dy);
+  const elapsed = performance.now() - downTime;
+  downPos = null;
+
+  if (dist <= 7 && elapsed <= 450) {
+    const x = (e.clientX / innerWidth) * 2 - 1;
+    const y = -(e.clientY / innerHeight) * 2 + 1;
+    ray.setFromCamera(new THREE.Vector2(x, y), camera);
+    if (cycleT < 0 && ray.intersectObject(gateProxy, false).length) {
+      cycleT = performance.now() / 1000;
+      setHint(hintRise, 'user');
+    }
+  }
+});
+
+// ---------- 15. RESIZE ----------
+addEventListener('resize', () => {
+  renderer.setSize(innerWidth, innerHeight);
+  fitCamera();
+});
+
+// ---------- 16. ANIMATION LOOP ----------
+const clock = new THREE.Clock();
+function smooth(t) { return t * t * (3 - 2 * t); }
+function seg(p, a, b) { return smooth(Math.min(Math.max((p - a) / (b - a), 0), 1)); }
+
+function animate() {
+  requestAnimationFrame(animate);
+  const dt = Math.min(clock.getDelta(), 0.1);
+  const now = performance.now() / 1000;
+
+  // Scroll normal map for lively water shimmer
+  waterNormalTex.offset.x = (now * 0.035) % 1;
+  waterNormalTex.offset.y = (now * 0.025) % 1;
+
+  // Lock cycle phases over 13.0s:
+  // 0.00-0.08 paddles crank open, cill foam erupts
+  // 0.08-0.44 chamber water rises smoothly to upper level carrying the boat
+  // 0.44-0.56 upper mitred gates swing open into wall recesses
+  // 0.56-0.76 narrowboat putters forward into the upper reach
+  // 0.76-0.82 hold in upper reach
+  // 0.82-0.91 boat returns into chamber & upper gates swing shut
+  // 0.91-1.00 lower paddles drain chamber back to lower level
+  let fill = 0, upperOpen = 0, boatFwd = 0, foamUpperAmt = 0, foamLowerAmt = 0, paddleUpOpen = 0, paddleLowOpen = 0;
+
+  if (cycleT >= 0) {
+    const p = (now - cycleT) / CYCLE;
+    if (p >= 1) {
+      cycleT = -1;
+      chamberWater.position.y = LOW_Y - 0.825;
+      boat.position.copy(BOAT_HOME);
+      boat.rotation.set(0, 0, 0);
+      for (const g of upperGates) g.pivot.rotation.y = 0;
+      for (const g of lowerGates) g.pivot.rotation.y = 0;
+      resetHintIf('user');
+    } else {
+      const fillUp = seg(p, 0.06, 0.44);
+      const drain = seg(p, 0.90, 1.0);
+      fill = fillUp * (1 - drain);
+
+      upperOpen = seg(p, 0.44, 0.56) * (1 - seg(p, 0.82, 0.90));
+      boatFwd = seg(p, 0.54, 0.75) * (1 - seg(p, 0.80, 0.90));
+
+      paddleUpOpen = seg(p, 0.0, 0.08) * (1 - seg(p, 0.42, 0.48));
+      paddleLowOpen = seg(p, 0.88, 0.92) * (1 - seg(p, 0.97, 1.0));
+
+      foamUpperAmt = seg(p, 0.03, 0.14) * (1 - seg(p, 0.40, 0.48));
+      foamLowerAmt = seg(p, 0.89, 0.93) * (1 - seg(p, 0.98, 1.0));
+
+      if (p > 0.44 && p < 0.80) {
+        setHint(hintGlide, 'user');
+      } else {
+        setHint(hintRise, 'user');
+      }
+
+      const wy = LOW_Y + (UP_Y - LOW_Y) * fill;
+      chamberWater.position.y = wy - 0.825;
+
+      // Boat follows rising chamber water with gentle surge & pitch
+      const bob = Math.sin(now * 2.4) * 0.018;
+      boat.position.y = wy - 0.08 + bob;
+      boat.position.z = BOAT_HOME.z - boatFwd * 3.05;
+      boat.rotation.z = Math.sin(now * 2.3) * 0.024 * (1 + fill * 0.6);
+      boat.rotation.x = (foamUpperAmt * 0.025) - (boatFwd > 0 && boatFwd < 1 ? 0.014 : 0);
+
+      // Swing upper mitred gates into wall recesses
+      for (const g of upperGates) {
+        g.pivot.rotation.y = g.side * upperOpen * 1.33;
+      }
+    }
+  } else {
+    const wy = LOW_Y;
+    chamberWater.position.y = wy - 0.825 + Math.sin(now * 1.5) * 0.006;
+    boat.position.y = BOAT_HOME.y + Math.sin(now * 1.7) * 0.016;
+    boat.position.z = BOAT_HOME.z;
+    boat.rotation.z = Math.sin(now * 1.9) * 0.016;
+    boat.rotation.x = Math.cos(now * 1.4) * 0.008;
+  }
+
+  // Animate paddle-gear crank wheels & toothed racks
+  for (let i = 0; i < paddleWheels.length; i++) {
+    const pw = paddleWheels[i];
+    const amt = i < 2 ? paddleUpOpen : paddleLowOpen;
+    pw.wheelGroup.rotation.x = amt * Math.PI * 3.5;
+    pw.rack.position.y = pw.baseRackY + amt * 0.22;
+  }
+
+  // Animate surface ripple strips across upper, chamber, and lower reaches
+  const curChamberY = chamberWater.position.y + 0.825;
+  for (const r of rippleStrips) {
+    const drift = ((now * 0.22 + r.phase) % 1) * 0.35;
+    let yLevel = LOW_Y;
+    if (r.levelType === 'up') yLevel = UP_Y;
+    else if (r.levelType === 'chamber') yLevel = curChamberY;
+    r.mesh.position.set(
+      r.xBase + Math.sin(now * 0.8 + r.phase) * 0.12,
+      yLevel + 0.006,
+      r.zBase + drift
+    );
+    r.mesh.material.opacity = 0.16 + Math.sin(now * 2.2 + r.phase) * 0.10;
+  }
+
+  // Animate foam streaks at gate cills when filling or draining
+  for (const fs of foamStreaks) {
+    const t = (now * fs.speed + fs.phase) % 1;
+    const activeAmt = fs.isUpperCill ? foamUpperAmt : foamLowerAmt;
+    const yLvl = fs.isUpperCill ? curChamberY + 0.012 : LOW_Y + 0.012;
+    fs.mesh.position.set(
+      fs.x + Math.sin(now * 3 + fs.phase * 6) * 0.05,
+      yLvl,
+      fs.zStart + t * (fs.isUpperCill ? 1.55 : 1.15)
+    );
+    fs.mesh.scale.y = 0.6 + t * 0.9;
+    fs.mat.opacity = activeAmt * (1 - t) * 0.85;
+  }
+
+  // Animate chamber foam particles
+  const totalFoam = Math.max(foamUpperAmt, foamLowerAmt);
+  const fa = foamGeo.attributes.position;
+  for (let i = 0; i < FOAM_N; i++) {
+    const s = foamSeed[i];
+    const t = (now * s.sp + s.ph) % 1;
+    fa.setXYZ(
+      i,
+      s.x + Math.sin(now * 2 + s.ph * 6) * 0.06,
+      curChamberY + 0.02 + Math.sin(t * Math.PI) * 0.06,
+      s.z + t * 0.45
+    );
+  }
+  fa.needsUpdate = true;
+  foamPoints.material.opacity = totalFoam * 0.88;
+
+  // Subtle level breathing on upper & lower reaches
+  upWater.position.y = UP_Y - 0.36 + Math.sin(now * 1.3) * 0.006;
+  lowWater.position.y = LOW_Y - 0.34 + Math.sin(now * 1.5 + 1.1) * 0.006;
+
+  // Ducks paddling in the lower reach
+  for (const d of ducks) {
+    const a = now * d.sp + d.ph;
+    const nx = d.cx + Math.cos(a) * d.r;
+    const nz = d.cz + Math.sin(a) * d.r * 0.65;
+    const dx = -Math.sin(a) * d.r;
+    const dz = Math.cos(a) * d.r * 0.65;
+    d.g.position.set(nx, LOW_Y + 0.04 + Math.sin(now * 3.2 + d.ph) * 0.007, nz);
+    d.g.rotation.y = Math.atan2(-dx, -dz);
+  }
+
+  // Birds wheeling overhead
+  for (const b of birds) {
+    const a = now * b.sp + b.ph;
+    b.g.position.set(
+      Math.cos(a) * b.r,
+      b.h + Math.sin(now * 0.65 + b.ph) * 0.22,
+      Math.sin(a) * b.r * 0.82 - 0.4
+    );
+    b.g.rotation.y = -a;
+    const flap = Math.sin(now * 7.2 + b.ph) * 0.45;
+    b.w1.rotation.z = 0.32 + flap;
+    b.w2.rotation.z = -0.32 - flap;
+  }
+
+  controls.update();
+  renderer.render(scene, camera);
+}
+animate();
+</script>
+</body>
+</html>
+
