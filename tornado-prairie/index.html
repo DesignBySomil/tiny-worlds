@@ -790,7 +790,7 @@
       uTime: { value: 0 },
       uBasePos: { value: new THREE.Vector3(0, 0, -25) },
       uTopPos: { value: new THREE.Vector3(0, 68, -25) },
-      uFunnelColor: { value: new THREE.Color(0x272b30) },
+      uFunnelColor: { value: new THREE.Color(0x4b5560) },
       uCoreGlow: { value: new THREE.Color(0x6e8599) },
       uLightningFlash: { value: 0.0 }
     };
@@ -931,7 +931,7 @@
           float density = clamp((vNoiseVal * 0.75 + bands * 0.25) * 1.35, 0.0, 1.0);
 
           // Dirt/soil tint sucked up near the base, dark storm slate higher up
-          vec3 soilTint = vec3(0.28, 0.22, 0.15);
+          vec3 soilTint = vec3(0.42, 0.33, 0.22);
           vec3 upperCloud = uFunnelColor * (0.55 + 0.65 * vNoiseVal);
           vec3 baseCol = mix(soilTint, upperCloud, smoothstep(0.0, 0.35, vHeightFrac));
 
@@ -982,9 +982,9 @@
       const footGeo = new THREE.RingGeometry(0.5, 11.5, 48, 4);
       footGeo.rotateX(-Math.PI / 2);
       const footMat = new THREE.MeshBasicMaterial({
-        color: 0x3b2f22,
+        color: 0x5d4a30,
         transparent: true,
-        opacity: 0.45,
+        opacity: 0.62,
         depthWrite: false,
         side: THREE.DoubleSide
       });
@@ -1213,15 +1213,9 @@
     };
 
     const hud = document.createElement('div');
-    hud.style.cssText = 'position:fixed;top:16px;left:16px;color:#e6f1f8;font:13px/1.5 system-ui,sans-serif;background:rgba(12,18,24,0.78);padding:12px 16px;border-radius:8px;border:1px solid rgba(140,180,210,0.25);backdrop-filter:blur(6px);user-select:none;z-index:10;';
-    hud.innerHTML = `
-      <div style="font-weight:700;font-size:15px;margin-bottom:6px;letter-spacing:0.5px;">SUPERCELL VORTEX SIM</div>
-      <div id="hud-ef">Intensity: <b>EF3 (155 mph)</b></div>
-      <div style="margin-top:6px;opacity:0.85;font-size:12px;">
-        <b>[1-5]</b> EF Scale &nbsp;|&nbsp; <b>[Click Ground]</b> Steer Path<br>
-        <b>[C]</b> Camera Lock &nbsp;|&nbsp; <b>[L]</b> Lightning &nbsp;|&nbsp; <b>[Space]</b> Pause
-      </div>
-    `;
+    hud.style.cssText = 'position:fixed;left:12px;bottom:44px;color:#e6f1f8;font:11px/1.4 system-ui,sans-serif;background:rgba(12,18,24,0.55);padding:5px 10px;border-radius:20px;border:1px solid rgba(140,180,210,0.18);backdrop-filter:blur(4px);user-select:none;pointer-events:none;z-index:3;letter-spacing:0.04em;';
+    hud.innerHTML = `<span id="hud-ef"><b>EF3</b> &middot; 155 mph</span>` +
+      (('ontouchstart' in window) ? '' : '<span style="opacity:0.55;margin-left:8px;">1-5 EF &middot; L lightning &middot; Space pause</span>');
     document.body.appendChild(hud);
     const hudEf = document.getElementById('hud-ef');
     const efSpeeds = { 1: 105, 2: 130, 3: 155, 4: 185, 5: 225 };
@@ -1235,7 +1229,7 @@
     window.addEventListener('keydown', (e) => {
       if (e.key >= '1' && e.key <= '5') {
         state.efScale = parseInt(e.key, 10);
-        hudEf.innerHTML = `Intensity: <b>EF${state.efScale} (${efSpeeds[state.efScale]} mph)</b>`;
+        hudEf.innerHTML = `<b>EF${state.efScale}</b> &middot; ${efSpeeds[state.efScale]} mph`;
       } else if (e.code === 'Space') {
         state.paused = !state.paused;
       } else if (e.key.toLowerCase() === 'c') {
@@ -1429,8 +1423,10 @@
 
       // Fill portrait frame while keeping top HUD & bottom caption clearance
       const isPortrait = camera.aspect < 1.0;
-      const usableHeightFrac = isPortrait ? 0.78 : 0.80;
-      const usableWidthFrac = isPortrait ? 0.96 : 0.88;
+      // Portrait: allow the wide slab to bleed slightly past the frame edges so
+      // the world fills a tall phone screen instead of floating small in the middle
+      const usableHeightFrac = isPortrait ? 0.85 : 0.80;
+      const usableWidthFrac = isPortrait ? 1.14 : 0.88;
 
       const viewDir = new THREE.Vector3(0.24, 0.24, 0.94).normalize();
       const right = new THREE.Vector3().crossVectors(new THREE.Vector3(0, 1, 0), viewDir).normalize();
@@ -1462,7 +1458,7 @@
       const dist = Math.max(distV, distH) + maxProjZ * 0.45;
 
       const target = center.clone();
-      target.y -= 0.2;
+      target.y -= (camera.aspect < 1.0 ? 0.55 : 0.2);
 
       camera.position.copy(target).addScaledVector(viewDir, dist);
       camera.near = Math.max(0.1, dist * 0.02);
