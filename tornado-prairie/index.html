@@ -1155,6 +1155,16 @@
       }
       propsGroup.add(house);
 
+      // Invisible generous tap target over the farmstead corner: the house and
+      // barn are small at slab scale, so taps meant for them often miss and hit
+      // the wheat behind (which would steer the storm AT the farm).
+      const farmHitbox = new THREE.Mesh(
+        new THREE.BoxGeometry(30, 12, 34),
+        new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false, colorWrite: false })
+      );
+      farmHitbox.position.set(-37, 4, 15);
+      propsGroup.add(farmHitbox);
+
       // Red Barn at (-42, 0, 8)
       const barn = new THREE.Group();
       barn.position.set(-42, 0, 8);
