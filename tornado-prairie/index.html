@@ -1244,6 +1244,15 @@
       state.pointer.x = (e.clientX / window.innerWidth) * 2 - 1;
       state.pointer.y = -(e.clientY / window.innerHeight) * 2 + 1;
       state.raycaster.setFromCamera(state.pointer, camera);
+      // Shelter payoff: tapping the farmhouse/barn hunkers the farm down -
+      // the shelter light flares warm and the storm veers to the far side
+      // of the prairie instead of steering toward the farm.
+      const farmHits = state.raycaster.intersectObject(propsGroup, true);
+      if (farmHits.length > 0) {
+        shelterGlowLight.intensity = 4.2;
+        state.targetPos.set(4.2, 0, -2.2);
+        return;
+      }
       const targetMesh =
         typeof prairieSlab !== 'undefined' ? prairieSlab :
         typeof terrainMesh !== 'undefined' ? terrainMesh :
@@ -1370,6 +1379,9 @@
         // Spontaneous lightning
         if (Math.random() < 0.008 * efMult) triggerLightning();
         lightningLight.intensity = THREE.MathUtils.lerp(lightningLight.intensity, 0, dt * 12);
+        if (shelterGlowLight.intensity > 0.55) {
+          shelterGlowLight.intensity = Math.max(0.55, shelterGlowLight.intensity - dt * 1.4);
+        }
       }
 
       if (state.followFunnel && typeof controls !== 'undefined') {
