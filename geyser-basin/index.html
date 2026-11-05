@@ -1329,8 +1329,8 @@
       new THREE.Vector3(-2.5, 3.85, 1.4)
     ];
 
-    const PORTRAIT_ZOOM = 1.0;
-    const PORTRAIT_ELEV = 0.28;
+    const PORTRAIT_ZOOM = 0.85;
+    const PORTRAIT_ELEV = 0.45;
     const PORTRAIT_SHIFT_PX = -70; // raise content into the upper whitespace band
     const viewDirBase = new THREE.Vector3(0.28, 0.56, 0.78);
 
@@ -1341,7 +1341,7 @@
 
       const aspect = vw / Math.max(1, vh);
       const viewDir = viewDirBase.clone();
-      if (aspect < 1.0) viewDir.y = PORTRAIT_ELEV; // Flatter portrait angle gives the shallow basin more height on screen
+      if (aspect < 1.0) viewDir.y = PORTRAIT_ELEV; // Moderate portrait elevation keeps the colored pools readable on a tall screen
       viewDir.normalize();
       // Aspect-aware vertical FOV (wider on narrow portrait viewports)
       camera.fov = aspect < 0.75 ? 44 : (aspect < 1.0 ? 40 : 35);
@@ -1383,7 +1383,7 @@
       }
 
       reqDist *= 1.06; // Small breathing margin
-      if (aspect < 1.0) reqDist *= PORTRAIT_ZOOM; // Portrait: fit the full slab width - no content cropping
+      if (aspect < 1.0) reqDist *= PORTRAIT_ZOOM; // Portrait: mild rim-only bleed; all geysers/pools stay in frame
 
       // Shift target vertically so the diorama sits centered between header and footer
       const pixelOffsetY = (topSafePx - bottomSafePx) * 0.5;
