@@ -790,7 +790,7 @@
       uTime: { value: 0 },
       uBasePos: { value: new THREE.Vector3(0, 0, -25) },
       uTopPos: { value: new THREE.Vector3(0, 68, -25) },
-      uFunnelColor: { value: new THREE.Color(0x4b5560) },
+      uFunnelColor: { value: new THREE.Color(0x7d8894) },
       uCoreGlow: { value: new THREE.Color(0x6e8599) },
       uLightningFlash: { value: 0.0 }
     };
@@ -928,11 +928,11 @@
 
           // Banded helical cloud streaks
           float bands = sin(vHeightFrac * 42.0 - uTime * 8.0 + vNoiseVal * 9.0) * 0.5 + 0.5;
-          float density = clamp((vNoiseVal * 0.75 + bands * 0.25) * 1.35, 0.0, 1.0);
+          float density = clamp((vNoiseVal * 0.75 + bands * 0.25) * 1.6, 0.0, 1.0);
 
           // Dirt/soil tint sucked up near the base, dark storm slate higher up
-          vec3 soilTint = vec3(0.42, 0.33, 0.22);
-          vec3 upperCloud = uFunnelColor * (0.55 + 0.65 * vNoiseVal);
+          vec3 soilTint = vec3(0.48, 0.38, 0.25);
+          vec3 upperCloud = uFunnelColor * (0.75 + 0.55 * vNoiseVal);
           vec3 baseCol = mix(soilTint, upperCloud, smoothstep(0.0, 0.35, vHeightFrac));
 
           // Internal lightning & sky scatter rim
@@ -1067,7 +1067,7 @@
 
 
     // --- RAIN STREAKS ---
-    const rainCount = 1400;
+    const rainCount = 950;
     const rainPositions = new Float32Array(rainCount * 6);
     const rainVel = new Float32Array(rainCount);
     for (let i = 0; i < rainCount; i++) {
@@ -1088,7 +1088,7 @@
     const rainMat = new THREE.LineBasicMaterial({
       color: 0x9ab4c7,
       transparent: true,
-      opacity: 0.38
+      opacity: 0.24
     });
     const rainLines = new THREE.LineSegments(rainGeo, rainMat);
     scene.add(rainLines);
@@ -1458,7 +1458,7 @@
       const dist = Math.max(distV, distH) + maxProjZ * 0.45;
 
       const target = center.clone();
-      target.y -= (camera.aspect < 1.0 ? 0.55 : 0.2);
+      target.y += (camera.aspect < 1.0 ? 0.5 : -0.2);
 
       camera.position.copy(target).addScaledVector(viewDir, dist);
       camera.near = Math.max(0.1, dist * 0.02);
