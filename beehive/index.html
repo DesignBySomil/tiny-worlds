@@ -1547,6 +1547,8 @@
         if (distForY > requiredDist) requiredDist = distForY;
       }
 
+      if (aspect < 1.0) requiredDist *= 0.78; // Portrait: closer framing so the slab fills the phone frame like the original
+
       controls.target.copy(target);
       camera.position.copy(target).addScaledVector(baseViewDir, requiredDist);
       controls.minDistance = requiredDist * 0.86;
