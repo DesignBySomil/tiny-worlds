@@ -1272,7 +1272,7 @@ function updateCameraFraming() {
 
   const vFovRad = THREE.MathUtils.degToRad(fovDeg);
   const effectiveVFovHalf = Math.atan(Math.tan(vFovRad * 0.5) * usableHeightFraction);
-  const effectiveHFovHalf = Math.atan(Math.tan(vFovRad * 0.5) * aspect * (aspect < 1.0 ? 1.30 : 0.90));
+  const effectiveHFovHalf = Math.atan(Math.tan(vFovRad * 0.5) * aspect * (aspect < 1.0 ? 0.95 : 0.90));
 
   // Project bounding sphere / box of slab + snags + headroom so zero cropping occurs
   const halfSpanW = WORLD_BOUNDS.radiusX * 1.04;
@@ -1281,17 +1281,17 @@ function updateCameraFraming() {
   const distForWidth = halfSpanW / Math.tan(effectiveHFovHalf);
   const distForHeight = halfSpanH / Math.tan(effectiveVFovHalf);
   let requiredDist = Math.max(distForWidth, distForHeight) + 1.35;
-  if (aspect < 1.0) requiredDist *= 0.70; // Portrait: slab edges bleed so the scene fills the tall frame
+  if (aspect < 1.0) requiredDist *= 0.82; // Portrait: mild rim-only bleed; snags and slab stay in frame
 
   // Vertical target shift so the miniature sits centered in the safe area between header and footer
   const verticalAsymmetry = (safeTopRatio - safeBottomRatio) * 1.65;
   let targetY = WORLD_BOUNDS.centerY + verticalAsymmetry;
-  if (aspect < 1.0) targetY += (-55 / Math.max(1, height)) * (2.0 * requiredDist * Math.tan(vFovRad * 0.5)); // raise content into the upper band
+  // portrait: content stays centered in the usable band between header and footer
 
   controls.target.set(0, targetY, 0);
 
   // Slightly elevated three-quarter view
-  const elevAngle = (aspect < 1.0 ? 0.38 : 0.50); // flatter in portrait for vertical presence
+  const elevAngle = (aspect < 1.0 ? 0.50 : 0.50); // moderate elevation keeps the scene readable on a tall screen
   const azimAngle = 0.58; // classic 3/4 view angle
   camera.position.set(
     Math.sin(azimAngle) * Math.cos(elevAngle) * requiredDist,
