@@ -1,0 +1,1412 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Cloud Village - a tiny world</title>
+<style>
+  html, body { margin:0; padding:0; height:100%; background:#485478; overflow:hidden;
+    font-family: Georgia, 'Times New Roman', serif; }
+  #app { position:fixed; inset:0; }
+  header { position:fixed; top:0; left:0; right:0; text-align:center; pointer-events:none;
+    padding: max(18px, env(safe-area-inset-top)) 16px 18px; z-index:5;
+    background: linear-gradient(rgba(36,42,68,.58), rgba(36,42,68,.26) 55%, rgba(36,42,68,0)); }
+  header h1 { margin:0; font-size:15px; letter-spacing:.42em; font-weight:400;
+    color:#fff7ef; text-transform:uppercase; text-shadow:0 1px 8px rgba(24,28,50,.85); }
+  header .sub { margin-top:4px; font-size:10px; letter-spacing:.28em; font-style:italic;
+    color:rgba(255,244,232,.78); text-shadow:0 1px 4px rgba(24,28,50,.8); }
+  header .rule { width:44px; height:1px; background:rgba(255,245,235,.55); margin:8px auto; }
+  #hint { display:inline-block; font-size:11.5px; letter-spacing:.24em; text-transform:uppercase;
+    color:#fff8f0; transition:opacity 1.2s ease; padding:5px 12px; border-radius:3px;
+    background:rgba(38,44,72,.52);
+    text-shadow:0 1px 3px rgba(20,24,44,.98), 0 0 8px rgba(20,24,44,.95), 0 0 18px rgba(20,24,44,.85); }
+  #hint.faded { opacity:.45; }
+  footer { position:fixed; bottom:0; left:0; right:0; text-align:center; pointer-events:none;
+    padding:0 16px max(14px, env(safe-area-inset-bottom)); z-index:5;
+    font-size:10px; letter-spacing:.34em; text-transform:uppercase; color:rgba(255,245,235,.75);
+    text-shadow:0 1px 4px rgba(32,24,38,.7); }
+  canvas { display:block; touch-action:none; }
+  @media (max-width: 380px) {
+    header h1 { font-size:12px; letter-spacing:.3em; }
+    #hint { font-size:10px; letter-spacing:.2em; }
+  }
+</style>
+</head>
+<body>
+<div id="app"></div>
+<header>
+  <h1>Cloud Village</h1>
+  <div class="sub">a tiny world</div>
+  <div class="rule"></div>
+  <span id="hint"></span>
+</header>
+<footer>A tiny world</footer>
+<script type="importmap">
+{ "imports": {
+  "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+  "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+} }
+</script>
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;}}
+const rand = mulberry32(20261105);
+
+const container = document.getElementById('app');
+const hintEl = document.getElementById('hint');
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x525e84);
+scene.fog = new THREE.FogExp2(0xd89e8c, 0.0095);
+
+const camera = new THREE.PerspectiveCamera(36, innerWidth / innerHeight, 0.1, 260);
+function pickFov() {
+  const a = innerWidth / innerHeight;
+  camera.fov = a >= 0.9 ? 34 : (a >= 0.62 ? 42 : 50);
+  camera.aspect = a;
+  camera.updateProjectionMatrix();
+}
+pickFov();
+
+const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
+renderer.setSize(innerWidth, innerHeight);
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.06;
+container.appendChild(renderer.domElement);
+
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+controls.dampingFactor = 0.06;
+controls.enablePan = false;
+controls.minDistance = 4;
+controls.maxDistance = 120;
+controls.minPolarAngle = Math.PI * 0.12;
+controls.maxPolarAngle = Math.PI * 0.54;
+
+// ---------- Sky Gradient Dome & Dusk Stars ----------
+const skyGeo = new THREE.SphereGeometry(115, 32, 24);
+const skyMat = new THREE.ShaderMaterial({
+  side: THREE.BackSide,
+  depthWrite: false,
+  uniforms: {
+    uZenith:  { value: new THREE.Color(0x3a4870) },
+    uUpper:   { value: new THREE.Color(0x636d94) },
+    uMid:     { value: new THREE.Color(0xb8868f) },
+    uHorizon: { value: new THREE.Color(0xf4b68c) },
+    uNadir:   { value: new THREE.Color(0x7c6882) }
+  },
+  vertexShader: `
+    varying vec3 vWorldPos;
+    void main() {
+      vec4 wp = modelMatrix * vec4(position, 1.0);
+      vWorldPos = wp.xyz;
+      gl_Position = projectionMatrix * viewMatrix * wp;
+    }
+  `,
+  fragmentShader: `
+    varying vec3 vWorldPos;
+    uniform vec3 uZenith, uUpper, uMid, uHorizon, uNadir;
+    void main() {
+      vec3 d = normalize(vWorldPos);
+      float y = d.y;
+      vec3 col;
+      if (y >= 0.0) {
+        float t1 = smoothstep(0.0, 0.22, y);
+        float t2 = smoothstep(0.18, 0.52, y);
+        float t3 = smoothstep(0.45, 0.92, y);
+        col = mix(uHorizon, uMid, t1);
+        col = mix(col, uUpper, t2);
+        col = mix(col, uZenith, t3);
+      } else {
+        col = mix(uHorizon, uNadir, smoothstep(0.0, -0.45, y));
+      }
+      gl_FragColor = vec4(col, 1.0);
+    }
+  `
+});
+scene.add(new THREE.Mesh(skyGeo, skyMat));
+
+// Faint stars high up in the dusty blue zenith
+const starCount = 90;
+const starGeo = new THREE.BufferGeometry();
+const starPos = new Float32Array(starCount * 3);
+const starPhase = new Float32Array(starCount);
+for (let i = 0; i < starCount; i++) {
+  const theta = rand() * Math.PI * 2;
+  const phi = (0.12 + rand() * 0.42) * Math.PI * 0.5; // high dome
+  const r = 85;
+  starPos[i * 3]     = Math.cos(theta) * Math.sin(phi) * r;
+  starPos[i * 3 + 1] = Math.cos(phi) * r + 6;
+  starPos[i * 3 + 2] = Math.sin(theta) * Math.sin(phi) * r;
+  starPhase[i] = rand() * Math.PI * 2;
+}
+starGeo.setAttribute('position', new THREE.BufferAttribute(starPos, 3));
+starGeo.setAttribute('aPhase', new THREE.BufferAttribute(starPhase, 1));
+const starMat = new THREE.ShaderMaterial({
+  transparent: true,
+  depthWrite: false,
+  uniforms: { uTime: { value: 0 } },
+  vertexShader: `
+    attribute float aPhase;
+    varying float vAlpha;
+    uniform float uTime;
+    void main() {
+      vec4 mv = modelViewMatrix * vec4(position, 1.0);
+      gl_Position = projectionMatrix * mv;
+      gl_PointSize = 2.4;
+      vAlpha = 0.28 + 0.35 * (0.5 + 0.5 * sin(uTime * 1.7 + aPhase));
+    }
+  `,
+  fragmentShader: `
+    varying float vAlpha;
+    void main() {
+      float d = length(gl_PointCoord - 0.5);
+      if (d > 0.5) discard;
+      float soft = smoothstep(0.5, 0.05, d);
+      gl_FragColor = vec4(1.0, 0.96, 0.88, soft * vAlpha);
+    }
+  `
+});
+scene.add(new THREE.Points(starGeo, starMat));
+
+// ---------- Dusk-Golden Lighting ----------
+const sun = new THREE.DirectionalLight(0xffdfb8, 2.15);
+sun.position.set(7.5, 10.5, 6.5);
+sun.castShadow = true;
+sun.shadow.mapSize.set(1024, 1024);
+sun.shadow.camera.left = -7.5;
+sun.shadow.camera.right = 7.5;
+sun.shadow.camera.top = 7.5;
+sun.shadow.camera.bottom = -7.5;
+sun.shadow.camera.near = 1;
+sun.shadow.camera.far = 35;
+sun.shadow.bias = -0.0006;
+scene.add(sun);
+
+const hemi = new THREE.HemisphereLight(0xffe9d2, 0x8e799e, 1.05);
+scene.add(hemi);
+
+const rimLight = new THREE.DirectionalLight(0xf6a98a, 0.65);
+rimLight.position.set(-8, 3, -6);
+scene.add(rimLight);
+
+// ---------- Custom Volumetric Cloud Shader Material ----------
+function makeCloudMaterial(topHex, midHex, botHex, rimHex, opacity = 1.0) {
+  return new THREE.ShaderMaterial({
+    transparent: opacity < 1.0,
+    uniforms: {
+      uTop: { value: new THREE.Color(topHex) },
+      uMid: { value: new THREE.Color(midHex) },
+      uBot: { value: new THREE.Color(botHex) },
+      uRim: { value: new THREE.Color(rimHex) },
+      uSunDir: { value: new THREE.Vector3(0.55, 0.72, 0.42).normalize() },
+      uOpacity: { value: opacity }
+    },
+    vertexShader: `
+      varying vec3 vNormalW;
+      varying vec3 vPosL;
+      varying vec3 vWorldPos;
+      void main() {
+        vPosL = position;
+        vNormalW = normalize(mat3(modelMatrix) * normal);
+        vec4 wp = modelMatrix * vec4(position, 1.0);
+        vWorldPos = wp.xyz;
+        gl_Position = projectionMatrix * viewMatrix * wp;
+      }
+    `,
+    fragmentShader: `
+      varying vec3 vNormalW;
+      varying vec3 vPosL;
+      varying vec3 vWorldPos;
+      uniform vec3 uTop, uMid, uBot, uRim, uSunDir;
+      uniform float uOpacity;
+      void main() {
+        vec3 n = normalize(vNormalW);
+        float up = n.y * 0.5 + 0.5;
+        float sunDot = max(0.0, dot(n, uSunDir));
+        vec3 base = mix(uBot, uMid, smoothstep(0.12, 0.56, up));
+        base = mix(base, uTop, smoothstep(0.50, 0.92, up));
+        // Warm golden dusk wrap light
+        base += uRim * pow(sunDot, 1.6) * 0.22;
+        // Subtle vertical strata tint from world Y
+        float strata = smoothstep(-2.4, 0.35, vWorldPos.y);
+        base = mix(uBot * 0.94, base, 0.35 + 0.65 * strata);
+        gl_FragColor = vec4(base, uOpacity);
+      }
+    `
+  });
+}
+
+// ---------- Palette Materials ----------
+const M = {
+  cloudTop:    makeCloudMaterial(0xfff7ea, 0xf8d8be, 0xb89ebc, 0xffcfa3),
+  cloudMid:    makeCloudMaterial(0xfcecd9, 0xeec4b0, 0xa288ad, 0xf7b68a),
+  cloudUnder:  makeCloudMaterial(0xeecbb8, 0xc7a3bd, 0x846d96, 0xe89f82),
+  cloudFloat:  makeCloudMaterial(0xfff6e8, 0xf4ccb6, 0xad93b5, 0xffc89a, 0.92),
+
+  wallCream:   new THREE.MeshStandardMaterial({ color: 0xf6ead7, roughness: 0.86 }),
+  wallStone:   new THREE.MeshStandardMaterial({ color: 0xeadac3, roughness: 0.88 }),
+  wallWarm:    new THREE.MeshStandardMaterial({ color: 0xf2dfc8, roughness: 0.86 }),
+  stoneBase:   new THREE.MeshStandardMaterial({ color: 0x9c8b82, roughness: 0.92 }),
+  pebble:      new THREE.MeshStandardMaterial({ color: 0xc8b6a6, roughness: 0.9 }),
+  pebbleWarm:  new THREE.MeshStandardMaterial({ color: 0xd9c3ae, roughness: 0.88 }),
+
+  roofTerra:   new THREE.MeshStandardMaterial({ color: 0xc86446, roughness: 0.78 }),
+  roofTerra2:  new THREE.MeshStandardMaterial({ color: 0xd67656, roughness: 0.78 }),
+  roofSlate:   new THREE.MeshStandardMaterial({ color: 0x566d8c, roughness: 0.78 }),
+  roofSlate2:  new THREE.MeshStandardMaterial({ color: 0x677e9c, roughness: 0.78 }),
+
+  timber:      new THREE.MeshStandardMaterial({ color: 0x694c38, roughness: 0.9 }),
+  timberDark:  new THREE.MeshStandardMaterial({ color: 0x4e3728, roughness: 0.92 }),
+  sailCloth:   new THREE.MeshStandardMaterial({ color: 0xfbf0dc, roughness: 0.82, side: THREE.DoubleSide }),
+
+  rope:        new THREE.MeshStandardMaterial({ color: 0x7a5c43, roughness: 0.95 }),
+  wire:        new THREE.MeshBasicMaterial({ color: 0x3b2d28 }),
+
+  balloonTerra:new THREE.MeshStandardMaterial({ color: 0xcf593c, roughness: 0.68 }),
+  balloonCream:new THREE.MeshStandardMaterial({ color: 0xf6e7cf, roughness: 0.68 }),
+  balloonGold: new THREE.MeshStandardMaterial({ color: 0xe39c46, roughness: 0.65 }),
+  wicker:      new THREE.MeshStandardMaterial({ color: 0x8c6440, roughness: 0.92 }),
+  sandbag:     new THREE.MeshStandardMaterial({ color: 0xb59672, roughness: 0.95 }),
+
+  foliage1:    new THREE.MeshStandardMaterial({ color: 0x6e8f64, roughness: 0.88 }),
+  foliage2:    new THREE.MeshStandardMaterial({ color: 0x88a46c, roughness: 0.88 }),
+  WarmBush:    new THREE.MeshStandardMaterial({ color: 0xc98b5b, roughness: 0.88 }),
+
+  bird:        new THREE.MeshBasicMaterial({ color: 0x353954 })
+};
+
+const windowMaterials = [];
+function makeWindowMat() {
+  const m = new THREE.MeshStandardMaterial({
+    color: 0xffd584,
+    emissive: 0xffa834,
+    emissiveIntensity: 1.65,
+    roughness: 0.35
+  });
+  m.userData.phase = rand() * Math.PI * 2;
+  m.userData.speed = 1.6 + rand() * 1.8;
+  windowMaterials.push(m);
+  return m;
+}
+
+const bulbMaterials = [];
+function makeBulbMat() {
+  const m = new THREE.MeshStandardMaterial({
+    color: 0xfff0c4,
+    emissive: 0xffb94e,
+    emissiveIntensity: 1.9,
+    roughness: 0.25
+  });
+  m.userData.phase = rand() * Math.PI * 2;
+  m.userData.speed = 2.2 + rand() * 2.2;
+  bulbMaterials.push(m);
+  return m;
+}
+
+// ---------- Square Cutaway Cloud Slab + Satellite Cloudlets ----------
+const worldGroup = new THREE.Group();
+scene.add(worldGroup);
+
+const mainIsland = new THREE.Group();
+worldGroup.add(mainIsland);
+
+const puffGeo = new THREE.SphereGeometry(1, 18, 14);
+const puffAnims = [];
+
+function addPuff(parent, x, y, z, sx, sy, sz, mat, receive = true, cast = false) {
+  const m = new THREE.Mesh(puffGeo, mat);
+  m.position.set(x, y, z);
+  m.scale.set(sx, sy, sz);
+  m.receiveShadow = receive;
+  m.castShadow = cast;
+  parent.add(m);
+  puffAnims.push({ mesh: m, baseY: y, phase: rand() * Math.PI * 2, amp: 0.012 + rand() * 0.014 });
+  return m;
+}
+
+// Build the square cutaway cloud slab (~5.2 x 5.2 footprint) with 3 stacked cloud strata:
+// Stratum 1: Top rolling cream/peach cloud bed (y ~ -0.15 to +0.25)
+const SLAB = 2.35;
+// Dense interior cushion puffs for a soft rolling village floor
+for (let ix = -3; ix <= 3; ix++) {
+  for (let iz = -3; iz <= 3; iz++) {
+    const gx = (ix / 3) * (SLAB * 0.88) + (rand() - 0.5) * 0.22;
+    const gz = (iz / 3) * (SLAB * 0.88) + (rand() - 0.5) * 0.22;
+    const dist = Math.hypot(gx, gz);
+    const rx = 0.68 + rand() * 0.34;
+    const rz = 0.68 + rand() * 0.34;
+    const ry = 0.34 + rand() * 0.14;
+    const lift = dist < 1.5 ? 0.04 : -0.02;
+    addPuff(mainIsland, gx, -0.12 + lift, gz, rx, ry, rz, M.cloudTop, true, false);
+  }
+}
+
+// Sculpted puffy perimeter rim along the 4 edges of the square cutaway slab
+const edgeCount = 7;
+for (let side = 0; side < 4; side++) {
+  for (let i = 0; i <= edgeCount; i++) {
+    const t = (i / edgeCount) * 2 - 1;
+    const along = t * SLAB;
+    const perp = SLAB + (rand() - 0.5) * 0.14;
+    const x = side < 2 ? along : (side === 2 ? -perp : perp);
+    const z = side < 2 ? (side === 0 ? perp : -perp) : along;
+
+    // Upper rim billow (peach/cream)
+    const r1 = 0.58 + rand() * 0.26;
+    addPuff(mainIsland, x, -0.16 + (rand() - 0.5) * 0.08, z, r1 * 1.1, r1 * 0.68, r1 * 1.1, M.cloudTop, true, true);
+
+    // Mid stratum billow (apricot-lavender cutaway side layer)
+    const r2 = 0.56 + rand() * 0.25;
+    addPuff(mainIsland, x * 0.95 + (rand() - 0.5) * 0.12, -0.68 + (rand() - 0.5) * 0.1, z * 0.95 + (rand() - 0.5) * 0.12,
+      r2 * 1.12, r2 * 0.72, r2 * 1.12, M.cloudMid, true, true);
+
+    // Lower stratum billow (lavender-plum soft underside edge)
+    if (i % 2 === 0 || rand() > 0.35) {
+      const r3 = 0.54 + rand() * 0.26;
+      addPuff(mainIsland, x * 0.84 + (rand() - 0.5) * 0.16, -1.24 + (rand() - 0.5) * 0.12, z * 0.84 + (rand() - 0.5) * 0.16,
+        r3 * 1.15, r3 * 0.74, r3 * 1.15, M.cloudUnder, false, true);
+    }
+  }
+}
+
+// Soft stacked underside bellies so the cutaway slab has lush volumetric depth underneath
+for (let i = 0; i < 18; i++) {
+  const ux = (rand() - 0.5) * 3.4;
+  const uz = (rand() - 0.5) * 3.4;
+  const d = Math.hypot(ux, uz);
+  const depthY = -1.15 - (1 - Math.min(d / 2.6, 1)) * 0.62 + (rand() - 0.5) * 0.15;
+  const rad = 0.65 + rand() * 0.42;
+  addPuff(mainIsland, ux, depthY, uz, rad * 1.18, rad * 0.68, rad * 1.18, M.cloudUnder, false, false);
+}
+
+// Extra corner cloud bolsters for unmistakable hand-shaped Guronnimo silhouette
+for (const [cx, cz] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) {
+  addPuff(mainIsland, cx * 2.25, -0.1, cz * 2.25, 0.82, 0.54, 0.82, M.cloudTop, true, true);
+  addPuff(mainIsland, cx * 2.1, -0.62, cz * 2.1, 0.76, 0.52, 0.76, M.cloudMid, true, true);
+}
+
+// ---------- Satellite Cloudlets (3 floating at slightly different heights) ----------
+function makeSatelliteCloudlet(radius, puffs, yScale = 0.62) {
+  const g = new THREE.Group();
+  addPuff(g, 0, 0, 0, radius, radius * yScale, radius, M.cloudTop, true, true);
+  for (let i = 0; i < puffs; i++) {
+    const a = (i / puffs) * Math.PI * 2 + rand() * 0.4;
+    const d = radius * (0.48 + rand() * 0.35);
+    const r = radius * (0.52 + rand() * 0.28);
+    addPuff(g, Math.cos(a) * d, -0.06 + (rand() - 0.5) * 0.08, Math.sin(a) * d, r, r * 0.65, r, M.cloudTop, true, true);
+    addPuff(g, Math.cos(a) * d * 0.82, -0.36 - rand() * 0.12, Math.sin(a) * d * 0.82, r * 0.95, r * 0.6, r * 0.95, M.cloudMid, false, true);
+  }
+  addPuff(g, 0, -0.56, 0, radius * 0.85, radius * 0.48, radius * 0.85, M.cloudUnder, false, false);
+  return g;
+}
+
+const satellites = [];
+const sat1 = makeSatelliteCloudlet(0.92, 6);
+sat1.position.set(-3.55, 0.52, -1.05);
+worldGroup.add(sat1);
+satellites.push({ g: sat1, baseY: 0.52, phase: 0.4, speed: 1.1 });
+
+const sat2 = makeSatelliteCloudlet(0.78, 5);
+sat2.position.set(3.45, -0.38, -1.35);
+worldGroup.add(sat2);
+satellites.push({ g: sat2, baseY: -0.38, phase: 2.1, speed: 1.3 });
+
+const sat3 = makeSatelliteCloudlet(0.68, 5);
+sat3.position.set(-2.95, -0.58, 2.25);
+worldGroup.add(sat3);
+satellites.push({ g: sat3, baseY: -0.58, phase: 3.8, speed: 0.95 });
+
+// ---------- Helper: Timber-Framed Miniature Houses of Varied Silhouette ----------
+const chimneys = [];
+const chimneyAnchors = [];
+
+function addTimberFrameToBox(group, w, h, d, crossBrace = true) {
+  const t = 0.028;
+  const protrude = 0.008;
+  // 4 corner posts
+  for (const sx of [-1, 1]) {
+    for (const sz of [-1, 1]) {
+      const post = new THREE.Mesh(new THREE.BoxGeometry(t, h, t), M.timber);
+      post.position.set(sx * (w / 2), h / 2, sz * (d / 2));
+      group.add(post);
+    }
+  }
+  // Horizontal beams (bottom, mid, top) on front/back and sides
+  for (const yFrac of [0.06, 0.52, 0.97]) {
+    for (const sz of [-1, 1]) {
+      const beamFB = new THREE.Mesh(new THREE.BoxGeometry(w + protrude, t, t), M.timber);
+      beamFB.position.set(0, h * yFrac, sz * (d / 2));
+      group.add(beamFB);
+    }
+    for (const sx of [-1, 1]) {
+      const beamLR = new THREE.Mesh(new THREE.BoxGeometry(t, t, d + protrude), M.timber);
+      beamLR.position.set(sx * (w / 2), h * yFrac, 0);
+      group.add(beamLR);
+    }
+  }
+  if (crossBrace) {
+    const diagLen = Math.hypot(w * 0.42, h * 0.42);
+    for (const sx of [-1, 1]) {
+      const brace = new THREE.Mesh(new THREE.BoxGeometry(t * 0.75, diagLen, t * 0.75), M.timber);
+      brace.position.set(sx * w * 0.26, h * 0.28, d / 2 + 0.002);
+      brace.rotation.z = sx * 0.62;
+      group.add(brace);
+    }
+  }
+}
+
+function addFramedWindow(group, x, y, z, rotY, w = 0.16, h = 0.19) {
+  const wg = new THREE.Group();
+  wg.position.set(x, y, z);
+  wg.rotation.y = rotY;
+  const pane = new THREE.Mesh(new THREE.PlaneGeometry(w, h), makeWindowMat());
+  wg.add(pane);
+  const f = 0.018;
+  const top = new THREE.Mesh(new THREE.BoxGeometry(w + 0.03, f, 0.02), M.timberDark);
+  top.position.y = h / 2; wg.add(top);
+  const sill = new THREE.Mesh(new THREE.BoxGeometry(w + 0.045, f * 1.2, 0.032), M.timberDark);
+  sill.position.y = -h / 2; wg.add(sill);
+  const left = new THREE.Mesh(new THREE.BoxGeometry(f, h, 0.02), M.timberDark);
+  left.position.x = -w / 2; wg.add(left);
+  const right = left.clone();
+  right.position.x = w / 2; wg.add(right);
+  const mullionV = new THREE.Mesh(new THREE.BoxGeometry(f * 0.7, h, 0.016), M.timberDark);
+  wg.add(mullionV);
+  const mullionH = new THREE.Mesh(new THREE.BoxGeometry(w, f * 0.7, 0.016), M.timberDark);
+  wg.add(mullionH);
+  group.add(wg);
+}
+
+function addDoor(group, x, y, z, rotY, w = 0.16, h = 0.28) {
+  const dg = new THREE.Group();
+  dg.position.set(x, y, z);
+  dg.rotation.y = rotY;
+  const leaf = new THREE.Mesh(new THREE.BoxGeometry(w, h, 0.02), M.timberDark);
+  leaf.position.y = h / 2;
+  dg.add(leaf);
+  const step = new THREE.Mesh(new THREE.BoxGeometry(w + 0.06, 0.035, 0.08), M.stoneBase);
+  step.position.set(0, 0.018, 0.03);
+  dg.add(step);
+  const lintel = new THREE.Mesh(new THREE.BoxGeometry(w + 0.04, 0.025, 0.035), M.timber);
+  lintel.position.set(0, h + 0.01, 0.005);
+  dg.add(lintel);
+  group.add(dg);
+}
+
+function makePitchedRoof(w, d, roofH, mat) {
+  const rg = new THREE.Group();
+  const overhang = 0.08;
+  const halfSpan = w / 2 + overhang;
+  const slopeLen = Math.hypot(halfSpan, roofH);
+  const angle = Math.atan2(roofH, halfSpan);
+  const lenZ = d + overhang * 2;
+
+  const leftSlope = new THREE.Mesh(new THREE.BoxGeometry(slopeLen, 0.04, lenZ), mat);
+  leftSlope.position.set(-halfSpan / 2, roofH / 2, 0);
+  leftSlope.rotation.z = angle;
+  leftSlope.castShadow = true;
+  leftSlope.receiveShadow = true;
+  rg.add(leftSlope);
+
+  const rightSlope = new THREE.Mesh(new THREE.BoxGeometry(slopeLen, 0.04, lenZ), mat);
+  rightSlope.position.set(halfSpan / 2, roofH / 2, 0);
+  rightSlope.rotation.z = -angle;
+  rightSlope.castShadow = true;
+  rightSlope.receiveShadow = true;
+  rg.add(rightSlope);
+
+  const ridge = new THREE.Mesh(new THREE.BoxGeometry(0.055, 0.055, lenZ + 0.02), M.timberDark);
+  ridge.position.set(0, roofH + 0.01, 0);
+  rg.add(ridge);
+
+  // Triangular gable fills front and back
+  const gableShape = new THREE.Shape();
+  gableShape.moveTo(-w / 2, 0);
+  gableShape.lineTo(w / 2, 0);
+  gableShape.lineTo(0, roofH);
+  gableShape.closePath();
+  const gableGeo = new THREE.ExtrudeGeometry(gableShape, { depth: d, bevelEnabled: false });
+  gableGeo.translate(0, 0, -d / 2);
+  const gableMesh = new THREE.Mesh(gableGeo, M.wallCream);
+  gableMesh.castShadow = true;
+  gableMesh.receiveShadow = true;
+  rg.add(gableMesh);
+
+  return rg;
+}
+
+// Create 5 distinct miniature houses
+function buildHouse(type, wallMat, roofMat) {
+  const g = new THREE.Group();
+
+  // Soft cloud nest collar at base
+  for (let i = 0; i < 5; i++) {
+    const a = (i / 5) * Math.PI * 2 + rand() * 0.5;
+    const p = new THREE.Mesh(puffGeo, M.cloudTop);
+    p.scale.set(0.28, 0.13, 0.28);
+    p.position.set(Math.cos(a) * 0.36, 0.02, Math.sin(a) * 0.36);
+    g.add(p);
+  }
+
+  let w = 0.72, h = 0.62, d = 0.64, roofH = 0.42;
+  if (type === 'tall') { w = 0.64; h = 0.88; d = 0.62; roofH = 0.48; }
+  if (type === 'cottage') { w = 0.78; h = 0.54; d = 0.66; roofH = 0.38; }
+  if (type === 'lshape') { w = 0.74; h = 0.60; d = 0.60; roofH = 0.40; }
+  if (type === 'steep') { w = 0.66; h = 0.68; d = 0.64; roofH = 0.52; }
+
+  // Stone plinth
+  const plinth = new THREE.Mesh(new THREE.BoxGeometry(w + 0.05, 0.09, d + 0.05), M.stoneBase);
+  plinth.position.y = 0.045;
+  plinth.castShadow = true;
+  plinth.receiveShadow = true;
+  g.add(plinth);
+
+  const body = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), wallMat);
+  body.position.y = h / 2 + 0.08;
+  body.castShadow = true;
+  body.receiveShadow = true;
+  g.add(body);
+
+  const frameGroup = new THREE.Group();
+  frameGroup.position.y = 0.08;
+  addTimberFrameToBox(frameGroup, w, h, d, true);
+  g.add(frameGroup);
+
+  const roof = makePitchedRoof(w, d, roofH, roofMat);
+  roof.position.y = h + 0.08;
+  g.add(roof);
+
+  // Windows & doors
+  addDoor(g, -w * 0.16, 0.08, d / 2 + 0.01, 0);
+  addFramedWindow(g, w * 0.20, h * 0.48 + 0.08, d / 2 + 0.012, 0, 0.16, 0.18);
+  addFramedWindow(g, -w * 0.20, h * 0.48 + 0.08, -d / 2 - 0.012, Math.PI, 0.16, 0.18);
+  addFramedWindow(g, w / 2 + 0.012, h * 0.5 + 0.08, 0, Math.PI / 2, 0.16, 0.18);
+  addFramedWindow(g, -w / 2 - 0.012, h * 0.5 + 0.08, 0, -Math.PI / 2, 0.15, 0.17);
+
+  if (type === 'tall' || type === 'steep') {
+    addFramedWindow(g, 0, h + 0.08 + roofH * 0.36, d / 2 + 0.012, 0, 0.13, 0.14);
+    addFramedWindow(g, -w * 0.2, h * 0.76 + 0.08, d / 2 + 0.012, 0, 0.14, 0.15);
+  }
+
+  // Optional side wing for 'lshape' or 'cottage'
+  if (type === 'lshape' || type === 'cottage') {
+    const ww = 0.42, wh = h * 0.74, wd = 0.44;
+    const wing = new THREE.Mesh(new THREE.BoxGeometry(ww, wh, wd), M.wallStone);
+    wing.position.set(w / 2 + ww / 2 - 0.04, wh / 2 + 0.08, 0.05);
+    wing.castShadow = true;
+    wing.receiveShadow = true;
+    g.add(wing);
+    const wRoof = makePitchedRoof(ww, wd, 0.26, roofMat);
+    wRoof.position.set(w / 2 + ww / 2 - 0.04, wh + 0.08, 0.05);
+    g.add(wRoof);
+    addFramedWindow(g, w / 2 + ww / 2 - 0.04, wh * 0.52 + 0.08, wd / 2 + 0.062, 0, 0.13, 0.14);
+  }
+
+  // Chimney with stone pot
+  const chimX = w * 0.26;
+  const chimZ = -d * 0.18;
+  const chimY = h + 0.08 + roofH * 0.65;
+  const chim = new THREE.Mesh(new THREE.BoxGeometry(0.13, 0.46, 0.13), M.stoneBase);
+  chim.position.set(chimX, chimY, chimZ);
+  chim.castShadow = true;
+  g.add(chim);
+  const pot = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.055, 0.1, 8), M.roofTerra);
+  pot.position.set(chimX, chimY + 0.26, chimZ);
+  g.add(pot);
+
+  const chimTopLocal = new THREE.Vector3(chimX, chimY + 0.30, chimZ);
+  const stringAnchorLocal = new THREE.Vector3(chimX, chimY + 0.14, chimZ);
+  return { g, chimTopLocal, stringAnchorLocal };
+}
+
+function placeVillageHouse(parent, type, x, y, z, rotY, scale, wallMat, roofMat) {
+  const h = buildHouse(type, wallMat, roofMat);
+  h.g.position.set(x, y, z);
+  h.g.rotation.y = rotY;
+  h.g.scale.setScalar(scale);
+  parent.add(h.g);
+
+  const worldChim = h.chimTopLocal.clone().multiplyScalar(scale).applyAxisAngle(new THREE.Vector3(0, 1, 0), rotY).add(new THREE.Vector3(x, y, z));
+  const worldAnchor = h.stringAnchorLocal.clone().multiplyScalar(scale).applyAxisAngle(new THREE.Vector3(0, 1, 0), rotY).add(new THREE.Vector3(x, y, z));
+  chimneys.push(worldChim);
+  chimneyAnchors.push(worldAnchor);
+  return h.g;
+}
+
+// 5 houses clustered warmly on the main cloud island
+placeVillageHouse(mainIsland, 'tall',    -1.18, 0.04, -0.78,  0.42, 0.96, M.wallCream, M.roofTerra);
+placeVillageHouse(mainIsland, 'lshape',  -1.25, 0.02,  0.78,  0.88, 0.92, M.wallWarm,  M.roofSlate);
+placeVillageHouse(mainIsland, 'cottage',  0.02, 0.05,  1.22, -0.18, 0.94, M.wallCream, M.roofTerra2);
+placeVillageHouse(mainIsland, 'steep',    0.18, 0.06, -1.08, -0.35, 0.92, M.wallStone, M.roofSlate2);
+placeVillageHouse(mainIsland, 'cottage',  1.12, 0.03,  0.48, -0.95, 0.88, M.wallWarm,  M.roofTerra);
+
+// Tiny cozy lookout cottage on satellite cloudlet 1
+const satHouse = buildHouse('steep', M.wallCream, M.roofTerra);
+satHouse.g.scale.setScalar(0.66);
+satHouse.g.position.set(0.0, 0.14, 0.0);
+satHouse.g.rotation.y = 0.65;
+sat1.add(satHouse.g);
+
+// ---------- Hero Timber & Stone Windmill with Turning Lattice Sails ----------
+const windmill = new THREE.Group();
+windmill.position.set(1.38, 0.05, -0.92);
+windmill.rotation.y = -0.52;
+mainIsland.add(windmill);
+
+// Windmill cloud cushion
+for (let i = 0; i < 5; i++) {
+  const a = (i / 5) * Math.PI * 2;
+  const p = new THREE.Mesh(puffGeo, M.cloudTop);
+  p.scale.set(0.3, 0.14, 0.3);
+  p.position.set(Math.cos(a) * 0.38, 0.02, Math.sin(a) * 0.38);
+  windmill.add(p);
+}
+
+const millBase = new THREE.Mesh(new THREE.CylinderGeometry(0.38, 0.45, 0.42, 8), M.stoneBase);
+millBase.position.y = 0.21;
+millBase.castShadow = true;
+millBase.receiveShadow = true;
+windmill.add(millBase);
+
+const millTower = new THREE.Mesh(new THREE.CylinderGeometry(0.26, 0.37, 1.08, 8), M.wallCream);
+millTower.position.y = 0.94;
+millTower.castShadow = true;
+millTower.receiveShadow = true;
+windmill.add(millTower);
+
+// Timber ribs on tower
+for (let i = 0; i < 8; i++) {
+  const a = (i / 8) * Math.PI * 2;
+  const rib = new THREE.Mesh(new THREE.BoxGeometry(0.025, 1.08, 0.025), M.timber);
+  rib.position.set(Math.cos(a) * 0.31, 0.94, Math.sin(a) * 0.31);
+  rib.rotation.y = -a;
+  rib.rotation.z = -0.095 * Math.cos(a);
+  windmill.add(rib);
+}
+
+// Wooden balcony ring around mid-tower
+const balcony = new THREE.Mesh(new THREE.CylinderGeometry(0.46, 0.46, 0.035, 12), M.timber);
+balcony.position.y = 0.44;
+windmill.add(balcony);
+for (let i = 0; i < 12; i++) {
+  const a = (i / 12) * Math.PI * 2;
+  const post = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.012, 0.14, 5), M.timberDark);
+  post.position.set(Math.cos(a) * 0.44, 0.51, Math.sin(a) * 0.44);
+  windmill.add(post);
+}
+
+const millCap = new THREE.Mesh(new THREE.ConeGeometry(0.32, 0.38, 8), M.roofSlate);
+millCap.position.y = 1.66;
+millCap.castShadow = true;
+windmill.add(millCap);
+
+addFramedWindow(windmill, 0, 0.85, 0.33, 0, 0.14, 0.17);
+addDoor(windmill, 0, 0.02, 0.41, 0, 0.15, 0.25);
+
+const millHub = new THREE.Group();
+millHub.position.set(0, 1.38, 0.33);
+windmill.add(millHub);
+
+const hubNose = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.06, 0.16, 8), M.timberDark);
+hubNose.rotation.x = Math.PI / 2;
+millHub.add(hubNose);
+
+for (let i = 0; i < 4; i++) {
+  const arm = new THREE.Group();
+  arm.rotation.z = (i / 4) * Math.PI * 2;
+  const spar = new THREE.Mesh(new THREE.BoxGeometry(0.04, 1.05, 0.035), M.timberDark);
+  spar.position.y = 0.52;
+  spar.castShadow = true;
+  arm.add(spar);
+
+  const sail = new THREE.Mesh(new THREE.PlaneGeometry(0.22, 0.82), M.sailCloth);
+  sail.position.set(0.12, 0.58, 0.005);
+  sail.rotation.y = 0.12;
+  sail.castShadow = true;
+  arm.add(sail);
+
+  // Lattice rungs
+  for (let r = 0; r < 5; r++) {
+    const rung = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.016, 0.016), M.timber);
+    rung.position.set(0.11, 0.22 + r * 0.18, 0.01);
+    arm.add(rung);
+  }
+  millHub.add(arm);
+}
+
+// Add windmill top anchor for string lights
+chimneyAnchors.push(new THREE.Vector3(1.38, 1.48, -0.92));
+
+// ---------- String Lights Between Chimneys & Lantern Posts ----------
+function addStringLightSpan(pA, pB, sag = 0.18, bulbs = 6) {
+  const pts = [];
+  for (let i = 0; i <= 16; i++) {
+    const t = i / 16;
+    const p = new THREE.Vector3().lerpVectors(pA, pB, t);
+    p.y -= Math.sin(t * Math.PI) * sag;
+    pts.push(p);
+  }
+  const curve = new THREE.CatmullRomCurve3(pts);
+  const wire = new THREE.Mesh(new THREE.TubeGeometry(curve, 16, 0.007, 4, false), M.wire);
+  mainIsland.add(wire);
+
+  const bulbGeo = new THREE.SphereGeometry(0.036, 8, 8);
+  for (let i = 1; i <= bulbs; i++) {
+    const t = i / (bulbs + 1);
+    const bp = curve.getPoint(t);
+    const bulb = new THREE.Mesh(bulbGeo, makeBulbMat());
+    bulb.position.copy(bp).add(new THREE.Vector3(0, -0.025, 0));
+    mainIsland.add(bulb);
+  }
+}
+
+// Connect house chimneys & windmill into a cozy catenary canopy
+addStringLightSpan(chimneyAnchors[0], chimneyAnchors[1], 0.16, 5);
+addStringLightSpan(chimneyAnchors[1], chimneyAnchors[2], 0.15, 5);
+addStringLightSpan(chimneyAnchors[2], chimneyAnchors[4], 0.16, 5);
+addStringLightSpan(chimneyAnchors[0], chimneyAnchors[3], 0.15, 5);
+addStringLightSpan(chimneyAnchors[3], chimneyAnchors[5], 0.16, 5);
+addStringLightSpan(chimneyAnchors[4], chimneyAnchors[5], 0.17, 5);
+
+// ---------- Winding Pebble Path, Tiny Fences, Shrubs & Lantern Posts ----------
+const pathCurves = [
+  // Main winding path from village center out to balloon mooring deck at right edge
+  [
+    new THREE.Vector3(-0.95, 0.08, -0.25),
+    new THREE.Vector3(-0.35, 0.09,  0.10),
+    new THREE.Vector3( 0.25, 0.09,  0.02),
+    new THREE.Vector3( 0.92, 0.08, -0.08),
+    new THREE.Vector3( 1.65, 0.07, -0.05),
+    new THREE.Vector3( 2.15, 0.06,  0.08)
+  ],
+  // Branch path toward south houses
+  [
+    new THREE.Vector3(-0.35, 0.09, 0.10),
+    new THREE.Vector3(-0.48, 0.08, 0.62),
+    new THREE.Vector3(-0.15, 0.08, 0.95)
+  ],
+  // Branch toward northern steep house & windmill
+  [
+    new THREE.Vector3(0.25, 0.09,  0.02),
+    new THREE.Vector3(0.45, 0.08, -0.55),
+    new THREE.Vector3(0.95, 0.07, -0.78)
+  ]
+];
+
+const pebbleGeo = new THREE.CylinderGeometry(1, 1.12, 1, 7);
+for (const pts of pathCurves) {
+  const c = new THREE.CatmullRomCurve3(pts);
+  const steps = Math.floor(c.getLength() * 11);
+  for (let i = 0; i <= steps; i++) {
+    const t = i / steps;
+    const p = c.getPoint(t);
+    const tangent = c.getTangent(t);
+    const normal = new THREE.Vector3(-tangent.z, 0, tangent.x).normalize();
+    // Main stepping stone + smaller side pebbles
+    const mainStone = new THREE.Mesh(pebbleGeo, i % 2 === 0 ? M.pebble : M.pebbleWarm);
+    const rx = 0.075 + rand() * 0.035;
+    const rz = 0.065 + rand() * 0.03;
+    mainStone.scale.set(rx, 0.028, rz);
+    mainStone.position.copy(p).addScaledVector(normal, (rand() - 0.5) * 0.08);
+    mainStone.rotation.y = rand() * Math.PI;
+    mainStone.receiveShadow = true;
+    mainIsland.add(mainStone);
+
+    if (rand() > 0.35) {
+      const sideStone = new THREE.Mesh(pebbleGeo, M.pebbleWarm);
+      const sr = 0.032 + rand() * 0.022;
+      sideStone.scale.set(sr, 0.022, sr * 0.85);
+      sideStone.position.copy(p).addScaledVector(normal, (rand() > 0.5 ? 1 : -1) * (0.11 + rand() * 0.06));
+      sideStone.rotation.y = rand() * Math.PI;
+      mainIsland.add(sideStone);
+    }
+  }
+}
+
+// Tiny Wooden Fences along path & village edges
+function makeFenceRun(points) {
+  const g = new THREE.Group();
+  for (let i = 0; i < points.length; i++) {
+    const p = points[i];
+    const post = new THREE.Mesh(new THREE.BoxGeometry(0.036, 0.22, 0.036), M.timberDark);
+    post.position.set(p.x, p.y + 0.1, p.z);
+    post.rotation.z = (rand() - 0.5) * 0.08;
+    post.castShadow = true;
+    g.add(post);
+
+    if (i < points.length - 1) {
+      const next = points[i + 1];
+      const mid = new THREE.Vector3().lerpVectors(p, next, 0.5);
+      const len = p.distanceTo(next);
+      const ang = Math.atan2(next.x - p.x, next.z - p.z);
+      for (const ry of [0.08, 0.16]) {
+        const rail = new THREE.Mesh(new THREE.BoxGeometry(0.018, 0.022, len), M.timber);
+        rail.position.set(mid.x, mid.y + ry, mid.z);
+        rail.rotation.y = ang;
+        rail.castShadow = true;
+        g.add(rail);
+      }
+    }
+  }
+  mainIsland.add(g);
+}
+
+makeFenceRun([
+  new THREE.Vector3(-1.82, 0.04, -0.35),
+  new THREE.Vector3(-1.85, 0.04,  0.02),
+  new THREE.Vector3(-1.78, 0.04,  0.38)
+]);
+makeFenceRun([
+  new THREE.Vector3(-0.78, 0.05, 1.62),
+  new THREE.Vector3(-0.42, 0.05, 1.68),
+  new THREE.Vector3(-0.05, 0.05, 1.65),
+  new THREE.Vector3( 0.32, 0.05, 1.58)
+]);
+makeFenceRun([
+  new THREE.Vector3(1.55, 0.05, -0.32),
+  new THREE.Vector3(1.88, 0.05, -0.28),
+  new THREE.Vector3(2.18, 0.04, -0.22)
+]);
+makeFenceRun([
+  new THREE.Vector3(1.58, 0.05, 0.34),
+  new THREE.Vector3(1.90, 0.05, 0.32),
+  new THREE.Vector3(2.18, 0.04, 0.28)
+]);
+
+// Cozy Village Lantern Posts
+for (const [lx, lz] of [[-0.62, -0.05], [0.08, 0.24], [0.78, 0.15], [1.65, 0.18], [-0.45, -0.68]]) {
+  const lg = new THREE.Group();
+  lg.position.set(lx, 0.06, lz);
+  const post = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.026, 0.42, 6), M.timberDark);
+  post.position.y = 0.21;
+  post.castShadow = true;
+  lg.add(post);
+  const arm = new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.02, 0.02), M.timberDark);
+  arm.position.set(0.035, 0.41, 0);
+  lg.add(arm);
+  const lantern = new THREE.Mesh(new THREE.SphereGeometry(0.046, 8, 8), makeBulbMat());
+  lantern.position.set(0.07, 0.37, 0);
+  lg.add(lantern);
+  mainIsland.add(lg);
+}
+
+// Miniature Trees & Dusk-Tinted Cloud Shrubs
+function makeMiniTree(x, y, z, scale = 1.0, parent = mainIsland) {
+  const tg = new THREE.Group();
+  tg.position.set(x, y, z);
+  tg.scale.setScalar(scale);
+  const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.05, 0.22, 6), M.timberDark);
+  trunk.position.y = 0.11;
+  trunk.castShadow = true;
+  tg.add(trunk);
+  const c1 = new THREE.Mesh(puffGeo, M.foliage1);
+  c1.scale.set(0.20, 0.24, 0.20);
+  c1.position.set(0, 0.30, 0);
+  c1.castShadow = true;
+  tg.add(c1);
+  const c2 = new THREE.Mesh(puffGeo, M.foliage2);
+  c2.scale.set(0.15, 0.18, 0.15);
+  c2.position.set(0.05, 0.44, 0.03);
+  c2.castShadow = true;
+  tg.add(c2);
+  parent.add(tg);
+}
+
+makeMiniTree(-1.72, 0.04, -1.22, 1.05);
+makeMiniTree(-0.58, 0.05, -1.42, 0.88);
+makeMiniTree( 0.82, 0.05,  1.28, 0.95);
+makeMiniTree(-1.62, 0.04,  1.32, 0.85);
+makeMiniTree( 1.92, 0.04, -1.25, 0.82);
+makeMiniTree(-0.32, 0.12,  0.22, 0.72, sat1);
+makeMiniTree( 0.12, 0.08, -0.05, 0.82, sat2);
+makeMiniTree(-0.18, 0.08,  0.15, 0.68, sat2);
+makeMiniTree( 0.05, 0.08,  0.02, 0.75, sat3);
+
+// Warm autumn bushes around houses
+for (const [bx, bz, mat] of [
+  [-0.82, 0.45, M.WarmBush], [0.48, 0.88, M.foliage2], [-0.72, -0.45, M.foliage1],
+  [0.62, -0.58, M.WarmBush], [1.45, 0.15, M.foliage2], [-1.52, 0.22, M.WarmBush]
+]) {
+  const bush = new THREE.Mesh(puffGeo, mat);
+  const r = 0.08 + rand() * 0.04;
+  bush.scale.set(r * 1.2, r * 0.85, r * 1.1);
+  bush.position.set(bx, 0.08, bz);
+  bush.castShadow = true;
+  mainIsland.add(bush);
+}
+
+// ---------- Hero Hot-Air Balloon, Mooring Jetty, Sandbags, Burner & Tether ----------
+// Wooden mooring jetty at right edge of main island
+const MOOR_POST = new THREE.Vector3(2.22, 0.34, 0.06);
+const jetty = new THREE.Group();
+jetty.position.set(2.16, 0.05, 0.06);
+mainIsland.add(jetty);
+
+for (let i = 0; i < 5; i++) {
+  const plank = new THREE.Mesh(new THREE.BoxGeometry(0.11, 0.03, 0.44), M.timber);
+  plank.position.set((i - 2) * 0.125, 0.02, 0);
+  plank.castShadow = true;
+  plank.receiveShadow = true;
+  jetty.add(plank);
+}
+const moorBollard = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.05, 0.32, 8), M.timberDark);
+moorBollard.position.set(0.06, 0.16, 0);
+moorBollard.castShadow = true;
+jetty.add(moorBollard);
+
+const moorRing = new THREE.Mesh(new THREE.TorusGeometry(0.055, 0.012, 6, 12), M.rope);
+moorRing.position.set(0.06, 0.26, 0);
+jetty.add(moorRing);
+
+// Hero Balloon (~1/4 of slab width -> envelope diameter ~1.56 units, radius 0.78)
+const balloon = new THREE.Group();
+const BALLOON_DOCK = new THREE.Vector3(2.58, 1.38, 0.06);
+balloon.position.copy(BALLOON_DOCK);
+scene.add(balloon);
+
+const envGroup = new THREE.Group();
+balloon.add(envGroup);
+
+const nGores = 12;
+const envRadius = 0.78;
+for (let i = 0; i < nGores; i++) {
+  const phiStart = (i / nGores) * Math.PI * 2;
+  const phiLen = (Math.PI * 2) / nGores;
+  const goreGeo = new THREE.SphereGeometry(envRadius, 8, 16, phiStart, phiLen, 0, Math.PI * 0.78);
+  const goreMat = (i % 2 === 0) ? M.balloonTerra : M.balloonCream;
+  const gore = new THREE.Mesh(goreGeo, goreMat);
+  gore.scale.y = 1.18;
+  gore.castShadow = true;
+  gore.receiveShadow = true;
+  envGroup.add(gore);
+}
+
+// Decorative scalloped equatorial band & crown cap
+const crownCap = new THREE.Mesh(new THREE.SphereGeometry(envRadius * 1.005, 16, 8, 0, Math.PI * 2, 0, 0.32), M.balloonGold);
+crownCap.scale.y = 1.18;
+envGroup.add(crownCap);
+
+const midBand = new THREE.Mesh(new THREE.CylinderGeometry(envRadius * 0.992, envRadius * 0.975, 0.11, 24, 1, true), M.balloonGold);
+midBand.position.y = 0.06;
+envGroup.add(midBand);
+
+// Lower tapered throat skirt
+const skirt = new THREE.Mesh(new THREE.CylinderGeometry(0.49, 0.24, 0.34, 16, 1, true), M.balloonTerra);
+skirt.position.y = -0.78;
+skirt.castShadow = true;
+envGroup.add(skirt);
+
+const throatRim = new THREE.Mesh(new THREE.TorusGeometry(0.24, 0.022, 8, 20), M.timberDark);
+throatRim.rotation.x = Math.PI / 2;
+throatRim.position.y = -0.95;
+balloon.add(throatRim);
+
+// Burner flame & warm point light inside balloon throat
+const burnerMat = new THREE.MeshBasicMaterial({ color: 0xffcf68 });
+const burnerFlame = new THREE.Mesh(new THREE.ConeGeometry(0.085, 0.22, 10), burnerMat);
+burnerFlame.position.y = -0.98;
+balloon.add(burnerFlame);
+
+const burnerGlowHalo = new THREE.Mesh(
+  new THREE.SphereGeometry(0.16, 12, 10),
+  new THREE.MeshBasicMaterial({ color: 0xff9a38, transparent: true, opacity: 0.45 })
+);
+burnerGlowHalo.position.y = -0.96;
+balloon.add(burnerGlowHalo);
+
+const burnerLight = new THREE.PointLight(0xff9e3d, 1.2, 4.5);
+burnerLight.position.y = -0.90;
+balloon.add(burnerLight);
+
+// Wicker Basket with rim & 8 sandbags
+const basketGroup = new THREE.Group();
+basketGroup.position.y = -1.36;
+balloon.add(basketGroup);
+
+const basketBody = new THREE.Mesh(new THREE.BoxGeometry(0.36, 0.28, 0.36), M.wicker);
+basketBody.castShadow = true;
+basketBody.receiveShadow = true;
+basketGroup.add(basketBody);
+
+const basketRim = new THREE.Mesh(new THREE.BoxGeometry(0.41, 0.045, 0.41), M.timber);
+basketRim.position.y = 0.14;
+basketGroup.add(basketRim);
+
+// 4 corner rigging ropes from basket to throat rim
+for (const [sx, sz] of [[-1, -1], [-1, 1], [1, -1], [1, 1]]) {
+  const rLine = new THREE.Mesh(new THREE.CylinderGeometry(0.009, 0.009, 0.44, 5), M.rope);
+  rLine.position.set(sx * 0.18, 0.28, sz * 0.18);
+  rLine.rotation.z = -sx * 0.11;
+  rLine.rotation.x = sz * 0.11;
+  basketGroup.add(rLine);
+}
+
+// 8 tiny sandbags hanging around basket rim
+for (const [sx, sz] of [
+  [-0.21, -0.10], [-0.21, 0.10], [0.21, -0.10], [0.21, 0.10],
+  [-0.10, -0.21], [0.10, -0.21], [-0.10,  0.21], [0.10,  0.21]
+]) {
+  const bag = new THREE.Mesh(new THREE.SphereGeometry(0.038, 7, 7), M.sandbag);
+  bag.scale.set(0.85, 1.25, 0.85);
+  bag.position.set(sx, 0.06, sz);
+  basketGroup.add(bag);
+}
+
+// Dynamic catenary tether rope connecting mooring post to balloon basket
+const tetherPts = [new THREE.Vector3(), new THREE.Vector3(), new THREE.Vector3(), new THREE.Vector3()];
+const tetherCurve = new THREE.CatmullRomCurve3(tetherPts);
+const tetherMesh = new THREE.Mesh(new THREE.TubeGeometry(tetherCurve, 12, 0.014, 5, false), M.rope);
+scene.add(tetherMesh);
+
+function updateTetherRope(basketWorldPos, slackFactor = 1.0) {
+  const p0 = MOOR_POST.clone();
+  const p3 = basketWorldPos.clone();
+  const p1 = new THREE.Vector3().lerpVectors(p0, p3, 0.33);
+  const p2 = new THREE.Vector3().lerpVectors(p0, p3, 0.66);
+  p1.y -= 0.12 * slackFactor;
+  p2.y -= 0.10 * slackFactor;
+  tetherCurve.points[0].copy(p0);
+  tetherCurve.points[1].copy(p1);
+  tetherCurve.points[2].copy(p2);
+  tetherCurve.points[3].copy(p3);
+  tetherMesh.geometry.dispose();
+  tetherMesh.geometry = new THREE.TubeGeometry(tetherCurve, 12, 0.014, 5, false);
+}
+
+// Generous invisible tap proxy around balloon & basket
+const balloonProxy = new THREE.Mesh(
+  new THREE.SphereGeometry(1.55, 12, 12),
+  new THREE.MeshBasicMaterial({ visible: false })
+);
+balloonProxy.position.copy(BALLOON_DOCK);
+scene.add(balloonProxy);
+
+// ---------- Distant Drifting Cloudlets, Birds & Chimney Smoke ----------
+const drifters = [];
+for (let i = 0; i < 4; i++) {
+  const dg = new THREE.Group();
+  const baseY = 1.65 + (i % 2) * 0.75 + rand() * 0.35;
+  const baseZ = -2.4 - rand() * 1.4;
+  for (let j = 0; j < 3; j++) {
+    const s = new THREE.Mesh(puffGeo, M.cloudFloat.clone());
+    const r = 0.28 + rand() * 0.18;
+    s.scale.set(r * 1.25, r * 0.62, r);
+    s.position.set((j - 1) * 0.28, (rand() - 0.5) * 0.06, (rand() - 0.5) * 0.12);
+    dg.add(s);
+  }
+  dg.position.set((i / 4) * 7.6 - 3.8, baseY, baseZ);
+  scene.add(dg);
+  drifters.push({ g: dg, speed: 0.16 + rand() * 0.12, baseY, phase: rand() * Math.PI * 2 });
+}
+
+// Tiny birds circling gently in the dusk sky
+const birds = [];
+for (let i = 0; i < 5; i++) {
+  const b = new THREE.Group();
+  const w1 = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.015, 0.045), M.bird);
+  w1.position.x = -0.075;
+  w1.rotation.z = 0.32;
+  const w2 = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.015, 0.045), M.bird);
+  w2.position.x = 0.075;
+  w2.rotation.z = -0.32;
+  b.add(w1, w2);
+  scene.add(b);
+  birds.push({
+    g: b, w1, w2,
+    rx: 2.9 + rand() * 1.1,
+    rz: 2.1 + rand() * 0.9,
+    h: 1.75 + rand() * 0.95,
+    ph: (i / 5) * Math.PI * 2,
+    sp: 0.26 + rand() * 0.12
+  });
+}
+
+// Chimney smoke puffs
+const smokes = [];
+for (const c of chimneys) {
+  const puffs = [];
+  for (let i = 0; i < 3; i++) {
+    const mat = new THREE.MeshBasicMaterial({ color: 0xffeede, transparent: true, opacity: 0.45 });
+    const p = new THREE.Mesh(new THREE.SphereGeometry(0.065, 8, 6), mat);
+    scene.add(p);
+    puffs.push(p);
+  }
+  smokes.push({ c, puffs, ph: rand() });
+}
+
+// ---------- Bounds-Fit Camera with Guaranteed Viewport Margin ----------
+// Encompasses main square cloud slab, all 3 satellite cloudlets, windmill, and tethered hero balloon + sky launch headroom
+const fitBox = new THREE.Box3(
+  new THREE.Vector3(-4.65, -2.05, -2.75),
+  new THREE.Vector3( 4.38,  2.85,  3.05)
+);
+// Slightly elevated three-quarter view
+const fitDir = new THREE.Vector3(0.32, 0.44, 1.0).normalize();
+
+function fitCamera() {
+  pickFov();
+  const center = fitBox.getCenter(new THREE.Vector3());
+  const corners = [];
+  for (const x of [fitBox.min.x, fitBox.max.x]) {
+    for (const y of [fitBox.min.y, fitBox.max.y]) {
+      for (const z of [fitBox.min.z, fitBox.max.z]) {
+        corners.push(new THREE.Vector3(x, y, z));
+      }
+    }
+  }
+
+  const probe = new THREE.PerspectiveCamera(camera.fov, camera.aspect, 0.1, 260);
+  probe.position.copy(center).addScaledVector(fitDir, 10);
+  probe.lookAt(center);
+  probe.updateMatrixWorld(true);
+  const viewMat = probe.matrixWorldInverse;
+
+  const tanHalfY = Math.tan(THREE.MathUtils.degToRad(probe.fov * 0.5));
+  const tanHalfX = tanHalfY * probe.aspect;
+
+  // Safe margin inside viewport (~9% horizontal margin, ~14% vertical margin so header & footer stay completely clear)
+  const safeX = 0.89;
+  const safeY = 0.84;
+
+  let requiredDist = 0;
+  for (const c of corners) {
+    const v = c.clone().applyMatrix4(viewMat);
+    // In probe view space, center is at z = -10; offset along view axis relative to center:
+    const zOffsetFromCenter = v.z + 10.0;
+    const needX = Math.abs(v.x) / (tanHalfX * safeX) + zOffsetFromCenter;
+    const needY = Math.abs(v.y) / (tanHalfY * safeY) + zOffsetFromCenter;
+    requiredDist = Math.max(requiredDist, needX, needY);
+  }
+
+  const dist = Math.max(requiredDist * 1.02, 8.0);
+  // Shift target slightly upward so world sits comfortably below the top header with sky room above
+  const target = center.clone();
+  target.y += 0.16;
+
+  camera.position.copy(target).addScaledVector(fitDir, dist);
+  camera.lookAt(target);
+  controls.target.copy(target);
+  controls.update();
+}
+fitCamera();
+
+// ---------- Hints & Tap Discrimination (7px / 450ms) ----------
+const hintIdle = 'Launch the balloon';
+const hintUp = 'Up she goes';
+let hintOwner = null;
+function setHint(text, owner) {
+  if (owner) hintOwner = owner;
+  hintEl.textContent = text;
+  hintEl.classList.remove('faded');
+}
+function resetHintIf(owner) {
+  if (hintOwner === owner) {
+    hintOwner = null;
+    setHint(hintIdle, null);
+  }
+}
+setHint(hintIdle, null);
+setTimeout(() => hintEl.classList.add('faded'), 6000);
+
+let launchT = -1;
+const FLIGHT = 12.0; // ~12s smooth ascent, drift, shrink, and re-tether
+
+const ray = new THREE.Raycaster();
+let downX = 0, downY = 0, downTime = 0;
+
+renderer.domElement.addEventListener('pointerdown', (e) => {
+  downX = e.clientX;
+  downY = e.clientY;
+  downTime = performance.now();
+});
+
+renderer.domElement.addEventListener('pointerup', (e) => {
+  const moveDist = Math.hypot(e.clientX - downX, e.clientY - downY);
+  const elapsed = performance.now() - downTime;
+  if (moveDist > 7 || elapsed > 450) return;
+
+  const nx = (e.clientX / innerWidth) * 2 - 1;
+  const ny = -(e.clientY / innerHeight) * 2 + 1;
+  ray.setFromCamera(new THREE.Vector2(nx, ny), camera);
+  if (launchT < 0 && ray.intersectObject(balloonProxy, false).length > 0) {
+    launchT = performance.now() / 1000;
+    setHint(hintUp, 'user');
+  }
+});
+
+addEventListener('resize', () => {
+  renderer.setSize(innerWidth, innerHeight);
+  fitCamera();
+});
+
+// ---------- Animation Loop ----------
+const clock = new THREE.Clock();
+function smoothstep(a, b, x) {
+  const t = Math.max(0, Math.min(1, (x - a) / (b - a)));
+  return t * t * (3 - 2 * t);
+}
+const ndc = new THREE.Vector3();
+
+function animate() {
+  requestAnimationFrame(animate);
+  const dt = Math.min(clock.getDelta(), 0.1);
+  const now = performance.now() / 1000;
+
+  starMat.uniforms.uTime.value = now;
+
+  // Slowly turning windmill sails
+  millHub.rotation.z -= dt * 0.65;
+
+  // Warm flickering house windows & twinkling string-light bulbs
+  for (const wm of windowMaterials) {
+    wm.emissiveIntensity = 1.55 + Math.sin(now * wm.userData.speed + wm.userData.phase) * 0.22
+      + Math.sin(now * 5.3 + wm.userData.phase) * 0.06;
+  }
+  for (const bm of bulbMaterials) {
+    bm.emissiveIntensity = 1.75 + Math.sin(now * bm.userData.speed + bm.userData.phase) * 0.42;
+  }
+
+  // Gentle cloud puff breathing & satellite cloudlet bobbing
+  for (let i = 0; i < puffAnims.length; i += 2) {
+    const pa = puffAnims[i];
+    pa.mesh.position.y = pa.baseY + Math.sin(now * 0.85 + pa.phase) * pa.amp;
+  }
+  for (const sat of satellites) {
+    sat.g.position.y = sat.baseY + Math.sin(now * sat.speed + sat.phase) * 0.085;
+  }
+
+  // Balloon flight (~12s): tether releases, burner pulses at lift-off, rises & drifts away shrinking with distance, then re-tethers
+  if (launchT >= 0) {
+    const p = (now - launchT) / FLIGHT;
+    if (p >= 1) {
+      balloon.position.copy(BALLOON_DOCK);
+      balloon.scale.setScalar(1);
+      balloon.rotation.set(0, 0, 0);
+      tetherMesh.visible = true;
+      launchT = -1;
+      resetHintIf('user');
+    } else if (p < 0.84) {
+      // Ascent & skyward drift (0 .. 0.84 of 12s = ~10.1s)
+      const u = p / 0.84;
+      const easeRise = u * u * (2.2 - 1.2 * u);
+      const swayX = Math.sin(u * Math.PI * 2.2) * 0.45 - u * 1.35;
+      const riseY = easeRise * 5.4;
+      const driftZ = -easeRise * 2.6;
+
+      balloon.position.set(
+        BALLOON_DOCK.x + swayX,
+        BALLOON_DOCK.y + riseY,
+        BALLOON_DOCK.z + driftZ
+      );
+      // Shrink gracefully with altitude/distance and fade out right at top before re-docking
+      const distShrink = 1.0 - smoothstep(0.12, 0.84, u) * 0.58;
+      const topFade = 1.0 - smoothstep(0.74, 0.84, u);
+      balloon.scale.setScalar(Math.max(0.001, distShrink * topFade));
+
+      balloon.rotation.y = u * Math.PI * 1.6;
+      balloon.rotation.z = Math.sin(now * 2.1) * 0.07;
+
+      // Burner glow pulse intense at lift-off
+      const liftPulse = (1.0 - smoothstep(0.0, 0.35, u)) * (1.2 + 0.5 * Math.sin(now * 16.0));
+      burnerLight.intensity = 1.4 + liftPulse * 2.2;
+      burnerFlame.scale.set(1 + liftPulse * 0.35, 1 + liftPulse * 0.75, 1 + liftPulse * 0.35);
+      burnerGlowHalo.scale.setScalar(1 + liftPulse * 0.55);
+
+      // Tether releases smoothly right at launch
+      tetherMesh.visible = false;
+    } else {
+      // Smooth re-tether settling back at dock (0.84 .. 1.0)
+      const r = (p - 0.84) / 0.16;
+      const easeIn = smoothstep(0.0, 1.0, r);
+      balloon.position.set(
+        BALLOON_DOCK.x,
+        BALLOON_DOCK.y - (1 - easeIn) * 0.35,
+        BALLOON_DOCK.z
+      );
+      balloon.scale.setScalar(easeIn);
+      balloon.rotation.set(0, (1 - easeIn) * 0.3, 0);
+      burnerLight.intensity = 1.2;
+      burnerFlame.scale.setScalar(1);
+      burnerGlowHalo.scale.setScalar(1);
+      tetherMesh.visible = r > 0.55;
+      if (tetherMesh.visible) {
+        const basketW = balloon.position.clone().add(new THREE.Vector3(-0.14, -1.38 * easeIn, 0));
+        updateTetherRope(basketW, easeIn);
+      }
+    }
+    balloonProxy.position.copy(balloon.position);
+  } else {
+    // Idle tethered bob & gentle sway
+    const bobY = Math.sin(now * 1.45) * 0.065;
+    const swayX = Math.sin(now * 0.85) * 0.035;
+    balloon.position.set(BALLOON_DOCK.x + swayX, BALLOON_DOCK.y + bobY, BALLOON_DOCK.z);
+    balloon.rotation.y = Math.sin(now * 0.55) * 0.09;
+    balloon.rotation.z = Math.sin(now * 1.1) * 0.03;
+    balloon.scale.setScalar(1);
+    balloonProxy.position.copy(balloon.position);
+
+    const idleFlicker = 0.88 + 0.18 * Math.sin(now * 7.5);
+    burnerLight.intensity = 1.15 * idleFlicker;
+    burnerFlame.scale.set(1, idleFlicker, 1);
+    burnerGlowHalo.scale.setScalar(0.95 + 0.1 * Math.sin(now * 7.5));
+
+    tetherMesh.visible = true;
+    const basketWorld = new THREE.Vector3(balloon.position.x - 0.15, balloon.position.y - 1.38, balloon.position.z);
+    updateTetherRope(basketWorld, 1.0);
+  }
+
+  // Distant drifting cloudlets + title-band dim
+  for (const d of drifters) {
+    d.g.position.x += dt * d.speed;
+    if (d.g.position.x > 4.2) d.g.position.x = -4.2;
+    d.g.position.y = d.baseY + Math.sin(now * 0.5 + d.phase) * 0.08;
+    ndc.copy(d.g.position).project(camera);
+    const inHeaderBand = ndc.y > 0.48 && Math.abs(ndc.x) < 0.65 && ndc.z < 1;
+    const targetOp = inHeaderBand ? 0.22 : 0.90;
+    for (const s of d.g.children) {
+      const cur = s.material.uniforms.uOpacity.value;
+      s.material.uniforms.uOpacity.value = cur + (targetOp - cur) * Math.min(dt * 4, 1);
+    }
+  }
+
+  // Birds circling
+  for (const b of birds) {
+    const a = now * b.sp + b.ph;
+    const x = Math.cos(a) * b.rx;
+    const z = Math.sin(a) * b.rz - 0.4;
+    const y = b.h + Math.sin(now * 0.9 + b.ph) * 0.18;
+    b.g.position.set(x, y, z);
+    b.g.rotation.y = -a;
+    const flap = Math.sin(now * 7.8 + b.ph) * 0.42;
+    b.w1.rotation.z = 0.32 + flap;
+    b.w2.rotation.z = -0.32 - flap;
+  }
+
+  // Chimney smoke rising
+  for (const s of smokes) {
+    for (let i = 0; i < 3; i++) {
+      const t = (now * 0.24 + s.ph + i / 3) % 1;
+      const p = s.puffs[i];
+      p.position.set(
+        s.c.x + t * 0.24 + Math.sin(now * 1.5 + i) * 0.02,
+        s.c.y + t * 0.68,
+        s.c.z + t * 0.08
+      );
+      p.scale.setScalar(0.55 + t * 1.25);
+      p.material.opacity = 0.42 * (1 - t);
+    }
+  }
+
+  controls.update();
+  renderer.render(scene, camera);
+}
+animate();
+</script>
+</body>
+</html>
+
