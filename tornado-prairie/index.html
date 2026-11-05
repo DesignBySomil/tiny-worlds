@@ -283,6 +283,7 @@
     }, false);
 
     const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x1b2129);
     scene.fog = new THREE.FogExp2(0x1f252d, 0.022);
 
     const camera = new THREE.PerspectiveCamera(34, window.innerWidth / window.innerHeight, 0.5, 120);
@@ -690,7 +691,8 @@
         uniform vec3 uFunnelPos;
         uniform float uTouchdown;
         uniform float uSwirlRadius;
-        varying float vFlatten;
+        varying float vHeightFrac;
+        varying float vWindHighlight;
       ` + shader.vertexShader;
 
       shader.vertexShader = shader.vertexShader.replace(
@@ -710,7 +712,7 @@
             vec2 baseWind = vec2(1.0, 0.35) * (windNoise * 0.35 + gust * 0.65);
 
             // Tornado vortex suction & tangential swirl
-            vec2 toVortex = uTornadoPos.xz - worldRoot.xz;
+            vec2 toVortex = uFunnelPos.xz - worldRoot.xz;
             float dist = length(toVortex);
             vec2 dirToVortex = dist > 0.001 ? toVortex / dist : vec2(0.0);
             vec2 tangent = vec2(-dirToVortex.y, dirToVortex.x);
@@ -994,7 +996,7 @@
     tornadoGroup.scale.set(0.14, 0.14, 0.14);
 
     if (scene.fog) {
-      scene.fog = new THREE.FogExp2(scene.fog.color, 0.045);
+      scene.fog = new THREE.FogExp2(scene.fog.color, 0.02);
     }
     camera.near = 0.1;
     camera.far = 85;
